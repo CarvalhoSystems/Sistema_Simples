@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+/* Estilos Globais para o Monitor do PDV */
+html,
+body,
+#root {
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    background-color: #0f172a;
+    /* Cor de fundo escura simula a moldura do monitor */
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* Customização da Barra de Rolagem da Tabela de Produtos (Estilo Retro) */
+div::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+div::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-left: 1px solid #cbd5e1;
+}
+
+div::-webkit-scrollbar-thumb {
+    background: #1e40af;
+    /* Azul Marinho combinando com o sistema */
+    border-radius: 3px;
+    border: 2px solid #f1f5f9;
+}
+
+div::-webkit-scrollbar-thumb:hover {
+    background: #1d4ed8;
+    /* Azul Royal ao passar o mouse */
+}
+
+@media print {
+
+    /* Esconde absolutamente tudo o que está na tela do PDV */
+    body * {
+        visibility: hidden;
+    }
+
+    /* Permite que apenas a nossa área de cupom (que vamos criar) seja impressa */
+    #cupom-impressao,
+    #cupom-impressao * {
+        visibility: visible;
+    }
+
+    #cupom-impressao {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 80mm;
+        /* Tamanho padrão de bobina térmica */
+        font-family: monospace;
+        font-size: 12px;
+        color: #000;
+    }
+}
