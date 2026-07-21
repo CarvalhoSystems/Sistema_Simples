@@ -10,8 +10,8 @@ export default function RodapeAtalhos() {
     { tecla: "F8", acao: "Dinheiro" },
     { tecla: "F9", acao: "Cartao" },
     { tecla: "F10", acao: "Produtos" },
-    { tecla: "F11", acao: "clientes" },
-    { tecla: "F12", acao: "Impimir Nota Fiscal" },
+    { tecla: "F11", acao: "Dashboard" },
+    { tecla: "F12", acao: "Imprimir Nota" },
   ];
 
   return (
