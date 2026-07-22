@@ -1,23 +1,20 @@
 import React, { useState } from "react";
-import { useAuth } from "../components/AuthContext.jsx";
 import { useNavigate, Link } from "react-router-dom";
 
-export default function Login() {
+export default function Signup() {
+  const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = (e) => {
     e.preventDefault();
     setError("");
-    const success = login(username, password);
-    if (success) {
-      navigate("/dashboard");
-    } else {
-      setError("Usuário ou senha inválidos.");
-    }
+    // Em um app real, aqui você chamaria sua API para cadastrar o usuário
+    console.log("Tentativa de cadastro com:", { name, username });
+    alert("Usuário cadastrado com sucesso! Redirecionando para o login.");
+    navigate("/login");
   };
 
   return (
@@ -45,15 +42,27 @@ export default function Login() {
         Voltar ao Caixa
       </button>
 
-      {/* Card de Login */}
+      {/* Card de Signup */}
       <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-lg border border-slate-100">
         <h1 className="text-2xl font-bold text-center text-slate-800">
-          Acesso Gerencial
+          Crie sua Conta
         </h1>
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-slate-700">
-              Usuário (gerente)
+              Nome Completo
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-3.5 py-2.5 mt-1 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-800"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700">
+              Usuário
             </label>
             <input
               type="text"
@@ -65,7 +74,7 @@ export default function Login() {
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700">
-              Senha (1234)
+              Senha
             </label>
             <input
               type="password"
@@ -82,17 +91,17 @@ export default function Login() {
             type="submit"
             className="w-full px-4 py-2.5 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-md transition-colors"
           >
-            Entrar
+            Cadastrar
           </button>
         </form>
 
         <p className="text-sm text-center text-slate-500">
-          Não tem uma conta?{" "}
+          Já tem uma conta?{" "}
           <Link
-            to="/signup"
+            to="/login"
             className="font-medium text-blue-600 hover:underline"
           >
-            Cadastre-se
+            Faça o login
           </Link>
         </p>
       </div>

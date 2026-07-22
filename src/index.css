@@ -1,20 +1,5 @@
 @import "tailwindcss";
 
-/* Estilos Globais para o Monitor do PDV */
-html,
-body,
-#root {
-    margin: 0;
-    padding: 0;
-    height: 100vh;
-    width: 100vw;
-    overflow: hidden;
-    background-color: #0f172a;
-    /* Cor de fundo escura simula a moldura do monitor */
-    -webkit-user-select: none;
-    user-select: none;
-}
-
 /* Customização da Barra de Rolagem da Tabela de Produtos (Estilo Retro) */
 div::-webkit-scrollbar {
     width: 10px;
