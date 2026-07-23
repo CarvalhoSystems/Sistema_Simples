@@ -1,17 +1,22 @@
-import React, { useReducer, useState } from "react";
+import React, { useReducer, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import Swal from "sweetalert2";
 import BarraSuperior from "./components/PDV/BarraSuperior";
 import TabelaCupom from "./components/PDV/TabelaCupom";
 import PainelLateral from "./components/PDV/PainelLateral";
 import RodapeAtalhos from "./components/PDV/RodapeAtalhos";
 import useKeyboardShortcuts from "./hooks/useKeyboardShortcuts";
 import { BANCO_PRODUTOS } from "./mockData";
+import { formatCurrency } from "./utils/formatters"; // Assumindo que você criará este utilitário
 
 const estadoInicial = {
   carrinho: [],
   codigoInput: "",
   quantidade: 1,
   itemSelecionado: null,
+  subtotal: 0,
+  desconto: 0,
+  total: 0,
 };
 
 function reducer(estado, acao) {
@@ -28,6 +33,10 @@ function reducer(estado, acao) {
         quantidade: acao.payload,
       };
 
+    case "ATUALIZAR_TOTAIS":
+      const { subtotal, desconto, total } = acao.payload;
+      return { ...estado, subtotal, desconto, total };
+
     case "LIMPAR_INPUT":
       return {
         ...estado,
@@ -36,12 +45,7 @@ function reducer(estado, acao) {
       };
 
     case "LIMPAR_CARRINHO":
-      return {
-        ...estado,
-        carrinho: [],
-        codigoInput: "",
-        quantidade: 1,
-      };
+      return { ...estadoInicial }; // Reseta para o estado inicial completo
 
     case "REMOVER_ITEM":
       const itemNumero = acao.payload;
@@ -80,16 +84,13 @@ function reducer(estado, acao) {
       };
 
     case "APLICAR_DESCONTO":
-      const { desconto } = acao.payload; // Pega o 0.10 enviado pelo dispatch
+      // O desconto agora é um valor monetário, não aplicado aos itens
+      return { ...estado, desconto: acao.payload };
 
-      const novoCarrinhoComDesconto = estado.carrinho.map((item) => ({
-        ...item,
-        vUnit: item.vUnit * (1 - desconto), // Reduz o valor unitário
-      }));
-
+    case "DEFINIR_PAGAMENTO":
       return {
         ...estado,
-        carrinho: novoCarrinhoComDesconto,
+        pagamentoRecebido: acao.payload,
       };
 
     case "FINALIZAR_VENDA":
@@ -109,8 +110,27 @@ function reducer(estado, acao) {
 export default function PDV() {
   const [mostrarF10, setMostrarF10] = useState(false);
   const [estado, dispatch] = useReducer(reducer, estadoInicial);
-  const { carrinho, codigoInput, quantidade } = estado;
+  const { carrinho, codigoInput, quantidade, subtotal, desconto, total } =
+    estado;
   const navigate = useNavigate();
+
+  // Efeito para recalcular os totais sempre que o carrinho ou o desconto mudar
+  useEffect(() => {
+    const novoSubtotal = carrinho.reduce(
+      (acc, item) => acc + item.vUnit * item.qtd,
+      0,
+    );
+    const novoTotal = novoSubtotal - estado.desconto;
+
+    dispatch({
+      type: "ATUALIZAR_TOTAIS",
+      payload: {
+        subtotal: novoSubtotal,
+        desconto: estado.desconto,
+        total: novoTotal,
+      },
+    });
+  }, [carrinho, estado.desconto]);
 
   const lidarComBipe = (codigoBipado) => {
     const produtoEncontrado = BANCO_PRODUTOS.find(
@@ -118,24 +138,37 @@ export default function PDV() {
     );
 
     if (!produtoEncontrado) {
-      alert(`⚠️ Produto com código [${codigoBipado}] não cadastrado!`);
+      Swal.fire({
+        icon: "error",
+        title: "Produto não encontrado",
+        text: `O produto com código [${codigoBipado}] não está cadastrado.`,
+      });
       dispatch({ type: "LIMPAR_INPUT" });
       return;
     }
 
     let qtdFinal = quantidade;
     if (produtoEncontrado.solicitarQuantidade) {
-      const novaQtd = prompt(
-        `Quantos(as) [${produtoEncontrado.descricao}]?`,
-        "1",
-      );
-      const qtdFormatada = parseFloat(novaQtd);
-
-      if (isNaN(qtdFormatada) || qtdFormatada <= 0) {
-        dispatch({ type: "LIMPAR_INPUT" });
-        return;
-      }
-      qtdFinal = qtdFormatada;
+      Swal.fire({
+        title: `Quantidade para ${produtoEncontrado.descricao}`,
+        input: "number",
+        inputValue: 1,
+        showCancelButton: true,
+        inputValidator: (value) => {
+          if (!value || value <= 0) {
+            return "Por favor, insira uma quantidade válida!";
+          }
+        },
+      }).then((result) => {
+        if (result.isConfirmed) {
+          qtdFinal = parseFloat(result.value);
+          dispatch({
+            type: "ADICIONAR_PRODUTO",
+            payload: { produto: produtoEncontrado, quantidade: qtdFinal },
+          });
+        }
+      });
+      return; // A adição será feita no callback do Swal
     }
 
     dispatch({
@@ -144,141 +177,176 @@ export default function PDV() {
     });
   };
 
-  const totalGeral = carrinho.reduce(
-    (acc, item) => acc + item.vUnit * item.qtd,
-    0,
-  );
+  const finalizarVenda = (metodo) => {
+    Swal.fire({
+      icon: "success",
+      title: "Venda Finalizada!",
+      text: `Pagamento recebido via ${metodo}. Imprimindo cupom...`,
+      timer: 2000,
+      showConfirmButton: false,
+    }).then(() => {
+      // Simula a impressão
+      const areaImpressao = document.getElementById("cupom-impressao");
+      if (areaImpressao) {
+        // Preenche os dados da impressão antes de chamar o print
+        // (Esta parte pode ser melhorada para passar os dados via props/estado)
+        window.print();
+      }
+      dispatch({ type: "FINALIZAR_VENDA" });
+    });
+  };
 
   const acoesTeclado = {
     F2: () => {
       if (carrinho.length === 0) {
-        alert("⚠️ O cupom está vazio! Nenhum item para cancelar.");
+        Swal.fire(
+          "Atenção",
+          "O cupom está vazio! Nenhum item para cancelar.",
+          "warning",
+        );
         return;
       }
 
-      const numeroDigitado = prompt(
-        "Digite o número do item (da lista) que deseja CANCELAR:",
-      );
-      const numeroItem = parseInt(numeroDigitado, 10);
-
-      if (
-        !isNaN(numeroItem) &&
-        numeroItem > 0 &&
-        numeroItem <= carrinho.length
-      ) {
-        if (confirm(`Deseja realmente cancelar o item ${numeroItem}?`)) {
-          dispatch({ type: "REMOVER_ITEM", payload: numeroItem });
+      Swal.fire({
+        title: "Cancelar Item",
+        input: "number",
+        inputLabel: "Digite o número do item que deseja cancelar",
+        inputPlaceholder: "Ex: 1",
+        showCancelButton: true,
+      }).then((result) => {
+        if (result.isConfirmed) {
+          const numeroItem = parseInt(result.value, 10);
+          if (numeroItem > 0 && numeroItem <= carrinho.length) {
+            dispatch({ type: "REMOVER_ITEM", payload: numeroItem });
+            Swal.fire("Cancelado!", "O item foi removido do cupom.", "success");
+          } else {
+            Swal.fire("Erro", "Número de item inválido!", "error");
+          }
         }
-      } else if (numeroDigitado !== null) {
-        alert("⚠️ Número de item inválido!");
-      }
+      });
     },
 
     F3: () => {
-      if (confirm("Deseja realmente cancelar este cupom?")) {
-        dispatch({ type: "LIMPAR_CARRINHO" });
-      }
+      Swal.fire({
+        title: "Cancelar Cupom?",
+        text: "Todos os itens serão removidos. Deseja continuar?",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#d33",
+        confirmButtonText: "Sim, cancelar!",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          dispatch({ type: "LIMPAR_CARRINHO" });
+        }
+      });
     },
     F5: () => {
-      const novaQtd = prompt("Digite a quantidade do item:", "1");
-      const qtdFormatada = parseFloat(novaQtd);
-      if (!isNaN(qtdFormatada) && qtdFormatada > 0) {
-        dispatch({ type: "DEFINIR_QUANTIDADE", payload: qtdFormatada });
-      }
+      Swal.fire({
+        title: "Definir Quantidade",
+        input: "number",
+        inputValue: 1,
+        showCancelButton: true,
+      }).then((result) => {
+        if (result.isConfirmed) {
+          const qtdFormatada = parseFloat(result.value);
+          if (qtdFormatada > 0) {
+            dispatch({ type: "DEFINIR_QUANTIDADE", payload: qtdFormatada });
+          }
+        }
+      });
     },
     F6: () => {
       if (carrinho.length === 0) {
-        alert("⚠️ O cupom está vazio! Não há itens para aplicar desconto.");
+        Swal.fire(
+          "Atenção",
+          "Adicione itens ao cupom antes de aplicar um desconto.",
+          "warning",
+        );
         return;
       }
 
-      const valorDigitado = prompt(
-        "Digite a porcentagem de desconto (Ex: 10 para 10%):",
-      );
-      const porcentagem = parseFloat(valorDigitado);
-
-      if (!isNaN(porcentagem) && porcentagem > 0 && porcentagem <= 100) {
-        if (
-          confirm(
-            `Deseja aplicar ${porcentagem}% de desconto em todos os itens?`,
-          )
-        ) {
-          const fatorDesconto = porcentagem / 100;
-
+      Swal.fire({
+        title: "Aplicar Desconto (R$)",
+        input: "number",
+        inputLabel: `Valor do desconto em reais (Total: ${formatCurrency(total)})`,
+        inputValue: 0,
+        showCancelButton: true,
+        inputValidator: (value) => {
+          if (value < 0 || value > subtotal) {
+            return "Valor de desconto inválido!";
+          }
+        },
+      }).then((result) => {
+        if (result.isConfirmed) {
           dispatch({
             type: "APLICAR_DESCONTO",
-            payload: { desconto: fatorDesconto },
+            payload: parseFloat(result.value),
           });
         }
-      } else if (valorDigitado !== null) {
-        alert("⚠️ Porcentagem inválida!");
-      }
+      });
     },
 
     F7: () => {
       if (carrinho.length === 0) {
-        alert("⚠️ O cupom está vazio! Não há o que pagar.");
+        Swal.fire("Atenção", "O cupom está vazio!", "warning");
         return;
       }
-
-      if (
-        confirm(
-          `TOTAL DA VENDA: R$ ${totalGeral.toFixed(2)}\n\n` +
-            `Deseja gerar o QR Code PIX e confirmar o pagamento?`,
-        )
-      ) {
-        alert(`✅ PAGAMENTO RECEBIDO VIA PIX!\n\nImprimindo cupom fiscal...`);
-        setTimeout(() => {
-          window.print();
-          dispatch({ type: "FINALIZAR_VENDA" });
-        }, 500);
-      }
+      Swal.fire({
+        title: "Pagamento via PIX",
+        text: `Total da venda: ${formatCurrency(total)}. Gerar QR Code?`,
+        icon: "question",
+        showCancelButton: true,
+      }).then((result) => {
+        if (result.isConfirmed) {
+          // Aqui iria a lógica para gerar e mostrar o QR Code real
+          finalizarVenda("PIX");
+        }
+      });
     },
     F8: () => {
       if (carrinho.length === 0) {
-        alert("⚠️ O cupom está vazio! Não há o que pagar.");
+        Swal.fire("Atenção", "O cupom está vazio!", "warning");
         return;
       }
-
-      const valorEntregueDigitado = prompt(
-        `TOTAL DA VENDA: R$ ${totalGeral.toFixed(
-          2,
-        )}\n\nDigite o valor pago pelo cliente em DINHEIRO:`,
-      );
-
-      if (valorEntregueDigitado === null) return;
-
-      const valorEntregue = parseFloat(valorEntregueDigitado);
-
-      if (!isNaN(valorEntregue) && valorEntregue >= totalGeral) {
-        alert(`✅ VENDA FINALIZADA COM SUCESSO!\n\nImprimindo cupom...`);
-        setTimeout(() => {
-          window.print();
-          dispatch({ type: "FINALIZAR_VENDA" });
-        }, 500);
-      } else {
-        alert("⚠️ Valor insuficiente ou inválido! A venda não foi finalizada.");
-      }
+      Swal.fire({
+        title: "Pagamento em Dinheiro",
+        input: "number",
+        inputLabel: `Total: ${formatCurrency(total)}. Valor recebido:`,
+        showCancelButton: true,
+        inputValidator: (value) => {
+          if (!value || parseFloat(value) < total) {
+            return "Valor insuficiente ou inválido!";
+          }
+        },
+      }).then((result) => {
+        if (result.isConfirmed) {
+          const troco = parseFloat(result.value) - total;
+          Swal.fire(
+            "Troco",
+            `O troco é de ${formatCurrency(troco)}`,
+            "info",
+          ).then(() => {
+            finalizarVenda("Dinheiro");
+          });
+        }
+      });
     },
 
     F9: () => {
       if (carrinho.length === 0) {
-        alert("⚠️ O cupom está vazio! Não há o que pagar.");
+        Swal.fire("Atenção", "O cupom está vazio!", "warning");
         return;
       }
-
-      if (
-        confirm(
-          `TOTAL DA VENDA: R$ ${totalGeral.toFixed(2)}\n\n` +
-            `Confirmar o recebimento no CARTÃO (Débito/Crédito)?`,
-        )
-      ) {
-        alert(`✅ VENDA FINALIZADA COM SUCESSO!\n\nImprimindo cupom...`);
-        setTimeout(() => {
-          window.print();
-          dispatch({ type: "FINALIZAR_VENDA" });
-        }, 500);
-      }
+      Swal.fire({
+        title: "Pagamento com Cartão",
+        text: `Total: ${formatCurrency(total)}. Confirmar pagamento na maquininha?`,
+        icon: "question",
+        showCancelButton: true,
+      }).then((result) => {
+        if (result.isConfirmed) {
+          finalizarVenda("Cartão");
+        }
+      });
     },
 
     F10: () => {
@@ -294,9 +362,14 @@ export default function PDV() {
         if (aberto) {
           return false;
         } else {
-          if (confirm("Deseja limpar o cupom atual?")) {
-            dispatch({ type: "LIMPAR_CARRINHO" });
-          }
+          Swal.fire({
+            title: "Limpar o cupom?",
+            text: "Isso irá remover todos os itens.",
+            icon: "question",
+            showCancelButton: true,
+          }).then((result) => {
+            if (result.isConfirmed) dispatch({ type: "LIMPAR_CARRINHO" });
+          });
           return false;
         }
       });
@@ -317,7 +390,9 @@ export default function PDV() {
             dispatch({ type: "DIGITAR_CODIGO", payload: valor })
           }
           carrinho={carrinho}
-          total={totalGeral}
+          subtotal={subtotal}
+          desconto={desconto}
+          total={total}
           aoBipar={lidarComBipe}
           quantidadeAtual={quantidade}
         />
@@ -416,7 +491,7 @@ export default function PDV() {
               <div className="border-b border-dashed my-2"></div>
               <div className="flex justify-between font-bold">
                 <span>VALOR TOTAL R$:</span>
-                <span>{totalGeral.toFixed(2)}</span>
+                <span>{total.toFixed(2)}</span>
               </div>
               <div className="border-b border-dashed my-2"></div>
               <div className="text-center text-xs mt-4">
