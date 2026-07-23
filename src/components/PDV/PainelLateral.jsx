@@ -12,12 +12,23 @@ export default function PainelLateral({
   const ultimoItem = carrinho[carrinho.length - 1] || null;
 
   useEffect(() => {
-    if (inputRef.current) inputRef.current.focus();
+    if (inputRef.current && !document.body.classList.contains("swal2-shown")) {
+      inputRef.current.focus();
+    }
   }, [carrinho.length]); // Foca novamente a cada item adicionado
 
   const handleBlur = () => {
-    // Garante que o foco sempre retorne ao input, essencial para um PDV
-    setTimeout(() => inputRef.current?.focus(), 0);
+    // Garante que o foco sempre retorne ao input, essencial para um PDV,
+    // mas sem roubar o foco de pop-ups como o SweetAlert.
+    setTimeout(() => {
+      const isSwalOpen = document.body.classList.contains("swal2-shown");
+      const activeElement = document.activeElement;
+      const isInsideSwal = activeElement?.closest(".swal2-container");
+
+      if (!isSwalOpen && !isInsideSwal && inputRef.current) {
+        inputRef.current.focus();
+      }
+    }, 0);
   };
 
   const handleKeyDown = (e) => {
@@ -35,6 +46,7 @@ export default function PainelLateral({
           CÓDIGO / BARRA (F10 para buscar):
         </label>
         <input
+          id="codigo-barras-input"
           ref={inputRef}
           type="text"
           value={codigo}
@@ -80,7 +92,7 @@ export default function PainelLateral({
       </div>
 
       {/* Display do Total Geral Azul da Imagem */}
-      <div className="bg-[#0f172a] border-2 border-[#1e3a8a] p-6 rounded shadow-inner flex flex-col justify-between items-end flex-1 min-h-[160px]">
+      <div className="bg-[#0f172a] border-2 border-[#1e3a8a] p-6 rounded shadow-inner flex flex-col justify-between items-end flex-1 min-h-40">
         <span className="text-sm font-bold text-blue-400 tracking-wider self-start font-mono">
           TOTAL DO CUPOM
         </span>

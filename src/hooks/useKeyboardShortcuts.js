@@ -1,38 +1,32 @@
 import { useEffect } from "react";
 
-export default function useKeyboardShortcuts(acoes) {
+/**
+ * Hook customizado para registrar e remover listeners de atalhos de teclado.
+ * @param {Object.<string, function>} actions - Um objeto onde as chaves são os códigos das teclas (ex: 'F1', 'Enter') e os valores são as funções a serem executadas.
+ */
+export default function useKeyboardShortcuts(actions) {
   useEffect(() => {
     const handleKeyDown = (event) => {
-      // Lista de teclas que queremos monitorar
-      const chavesSuportadas = [
-        "F2",
-        "F3",
-        "F5",
-        "F6",
-        "F7",
-        "F8",
-        "F9",
-        "F10",
-        "F11",
-        "F12",
-        "Escape",
-      ];
+      // Verifica se um modal do SweetAlert está ativo. Se estiver, não faz nada.
+      const isSwalOpen = document.body.classList.contains("swal2-shown");
+      if (isSwalOpen) {
+        return;
+      }
 
-      if (chavesSuportadas.includes(event.key)) {
-        // Impede a ação nativa do navegador (ex: F5 não vai atualizar a página)
+      const action = actions[event.key];
+
+      if (action) {
         event.preventDefault();
-
-        // Se existir uma função mapeada para essa tecla, ela é executada
-        if (acoes[event.key]) {
-          acoes[event.key]();
-        }
+        action();
+        return false; // Adicionado para garantir a prevenção em todos os navegadores
       }
     };
 
-    // Adiciona o ouvinte de evento no carregamento do app
     window.addEventListener("keydown", handleKeyDown);
 
-    // Limpa o ouvinte ao desmontar o componente
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [acoes]);
+    // Função de limpeza para remover o listener quando o componente for desmontado
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [actions]); // O efeito será re-executado se as ações mudarem
 }

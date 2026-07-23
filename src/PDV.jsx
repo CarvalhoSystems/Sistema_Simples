@@ -17,6 +17,7 @@ const estadoInicial = {
   subtotal: 0,
   desconto: 0,
   total: 0,
+  pagamentoRecebido: 0,
 };
 
 function reducer(estado, acao) {
@@ -132,6 +133,41 @@ export default function PDV() {
     });
   }, [carrinho, estado.desconto]);
 
+  // Efeito para gerenciar o foco do input de código de barras quando um SweetAlert abre/fecha
+  // Efeito ajustado para não "puxar" o foco de volta quando um alerta/modal estiver aberto
+  useEffect(() => {
+    const inputCodigoBarras = document.getElementById("codigo-barras-input");
+    if (!inputCodigoBarras) return;
+
+    const manterFoco = () => {
+      const isSwalOpen = document.body.classList.contains("swal2-shown");
+      const activeElement = document.activeElement;
+      const isInsideSwal = activeElement?.closest(".swal2-container");
+
+      // Só força o foco no input principal se NENHUM modal estiver aberto
+      if (
+        !isSwalOpen &&
+        !isInsideSwal &&
+        document.activeElement !== inputCodigoBarras
+      ) {
+        inputCodigoBarras.focus();
+      }
+    };
+
+    manterFoco();
+
+    const observer = new MutationObserver(() => {
+      manterFoco();
+    });
+
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
   const lidarComBipe = (codigoBipado) => {
     const produtoEncontrado = BANCO_PRODUTOS.find(
       (p) => p.codigo === codigoBipado,
@@ -154,6 +190,14 @@ export default function PDV() {
         input: "number",
         inputValue: 1,
         showCancelButton: true,
+        // FORÇA O FOCO NO INPUT DO POP-UP AO ABRIR
+        didOpen: () => {
+          const inputSwal = Swal.getInput();
+          if (inputSwal) {
+            inputSwal.focus();
+            inputSwal.select(); // Seleciona o número "1" para o operador só digitar o novo valor por cima
+          }
+        },
         inputValidator: (value) => {
           if (!value || value <= 0) {
             return "Por favor, insira uma quantidade válida!";
@@ -177,23 +221,88 @@ export default function PDV() {
     });
   };
 
-  const finalizarVenda = (metodo) => {
-    Swal.fire({
+  const finalizarVenda = async (metodo) => {
+    // 1. Pergunta sobre o CPF na nota
+    const { value: querCpf } = await Swal.fire({
+      title: "CPF na nota?",
+      icon: "question",
+      showDenyButton: true,
+      confirmButtonText: "Sim",
+      denyButtonText: "Não",
+    });
+
+    let cpfCliente = null;
+    if (querCpf) {
+      const { value: cpfInput } = await Swal.fire({
+        title: "Digite o CPF",
+        input: "text",
+        inputPlaceholder: "000.000.000-00",
+        showCancelButton: true,
+        // Aqui você pode adicionar uma validação de CPF se desejar
+      });
+      if (cpfInput) {
+        cpfCliente = cpfInput;
+      } else {
+        // Usuário clicou em "Sim" mas não digitou o CPF
+        return;
+      }
+    }
+
+    // 2. Lógica de pagamento específica para cada método
+    if (metodo === "Dinheiro") {
+      const { value: valorRecebido } = await Swal.fire({
+        title: "Pagamento em Dinheiro",
+        input: "number",
+        inputLabel: `Total: ${formatCurrency(total)}. Valor recebido:`,
+        showCancelButton: true,
+        inputValidator: (value) => {
+          if (!value || parseFloat(value) < total) {
+            return "Valor insuficiente ou inválido!";
+          }
+        },
+      });
+
+      if (!valorRecebido) return; // Venda cancelada
+
+      const troco = parseFloat(valorRecebido) - total;
+      // Exibe o troco e aguarda a confirmação do operador para continuar
+      await Swal.fire("Troco", `O troco é de ${formatCurrency(troco)}`, "info");
+    } else if (metodo === "PIX") {
+      const { isConfirmed } = await Swal.fire({
+        title: "Pagamento via PIX",
+        text: `Total da venda: ${formatCurrency(total)}. Gerar QR Code?`,
+        icon: "question",
+        showCancelButton: true,
+      });
+      if (!isConfirmed) return; // Venda cancelada
+    } else if (metodo === "Cartão") {
+      const { isConfirmed } = await Swal.fire({
+        title: "Pagamento com Cartão",
+        text: `Total: ${formatCurrency(
+          total,
+        )}. Confirmar pagamento na maquininha?`,
+        icon: "question",
+        showCancelButton: true,
+      });
+      if (!isConfirmed) return; // Venda cancelada
+    }
+
+    // 3. Confirmação final e impressão
+    await Swal.fire({
       icon: "success",
       title: "Venda Finalizada!",
-      text: `Pagamento recebido via ${metodo}. Imprimindo cupom...`,
-      timer: 2000,
+      text: `Pagamento via ${metodo} confirmado.`,
+      timer: 1500,
       showConfirmButton: false,
-    }).then(() => {
-      // Simula a impressão
-      const areaImpressao = document.getElementById("cupom-impressao");
-      if (areaImpressao) {
-        // Preenche os dados da impressão antes de chamar o print
-        // (Esta parte pode ser melhorada para passar os dados via props/estado)
-        window.print();
-      }
-      dispatch({ type: "FINALIZAR_VENDA" });
     });
+
+    // Simula a impressão
+    const areaImpressao = document.getElementById("cupom-impressao");
+    if (areaImpressao) {
+      // TODO: Passar o CPF do cliente para o cupom de impressão
+      window.print();
+    }
+    dispatch({ type: "FINALIZAR_VENDA" });
   };
 
   const acoesTeclado = {
@@ -308,28 +417,9 @@ export default function PDV() {
         Swal.fire("Atenção", "O cupom está vazio!", "warning");
         return;
       }
-      Swal.fire({
-        title: "Pagamento em Dinheiro",
-        input: "number",
-        inputLabel: `Total: ${formatCurrency(total)}. Valor recebido:`,
-        showCancelButton: true,
-        inputValidator: (value) => {
-          if (!value || parseFloat(value) < total) {
-            return "Valor insuficiente ou inválido!";
-          }
-        },
-      }).then((result) => {
-        if (result.isConfirmed) {
-          const troco = parseFloat(result.value) - total;
-          Swal.fire(
-            "Troco",
-            `O troco é de ${formatCurrency(troco)}`,
-            "info",
-          ).then(() => {
-            finalizarVenda("Dinheiro");
-          });
-        }
-      });
+      // A lógica de pagamento foi centralizada na função finalizarVenda.
+      // O atalho F8 agora apenas invoca o fluxo completo de finalização.
+      finalizarVenda("Dinheiro");
     },
 
     F9: () => {
