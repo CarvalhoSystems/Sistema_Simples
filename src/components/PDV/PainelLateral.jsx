@@ -7,25 +7,34 @@ export default function PainelLateral({
   total,
   aoBipar,
   quantidadeAtual,
+  disabled = false, // <--- 1. Nova prop recebida aqui!
 }) {
   const inputRef = useRef(null);
   const ultimoItem = carrinho[carrinho.length - 1] || null;
 
   useEffect(() => {
-    if (inputRef.current && !document.body.classList.contains("swal2-shown")) {
+    // Só força o foco se o F10 NÃO estiver aberto
+    if (
+      !disabled &&
+      inputRef.current &&
+      !document.body.classList.contains("swal2-shown")
+    ) {
       inputRef.current.focus();
     }
-  }, [carrinho.length]); // Foca novamente a cada item adicionado
+  }, [carrinho.length, disabled]);
 
   const handleBlur = () => {
-    // Garante que o foco sempre retorne ao input, essencial para um PDV,
-    // mas sem roubar o foco de pop-ups como o SweetAlert.
+    // Se a busca F10 estiver aberta, NÃO retoma o foco de jeito nenhum!
+    if (disabled) return;
+
     setTimeout(() => {
       const isSwalOpen = document.body.classList.contains("swal2-shown");
       const activeElement = document.activeElement;
       const isInsideSwal = activeElement?.closest(".swal2-container");
+      // Verifica se o foco atual está dentro do modal do F10
+      const isInsideF10 = activeElement?.closest(".f10-modal-container");
 
-      if (!isSwalOpen && !isInsideSwal && inputRef.current) {
+      if (!isSwalOpen && !isInsideSwal && !isInsideF10 && inputRef.current) {
         inputRef.current.focus();
       }
     }, 0);
@@ -34,7 +43,7 @@ export default function PainelLateral({
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && codigo.trim() !== "") {
       aoBipar(codigo);
-      e.preventDefault(); // Previne qualquer comportamento padrão do Enter
+      e.preventDefault();
     }
   };
 
@@ -53,12 +62,13 @@ export default function PainelLateral({
           onChange={(e) => setCodigo(e.target.value)}
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
-          className="w-full bg-[#f8fafc] border-2 border-[#bfdbfe] p-3 text-3xl font-mono font-bold text-[#1e3a8a] outline-none focus:border-[#2563eb] focus:bg-white"
-          placeholder="Aguardando bip..."
+          disabled={disabled} // <--- 2. Desabilita o input enquanto o F10 estiver aberto
+          className="w-full bg-[#f8fafc] border-2 border-[#bfdbfe] p-3 text-3xl font-mono font-bold text-[#1e3a8a] outline-none focus:border-[#2563eb] focus:bg-white disabled:opacity-50"
+          placeholder={disabled ? "Busca F10 aberta..." : "Aguardando bip..."}
         />
       </div>
 
-      {/* Mini Visores Atualizados */}
+      {/* Mini Visores */}
       <div className="grid grid-cols-3 gap-3 font-mono">
         <div className="bg-white p-2 border-2 border-[#93c5fd] rounded text-right">
           <label className="block text-[10px] font-bold text-blue-400 text-left">
@@ -91,7 +101,7 @@ export default function PainelLateral({
         </div>
       </div>
 
-      {/* Display do Total Geral Azul da Imagem */}
+      {/* Display do Total Geral */}
       <div className="bg-[#0f172a] border-2 border-[#1e3a8a] p-6 rounded shadow-inner flex flex-col justify-between items-end flex-1 min-h-40">
         <span className="text-sm font-bold text-blue-400 tracking-wider self-start font-mono">
           TOTAL DO CUPOM

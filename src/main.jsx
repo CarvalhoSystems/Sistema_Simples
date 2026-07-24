@@ -1,16 +1,18 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
+import React from "react";
+import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import "./index.css";
-import App from "./App.jsx";
 import { AuthProvider } from "./components/AuthContext.jsx";
+import App from "./App.jsx";
 
-createRoot(document.getElementById("root")).render(
-  <StrictMode>
+import "./index.css";
+import "./components/dashboard.css"; // Importa o novo estilo do dashboard
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
     <AuthProvider>
       <BrowserRouter>
         <App />
       </BrowserRouter>
     </AuthProvider>
-  </StrictMode>,
+  </React.StrictMode>,
 );

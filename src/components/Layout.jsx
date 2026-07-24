@@ -1,9 +1,9 @@
 import React from "react";
 import { Outlet } from "react-router-dom";
 
-// Este Layout é usado para as rotas que precisam do fundo escuro e
-// comportamento de "tela cheia" do PDV.
-export default function Layout() {
+// Este Layout é usado para a rota do PDV, que precisa do fundo escuro e
+// comportamento de "tela cheia".
+export default function PdvLayout() {
   return (
     <div
       className="h-screen w-screen overflow-hidden bg-[#0f172a]"

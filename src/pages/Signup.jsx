@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 
 export default function Signup() {
-  const [name, setName] = useState("");
-  const [username, setUsername] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [businessType, setBusinessType] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -12,7 +12,7 @@ export default function Signup() {
     e.preventDefault();
     setError("");
     // Em um app real, aqui você chamaria sua API para cadastrar o usuário
-    console.log("Tentativa de cadastro com:", { name, username });
+    console.log("Tentativa de cadastro com:", { fullName, businessType });
     alert("Usuário cadastrado com sucesso! Redirecionando para o login.");
     navigate("/login");
   };
@@ -54,23 +54,32 @@ export default function Signup() {
             </label>
             <input
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
               className="w-full px-3.5 py-2.5 mt-1 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-800"
               required
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700">
-              Usuário
+              Ramo de Negócio
             </label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+            <select
+              value={businessType}
+              onChange={(e) => setBusinessType(e.target.value)}
               className="w-full px-3.5 py-2.5 mt-1 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-800"
               required
-            />
+            >
+              <option value="" disabled>
+                Selecione uma opção
+              </option>
+              <option value="papelaria">Papelaria</option>
+              <option value="hotelaria">Eletronicos</option>
+              <option value="padaria">Padaria</option>
+              <option value="Hamburgueria">Hamburgueria</option>
+              <option value="pizzaria">Pizzaria</option>
+              <option value="outros">Outros</option>
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700">

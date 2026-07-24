@@ -53,7 +53,7 @@ export default function Login() {
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-slate-700">
-              Usuário (gerente)
+              Usuário
             </label>
             <input
               type="text"

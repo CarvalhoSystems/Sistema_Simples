@@ -9,7 +9,7 @@ export function AuthProvider({ children }) {
   const login = (username, password) => {
     // Credenciais Fictícias para teste
     if (username === "gerente" && password === "1234") {
-      const userData = { name: "Gerente" };
+      const userData = { name: username };
       setUser(userData);
       return true;
     }

@@ -1,4 +1,4 @@
-import React, { useReducer, useState, useEffect } from "react";
+import React, { useReducer, useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import BarraSuperior from "./components/PDV/BarraSuperior";
@@ -7,7 +7,7 @@ import PainelLateral from "./components/PDV/PainelLateral";
 import RodapeAtalhos from "./components/PDV/RodapeAtalhos";
 import useKeyboardShortcuts from "./hooks/useKeyboardShortcuts";
 import { BANCO_PRODUTOS } from "./mockData";
-import { formatCurrency } from "./utils/formatters"; // Assumindo que você criará este utilitário
+import { formatCurrency } from "./utils/formatters";
 
 const estadoInicial = {
   carrinho: [],
@@ -46,7 +46,7 @@ function reducer(estado, acao) {
       };
 
     case "LIMPAR_CARRINHO":
-      return { ...estadoInicial }; // Reseta para o estado inicial completo
+      return { ...estadoInicial };
 
     case "REMOVER_ITEM":
       const itemNumero = acao.payload;
@@ -85,7 +85,6 @@ function reducer(estado, acao) {
       };
 
     case "APLICAR_DESCONTO":
-      // O desconto agora é um valor monetário, não aplicado aos itens
       return { ...estado, desconto: acao.payload };
 
     case "DEFINIR_PAGAMENTO":
@@ -95,7 +94,6 @@ function reducer(estado, acao) {
       };
 
     case "FINALIZAR_VENDA":
-      // Limpa tudo e prepara o caixa para o próximo cliente
       return {
         ...estado,
         carrinho: [],
@@ -110,10 +108,26 @@ function reducer(estado, acao) {
 
 export default function PDV() {
   const [mostrarF10, setMostrarF10] = useState(false);
+  const [termoBuscaF10, setTermoBuscaF10] = useState("");
   const [estado, dispatch] = useReducer(reducer, estadoInicial);
   const { carrinho, codigoInput, quantidade, subtotal, desconto, total } =
     estado;
   const navigate = useNavigate();
+  const inputBuscaF10Ref = useRef(null);
+
+  // Efeito para focar o input de busca quando o modal F10 é aberto
+  useEffect(() => {
+    if (mostrarF10 && inputBuscaF10Ref.current) {
+      setTimeout(() => inputBuscaF10Ref.current.focus(), 100);
+    }
+  }, [mostrarF10]);
+
+  // Filtra os produtos para o modal F10
+  const produtosFiltradosF10 = BANCO_PRODUTOS.filter(
+    (p) =>
+      p.descricao.toLowerCase().includes(termoBuscaF10.toLowerCase()) ||
+      p.codigo.toLowerCase().includes(termoBuscaF10.toLowerCase()),
+  );
 
   // Efeito para recalcular os totais sempre que o carrinho ou o desconto mudar
   useEffect(() => {
@@ -133,24 +147,24 @@ export default function PDV() {
     });
   }, [carrinho, estado.desconto]);
 
-  // Efeito para gerenciar o foco do input de código de barras quando um SweetAlert abre/fecha
-  // Efeito ajustado para não "puxar" o foco de volta quando um alerta/modal estiver aberto
+  // CORREÇÃO 1: Efeito do foco do código de barras ignorando quando F10 está aberto
   useEffect(() => {
     const inputCodigoBarras = document.getElementById("codigo-barras-input");
-    if (!inputCodigoBarras) return;
 
     const manterFoco = () => {
+      // Se a busca F10 estiver aberta, não rouba o foco de volta!
+      if (mostrarF10) return;
+
       const isSwalOpen = document.body.classList.contains("swal2-shown");
       const activeElement = document.activeElement;
       const isInsideSwal = activeElement?.closest(".swal2-container");
 
-      // Só força o foco no input principal se NENHUM modal estiver aberto
       if (
         !isSwalOpen &&
         !isInsideSwal &&
         document.activeElement !== inputCodigoBarras
       ) {
-        inputCodigoBarras.focus();
+        inputCodigoBarras?.focus();
       }
     };
 
@@ -163,10 +177,12 @@ export default function PDV() {
     observer.observe(document.body, {
       attributes: true,
       attributeFilter: ["class"],
+      childList: true,
+      subtree: true,
     });
 
     return () => observer.disconnect();
-  }, []);
+  }, [mostrarF10]); // Dependência adicionada aqui
 
   const lidarComBipe = (codigoBipado) => {
     const produtoEncontrado = BANCO_PRODUTOS.find(
@@ -190,12 +206,11 @@ export default function PDV() {
         input: "number",
         inputValue: 1,
         showCancelButton: true,
-        // FORÇA O FOCO NO INPUT DO POP-UP AO ABRIR
         didOpen: () => {
           const inputSwal = Swal.getInput();
           if (inputSwal) {
             inputSwal.focus();
-            inputSwal.select(); // Seleciona o número "1" para o operador só digitar o novo valor por cima
+            inputSwal.select();
           }
         },
         inputValidator: (value) => {
@@ -212,7 +227,7 @@ export default function PDV() {
           });
         }
       });
-      return; // A adição será feita no callback do Swal
+      return;
     }
 
     dispatch({
@@ -222,7 +237,6 @@ export default function PDV() {
   };
 
   const finalizarVenda = async (metodo) => {
-    // 1. Pergunta sobre o CPF na nota
     const { value: querCpf } = await Swal.fire({
       title: "CPF na nota?",
       icon: "question",
@@ -238,17 +252,14 @@ export default function PDV() {
         input: "text",
         inputPlaceholder: "000.000.000-00",
         showCancelButton: true,
-        // Aqui você pode adicionar uma validação de CPF se desejar
       });
       if (cpfInput) {
         cpfCliente = cpfInput;
       } else {
-        // Usuário clicou em "Sim" mas não digitou o CPF
         return;
       }
     }
 
-    // 2. Lógica de pagamento específica para cada método
     if (metodo === "Dinheiro") {
       const { value: valorRecebido } = await Swal.fire({
         title: "Pagamento em Dinheiro",
@@ -262,10 +273,9 @@ export default function PDV() {
         },
       });
 
-      if (!valorRecebido) return; // Venda cancelada
+      if (!valorRecebido) return;
 
       const troco = parseFloat(valorRecebido) - total;
-      // Exibe o troco e aguarda a confirmação do operador para continuar
       await Swal.fire("Troco", `O troco é de ${formatCurrency(troco)}`, "info");
     } else if (metodo === "PIX") {
       const { isConfirmed } = await Swal.fire({
@@ -274,7 +284,7 @@ export default function PDV() {
         icon: "question",
         showCancelButton: true,
       });
-      if (!isConfirmed) return; // Venda cancelada
+      if (!isConfirmed) return;
     } else if (metodo === "Cartão") {
       const { isConfirmed } = await Swal.fire({
         title: "Pagamento com Cartão",
@@ -284,22 +294,19 @@ export default function PDV() {
         icon: "question",
         showCancelButton: true,
       });
-      if (!isConfirmed) return; // Venda cancelada
+      if (!isConfirmed) return;
     }
 
-    // 3. Confirmação final e impressão
     await Swal.fire({
       icon: "success",
       title: "Venda Finalizada!",
-      text: `Pagamento via ${metodo} confirmado.`,
+      text: `Pagamento via ${metodo} confirmed.`,
       timer: 1500,
       showConfirmButton: false,
     });
 
-    // Simula a impressão
     const areaImpressao = document.getElementById("cupom-impressao");
     if (areaImpressao) {
-      // TODO: Passar o CPF do cliente para o cupom de impressão
       window.print();
     }
     dispatch({ type: "FINALIZAR_VENDA" });
@@ -377,7 +384,9 @@ export default function PDV() {
       Swal.fire({
         title: "Aplicar Desconto (R$)",
         input: "number",
-        inputLabel: `Valor do desconto em reais (Total: ${formatCurrency(total)})`,
+        inputLabel: `Valor do desconto em reais (Total: ${formatCurrency(
+          total,
+        )})`,
         inputValue: 0,
         showCancelButton: true,
         inputValidator: (value) => {
@@ -407,7 +416,6 @@ export default function PDV() {
         showCancelButton: true,
       }).then((result) => {
         if (result.isConfirmed) {
-          // Aqui iria a lógica para gerar e mostrar o QR Code real
           finalizarVenda("PIX");
         }
       });
@@ -417,8 +425,6 @@ export default function PDV() {
         Swal.fire("Atenção", "O cupom está vazio!", "warning");
         return;
       }
-      // A lógica de pagamento foi centralizada na função finalizarVenda.
-      // O atalho F8 agora apenas invoca o fluxo completo de finalização.
       finalizarVenda("Dinheiro");
     },
 
@@ -429,7 +435,9 @@ export default function PDV() {
       }
       Swal.fire({
         title: "Pagamento com Cartão",
-        text: `Total: ${formatCurrency(total)}. Confirmar pagamento na maquininha?`,
+        text: `Total: ${formatCurrency(
+          total,
+        )}. Confirmar pagamento na maquininha?`,
         icon: "question",
         showCancelButton: true,
       }).then((result) => {
@@ -440,6 +448,7 @@ export default function PDV() {
     },
 
     F10: () => {
+      setTermoBuscaF10("");
       setMostrarF10((prev) => !prev);
     },
 
@@ -448,25 +457,14 @@ export default function PDV() {
     F12: () => window.print(),
 
     Escape: () => {
-      setMostrarF10((aberto) => {
-        if (aberto) {
-          return false;
-        } else {
-          Swal.fire({
-            title: "Limpar o cupom?",
-            text: "Isso irá remover todos os itens.",
-            icon: "question",
-            showCancelButton: true,
-          }).then((result) => {
-            if (result.isConfirmed) dispatch({ type: "LIMPAR_CARRINHO" });
-          });
-          return false;
-        }
-      });
+      if (mostrarF10) {
+        setMostrarF10(false);
+        return;
+      }
     },
   };
 
-  useKeyboardShortcuts(acoesTeclado);
+  useKeyboardShortcuts(acoesTeclado, mostrarF10);
 
   return (
     <div className="h-full w-full bg-[#e2e8f0] flex flex-col justify-between p-2 select-none overflow-hidden">
@@ -490,21 +488,34 @@ export default function PDV() {
 
       <RodapeAtalhos />
 
+      {/* CORREÇÃO 2: Adicionada a classe `select-text` no wrapper do modal */}
       {mostrarF10 && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 f10-modal-container select-text">
           <div className="bg-white w-full max-w-2xl rounded shadow-2xl border-2 border-[#1e3a8a] overflow-hidden flex flex-col max-h-[80vh]">
             <div className="bg-[#1e3a8a] text-white p-3 font-mono font-bold flex justify-between items-center">
               <span>[F10] CONSULTA DE PRODUTOS CADASTRADOS</span>
               <button
                 onClick={() => setMostrarF10(false)}
-                className="bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded text-xs"
+                className="bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded text-xs transition-colors"
               >
                 ESC / FECHAR
               </button>
             </div>
 
-            <div className="p-2 overflow-y-auto flex-1 bg-slate-50 font-mono text-sm">
-              <table className="w-full border-collapse">
+            {/* Input de Busca */}
+            <div className="p-2 bg-slate-100 border-b border-slate-300">
+              <input
+                ref={inputBuscaF10Ref}
+                type="text"
+                placeholder="Digite para buscar por código ou descrição..."
+                value={termoBuscaF10}
+                onChange={(e) => setTermoBuscaF10(e.target.value)}
+                className="w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono"
+              />
+            </div>
+
+            <div className="p-2 overflow-y-auto flex-1 bg-slate-50 font-mono text-sm min-h-[300px]">
+              <table className="w-full border-collapse table-fixed">
                 <thead>
                   <tr className="bg-slate-200 text-[#1e3a8a] border-b-2 border-slate-300">
                     <th className="p-2 text-left w-1/4">CÓDIGO</th>
@@ -513,14 +524,14 @@ export default function PDV() {
                   </tr>
                 </thead>
                 <tbody>
-                  {BANCO_PRODUTOS.map((produto, index) => (
+                  {produtosFiltradosF10.map((produto, index) => (
                     <tr
                       key={index}
                       className="border-b border-slate-200 hover:bg-blue-50 text-slate-700 transition-colors"
                     >
                       <td className="p-2 font-bold">{produto.codigo}</td>
-                      <td className="p-2">{produto.descricao}</td>
-                      <td className="p-2 text-right font-bold text-blue-900">
+                      <td className="p-2 truncate">{produto.descricao}</td>
+                      <td className="p-2 text-right font-bold text-blue-900 whitespace-nowrap">
                         {produto.preco.toFixed(2)}
                       </td>
                     </tr>
@@ -530,7 +541,7 @@ export default function PDV() {
             </div>
 
             <div className="bg-slate-100 p-2 text-center text-xs text-slate-500 font-mono border-t border-slate-200">
-              Pressione <strong className="text-[#1e3a8a]">F10</strong> ou
+              Pressione <strong className="text-[#1e3a8a]">F10</strong> ou{" "}
               clique em Fechar para voltar ao caixa.
             </div>
 
