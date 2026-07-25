@@ -4,6 +4,9 @@ import PDV from "./PDV";
 import Dashboard from "./components/Dashboard.jsx";
 import Login from "./pages/Login.jsx"; // Corrigido o caminho da importação
 import Inventario from "./pages/inventario.jsx";
+import Relatorios from "./pages/Relatorios.jsx";
+import Configuracoes from "./pages/Configuracoes.jsx";
+import Suporte from "./pages/Suporte.jsx";
 import Signup from "./pages/Signup.jsx";
 import PdvLayout from "./components/Layout.jsx"; // Renomeado para clareza
 import DashboardLayout from "./components/DashboardLayout.jsx";
@@ -28,6 +31,9 @@ export default function App() {
 
           {/* Rota de inventário adicionada aqui */}
           <Route path="/inventario" element={<Inventario />} />
+          <Route path="/relatorios" element={<Relatorios />} />
+          <Route path="/configuracoes" element={<Configuracoes />} />
+          <Route path="/suporte" element={<Suporte />} />
         </Route>
       </Route>
     </Routes>

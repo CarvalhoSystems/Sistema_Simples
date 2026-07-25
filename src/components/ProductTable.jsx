@@ -1,5 +1,5 @@
 import React from "react";
-import { formatCurrency } from "../../utils/formatters"; // Reutilizando o formatador do PDV
+import { formatCurrency } from "../../../../utils/formatters"; // Reutilizando o formatador do PDV
 
 const StockStatus = ({ stock, minStock }) => {
   if (stock === 0) {
