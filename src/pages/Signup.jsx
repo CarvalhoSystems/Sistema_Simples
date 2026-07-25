@@ -1,28 +1,81 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { RAMOS_NEGOCIO } from "../services/supabaseClient";
+import { setTenant, getInitialDataForRamo } from "../hooks/useTenant";
 
 export default function Signup() {
   const [fullName, setFullName] = useState("");
+  const [nomeEstabelecimento, setNomeEstabelecimento] = useState("");
   const [businessType, setBusinessType] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [carregando, setCarregando] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    // Em um app real, aqui você chamaria sua API para cadastrar o usuário
-    console.log("Tentativa de cadastro com:", { fullName, businessType });
-    alert("Usuário cadastrado com sucesso! Redirecionando para o login.");
-    navigate("/login");
+
+    if (!businessType) {
+      setError("Selecione um ramo de negócio.");
+      return;
+    }
+
+    setCarregando(true);
+
+    try {
+      // Simula cadastro (em produção: chamar API do Supabase)
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Cria o tenant com os dados do cadastro
+      const ramoSelecionado = RAMOS_NEGOCIO.find((r) => r.id === businessType);
+      const dadosIniciais = getInitialDataForRamo(businessType);
+
+      const novoTenant = {
+        id: Date.now().toString(),
+        uid: `tenant_${Date.now()}`,
+        nome: fullName,
+        nomeEstabelecimento:
+          nomeEstabelecimento || `${ramoSelecionado?.nome || "Meu Negócio"}`,
+        email: email,
+        ramo: businessType,
+        ramoInfo: ramoSelecionado,
+        criadoEm: new Date().toISOString(),
+        dadosIniciais,
+      };
+
+      // Salva o tenant no localStorage
+      setTenant(novoTenant);
+
+      // Inicializa os dados do ramo no localStorage
+      localStorage.setItem(
+        `pdv_produtos_${novoTenant.id}`,
+        JSON.stringify(dadosIniciais.produtos),
+      );
+      localStorage.setItem(
+        `pdv_categorias_${novoTenant.id}`,
+        JSON.stringify(dadosIniciais.categorias),
+      );
+      localStorage.setItem(`pdv_vendas_${novoTenant.id}`, JSON.stringify([]));
+
+      alert(
+        `✅ Conta criada com sucesso!\n\nBem-vindo, ${fullName}!\nRamo: ${ramoSelecionado?.nome}\n\nSeus produtos já foram carregados automaticamente.`,
+      );
+      navigate("/login");
+    } catch (err) {
+      setError("Erro ao criar conta. Tente novamente.");
+    } finally {
+      setCarregando(false);
+    }
   };
 
   return (
-    <div className="relative flex items-center justify-center min-h-screen bg-slate-100 p-4">
-      {/* Botão posicionado no canto superior direito */}
+    <div className="relative flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      {/* Botão Voltar */}
       <button
         type="button"
-        onClick={() => navigate("/")} // Ajuste a rota correspondente ao caixa aqui
+        onClick={() => navigate("/caixa")}
         className="absolute top-6 right-6 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg shadow-sm hover:bg-slate-50 hover:text-slate-900 transition-all duration-200"
       >
         <svg
@@ -43,11 +96,21 @@ export default function Signup() {
       </button>
 
       {/* Card de Signup */}
-      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-lg border border-slate-100">
-        <h1 className="text-2xl font-bold text-center text-slate-800">
-          Crie sua Conta
-        </h1>
-        <form onSubmit={handleSubmit} className="space-y-5">
+      <div className="w-full max-w-lg p-8 space-y-6 bg-white rounded-xl shadow-lg border border-slate-100">
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
+            <i className="fas fa-store text-2xl text-blue-600"></i>
+          </div>
+          <h1 className="text-2xl font-bold text-slate-800">
+            Criar Nova Conta
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Escolha seu ramo e comece a vender!
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Nome Completo */}
           <div>
             <label className="block text-sm font-medium text-slate-700">
               Nome Completo
@@ -57,30 +120,76 @@ export default function Signup() {
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               className="w-full px-3.5 py-2.5 mt-1 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-800"
+              placeholder="Seu nome"
               required
             />
           </div>
+
+          {/* Nome do Estabelecimento */}
           <div>
             <label className="block text-sm font-medium text-slate-700">
-              Ramo de Negócio
+              Nome do Estabelecimento
             </label>
-            <select
-              value={businessType}
-              onChange={(e) => setBusinessType(e.target.value)}
+            <input
+              type="text"
+              value={nomeEstabelecimento}
+              onChange={(e) => setNomeEstabelecimento(e.target.value)}
               className="w-full px-3.5 py-2.5 mt-1 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-800"
-              required
-            >
-              <option value="" disabled>
-                Selecione uma opção
-              </option>
-              <option value="papelaria">Papelaria</option>
-              <option value="hotelaria">Eletronicos</option>
-              <option value="padaria">Padaria</option>
-              <option value="Hamburgueria">Hamburgueria</option>
-              <option value="pizzaria">Pizzaria</option>
-              <option value="outros">Outros</option>
-            </select>
+              placeholder="Ex: Padaria do João, Pet Shop Amigo"
+            />
           </div>
+
+          {/* Email */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700">
+              E-mail
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-3.5 py-2.5 mt-1 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-800"
+              placeholder="seu@email.com"
+              required
+            />
+          </div>
+
+          {/* Ramo de Negócio - Grid Visual */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Selecione o Ramo do seu Negócio
+            </label>
+            <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1">
+              {RAMOS_NEGOCIO.map((ramo) => (
+                <button
+                  key={ramo.id}
+                  type="button"
+                  onClick={() => setBusinessType(ramo.id)}
+                  className={`flex flex-col items-center p-3 rounded-lg border-2 transition-all ${
+                    businessType === ramo.id
+                      ? "border-blue-500 bg-blue-50 shadow-md"
+                      : "border-slate-200 hover:border-blue-300 hover:bg-slate-50"
+                  }`}
+                >
+                  <i
+                    className={`fas ${ramo.icone} text-2xl mb-1`}
+                    style={{ color: ramo.cor }}
+                  ></i>
+                  <span className="text-xs font-medium text-slate-700 text-center leading-tight">
+                    {ramo.nome}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {businessType && (
+              <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                <i className="fas fa-check-circle"></i>
+                {RAMOS_NEGOCIO.find((r) => r.id === businessType)?.descricao}
+              </p>
+            )}
+          </div>
+
+          {/* Senha */}
           <div>
             <label className="block text-sm font-medium text-slate-700">
               Senha
@@ -90,19 +199,49 @@ export default function Signup() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-3.5 py-2.5 mt-1 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-800"
+              placeholder="Mínimo 6 caracteres"
+              minLength={6}
               required
             />
           </div>
 
-          {error && <p className="text-sm text-red-600 font-medium">{error}</p>}
+          {error && (
+            <p className="text-sm text-red-600 font-medium flex items-center gap-1">
+              <i className="fas fa-exclamation-circle"></i>
+              {error}
+            </p>
+          )}
 
           <button
             type="submit"
-            className="w-full px-4 py-2.5 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-md transition-colors"
+            disabled={carregando}
+            className="w-full px-4 py-2.5 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            Cadastrar
+            {carregando ? (
+              <>
+                <i className="fas fa-spinner fa-spin"></i>
+                Criando conta...
+              </>
+            ) : (
+              <>
+                <i className="fas fa-user-plus"></i>
+                Criar Conta
+              </>
+            )}
           </button>
         </form>
+
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
+          <p className="font-medium mb-1">
+            <i className="fas fa-info-circle mr-1"></i>
+            Ao criar sua conta:
+          </p>
+          <ul className="list-disc list-inside space-y-0.5">
+            <li>Seus produtos serão carregados automaticamente</li>
+            <li>Você pode editar, adicionar ou remover produtos depois</li>
+            <li>Seus dados são armazenados com segurança</li>
+          </ul>
+        </div>
 
         <p className="text-sm text-center text-slate-500">
           Já tem uma conta?{" "}

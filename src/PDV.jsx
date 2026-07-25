@@ -6,8 +6,14 @@ import TabelaCupom from "./components/PDV/TabelaCupom";
 import PainelLateral from "./components/PDV/PainelLateral";
 import RodapeAtalhos from "./components/PDV/RodapeAtalhos";
 import useKeyboardShortcuts from "./hooks/useKeyboardShortcuts";
-import { BANCO_PRODUTOS } from "./mockData";
+import { getProdutos, buscarProdutos, addVenda } from "./services/tenantData";
 import { formatCurrency } from "./utils/formatters";
+import {
+  emitirNotaFiscal,
+  isConfigurado,
+  validarCPF,
+  formatarCPF,
+} from "./services/notaFiscalPaulista";
 
 const estadoInicial = {
   carrinho: [],
@@ -122,12 +128,13 @@ export default function PDV() {
     }
   }, [mostrarF10]);
 
+  // Obtém produtos do tenant atual
+  const produtosDoTenant = getProdutos();
+
   // Filtra os produtos para o modal F10
-  const produtosFiltradosF10 = BANCO_PRODUTOS.filter(
-    (p) =>
-      p.descricao.toLowerCase().includes(termoBuscaF10.toLowerCase()) ||
-      p.codigo.toLowerCase().includes(termoBuscaF10.toLowerCase()),
-  );
+  const produtosFiltradosF10 = termoBuscaF10
+    ? buscarProdutos(termoBuscaF10)
+    : produtosDoTenant;
 
   // Efeito para recalcular os totais sempre que o carrinho ou o desconto mudar
   useEffect(() => {
@@ -185,9 +192,8 @@ export default function PDV() {
   }, [mostrarF10]); // Dependência adicionada aqui
 
   const lidarComBipe = (codigoBipado) => {
-    const produtoEncontrado = BANCO_PRODUTOS.find(
-      (p) => p.codigo === codigoBipado,
-    );
+    const produtos = getProdutos();
+    const produtoEncontrado = produtos.find((p) => p.codigo === codigoBipado);
 
     if (!produtoEncontrado) {
       Swal.fire({
@@ -237,12 +243,17 @@ export default function PDV() {
   };
 
   const finalizarVenda = async (metodo) => {
-    const { value: querCpf } = await Swal.fire({
+    const nfpConfigurada = isConfigurado();
+
+    let { value: querCpf } = await Swal.fire({
       title: "CPF na nota?",
       icon: "question",
       showDenyButton: true,
       confirmButtonText: "Sim",
       denyButtonText: "Não",
+      footer: nfpConfigurada
+        ? 'Nota Fiscal Paulista disponível <i class="fas fa-check-circle text-green-500 ml-1"></i>'
+        : 'Nota Fiscal Paulista não configurada <i class="fas fa-exclamation-triangle text-yellow-500 ml-1"></i>',
     });
 
     let cpfCliente = null;
@@ -252,6 +263,11 @@ export default function PDV() {
         input: "text",
         inputPlaceholder: "000.000.000-00",
         showCancelButton: true,
+        inputValidator: (value) => {
+          if (value && !validarCPF(value)) {
+            return "CPF inválido! Digite um CPF válido.";
+          }
+        },
       });
       if (cpfInput) {
         cpfCliente = cpfInput;
@@ -297,11 +313,56 @@ export default function PDV() {
       if (!isConfirmed) return;
     }
 
+    // Emitir Nota Fiscal Paulista se tiver CPF e configuração
+    let notaEmitida = null;
+    if (cpfCliente && nfpConfigurada) {
+      try {
+        const dadosVenda = {
+          carrinho: [...carrinho],
+          total,
+          subtotal,
+          desconto,
+          metodo,
+        };
+
+        const resultado = await emitirNotaFiscal(dadosVenda, cpfCliente);
+        notaEmitida = resultado;
+
+        await Swal.fire({
+          icon: "success",
+          title: "Nota Fiscal Emitida!",
+          html: `
+            <div style="text-align: left; font-family: monospace; font-size: 12px;">
+              <p><strong>Nota Fiscal Eletrônica</strong></p>
+              <p>Número: <strong>${resultado.numeroNota}</strong></p>
+              <p>Série: <strong>${resultado.serie}</strong></p>
+              <p>Chave: <strong>${resultado.chaveAcesso}</strong></p>
+              <p>CPF: <strong>${resultado.cpfCliente}</strong></p>
+              <p>Protocolo: <strong>${resultado.protocolo}</strong></p>
+              <hr/>
+              <p style="font-size: 10px; color: #666;">
+                Nota Fiscal Paulista - Consulte em www.nfpaulista.fazenda.sp.gov.br
+              </p>
+            </div>
+          `,
+          confirmButtonText: "OK",
+          confirmButtonColor: "#1e3a8a",
+        });
+      } catch (error) {
+        await Swal.fire({
+          icon: "warning",
+          title: "Erro ao emitir NF-e",
+          text: error.message,
+          confirmButtonText: "Continuar mesmo assim",
+        });
+      }
+    }
+
     await Swal.fire({
       icon: "success",
       title: "Venda Finalizada!",
-      text: `Pagamento via ${metodo} confirmed.`,
-      timer: 1500,
+      text: `Pagamento via ${metodo} confirmado.${notaEmitida ? ` NF-e: ${notaEmitida.numeroNota}` : ""}`,
+      timer: 2000,
       showConfirmButton: false,
     });
 
@@ -309,6 +370,23 @@ export default function PDV() {
     if (areaImpressao) {
       window.print();
     }
+    // Salva a venda no histórico do tenant
+    addVenda({
+      carrinho: [...carrinho],
+      total,
+      subtotal,
+      desconto,
+      metodo,
+      cpfCliente: cpfCliente || null,
+      notaFiscal: notaEmitida
+        ? {
+            numeroNota: notaEmitida.numeroNota,
+            chaveAcesso: notaEmitida.chaveAcesso,
+            protocolo: notaEmitida.protocolo,
+          }
+        : null,
+    });
+
     dispatch({ type: "FINALIZAR_VENDA" });
   };
 

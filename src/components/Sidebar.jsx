@@ -15,10 +15,11 @@ export default function Sidebar() {
   const navItems = [
     { to: "/dashboard", icon: "fa-tachometer-alt", text: "Dashboard" },
     { to: "/inventario", icon: "fa-boxes", text: "Inventário" },
-    { to: "/", icon: "fa-cash-register", text: "CAIXA" },
+    { to: "/caixa", icon: "fa-cash-register", text: "CAIXA" },
     { to: "/relatorios", icon: "fa-chart-bar", text: "Relatórios" },
     { to: "/configuracoes", icon: "fa-cog", text: "Configurações" },
     { to: "/suporte", icon: "fa-life-ring", text: "Suporte" },
+    { to: "/nfp", icon: "fa-file-invoice", text: "N. Fiscal Paulista" },
   ];
 
   return (
