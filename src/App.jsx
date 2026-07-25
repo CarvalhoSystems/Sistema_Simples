@@ -9,6 +9,7 @@ import Relatorios from "./pages/Relatorios.jsx";
 import Configuracoes from "./pages/Configuracoes.jsx";
 import Suporte from "./pages/Suporte.jsx";
 import NotaFiscalPaulista from "./pages/NotaFiscalPaulista.jsx";
+import AdminClientes from "./pages/AdminClientes.jsx";
 import Signup from "./pages/Signup.jsx";
 import PdvLayout from "./components/Layout.jsx";
 import DashboardLayout from "./components/DashboardLayout.jsx";
@@ -38,6 +39,7 @@ export default function App() {
           <Route path="/configuracoes" element={<Configuracoes />} />
           <Route path="/suporte" element={<Suporte />} />
           <Route path="/nfp" element={<NotaFiscalPaulista />} />
+          <Route path="/admin" element={<AdminClientes />} />
         </Route>
       </Route>
     </Routes>

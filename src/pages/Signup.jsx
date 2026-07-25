@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { useAuth } from "../components/AuthContext";
 import { RAMOS_NEGOCIO } from "../services/supabaseClient";
-import { setTenant, getInitialDataForRamo } from "../hooks/useTenant";
+import { getInitialDataForRamo } from "../hooks/useTenant";
 
 export default function Signup() {
   const [fullName, setFullName] = useState("");
@@ -11,6 +12,7 @@ export default function Signup() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [carregando, setCarregando] = useState(false);
+  const { signup } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -25,44 +27,37 @@ export default function Signup() {
     setCarregando(true);
 
     try {
-      // Simula cadastro (em produção: chamar API do Supabase)
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Cria o tenant com os dados do cadastro
-      const ramoSelecionado = RAMOS_NEGOCIO.find((r) => r.id === businessType);
-      const dadosIniciais = getInitialDataForRamo(businessType);
-
-      const novoTenant = {
-        id: Date.now().toString(),
-        uid: `tenant_${Date.now()}`,
-        nome: fullName,
-        nomeEstabelecimento:
-          nomeEstabelecimento || `${ramoSelecionado?.nome || "Meu Negócio"}`,
-        email: email,
-        ramo: businessType,
-        ramoInfo: ramoSelecionado,
-        criadoEm: new Date().toISOString(),
-        dadosIniciais,
-      };
-
-      // Salva o tenant no localStorage
-      setTenant(novoTenant);
-
-      // Inicializa os dados do ramo no localStorage
-      localStorage.setItem(
-        `pdv_produtos_${novoTenant.id}`,
-        JSON.stringify(dadosIniciais.produtos),
+      const result = await signup(
+        email,
+        password,
+        fullName,
+        nomeEstabelecimento ||
+          RAMOS_NEGOCIO.find((r) => r.id === businessType)?.nome,
+        businessType,
       );
-      localStorage.setItem(
-        `pdv_categorias_${novoTenant.id}`,
-        JSON.stringify(dadosIniciais.categorias),
-      );
-      localStorage.setItem(`pdv_vendas_${novoTenant.id}`, JSON.stringify([]));
 
-      alert(
-        `✅ Conta criada com sucesso!\n\nBem-vindo, ${fullName}!\nRamo: ${ramoSelecionado?.nome}\n\nSeus produtos já foram carregados automaticamente.`,
-      );
-      navigate("/login");
+      if (result.success) {
+        // Inicializa dados do ramo
+        const dadosIniciais = getInitialDataForRamo(businessType);
+        const tenantId = result.user.uid;
+
+        localStorage.setItem(
+          `pdv_produtos_${tenantId}`,
+          JSON.stringify(dadosIniciais.produtos),
+        );
+        localStorage.setItem(
+          `pdv_categorias_${tenantId}`,
+          JSON.stringify(dadosIniciais.categorias),
+        );
+        localStorage.setItem(`pdv_vendas_${tenantId}`, JSON.stringify([]));
+
+        alert(
+          `✅ Conta criada com sucesso!\n\nBem-vindo, ${fullName}!\nSeus produtos já foram carregados automaticamente.`,
+        );
+        navigate("/dashboard");
+      } else {
+        setError(result.error || "Erro ao criar conta.");
+      }
     } catch (err) {
       setError("Erro ao criar conta. Tente novamente.");
     } finally {
@@ -72,10 +67,9 @@ export default function Signup() {
 
   return (
     <div className="relative flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      {/* Botão Voltar */}
       <button
         type="button"
-        onClick={() => navigate("/caixa")}
+        onClick={() => navigate("/")}
         className="absolute top-6 right-6 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg shadow-sm hover:bg-slate-50 hover:text-slate-900 transition-all duration-200"
       >
         <svg
@@ -92,10 +86,9 @@ export default function Signup() {
             d="M10 19l-7-7m0 0l7-7m-7 7h18"
           />
         </svg>
-        Voltar ao Caixa
+        Voltar
       </button>
 
-      {/* Card de Signup */}
       <div className="w-full max-w-lg p-8 space-y-6 bg-white rounded-xl shadow-lg border border-slate-100">
         <div className="text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
@@ -110,7 +103,6 @@ export default function Signup() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Nome Completo */}
           <div>
             <label className="block text-sm font-medium text-slate-700">
               Nome Completo
@@ -125,7 +117,6 @@ export default function Signup() {
             />
           </div>
 
-          {/* Nome do Estabelecimento */}
           <div>
             <label className="block text-sm font-medium text-slate-700">
               Nome do Estabelecimento
@@ -139,7 +130,6 @@ export default function Signup() {
             />
           </div>
 
-          {/* Email */}
           <div>
             <label className="block text-sm font-medium text-slate-700">
               E-mail
@@ -154,7 +144,6 @@ export default function Signup() {
             />
           </div>
 
-          {/* Ramo de Negócio - Grid Visual */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">
               Selecione o Ramo do seu Negócio
@@ -189,7 +178,6 @@ export default function Signup() {
             )}
           </div>
 
-          {/* Senha */}
           <div>
             <label className="block text-sm font-medium text-slate-700">
               Senha
@@ -239,7 +227,7 @@ export default function Signup() {
           <ul className="list-disc list-inside space-y-0.5">
             <li>Seus produtos serão carregados automaticamente</li>
             <li>Você pode editar, adicionar ou remover produtos depois</li>
-            <li>Seus dados são armazenados com segurança</li>
+            <li>Seus dados ficam salvos na nuvem (Firebase)</li>
           </ul>
         </div>
 
