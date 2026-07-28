@@ -21,7 +21,7 @@ const PLANOS = [
   {
     id: "basico",
     nome: "Básico",
-    preco: "29,90",
+    preco: "49,90",
     periodo: "/mês",
     destaque: false,
     features: [
@@ -37,7 +37,7 @@ const PLANOS = [
   {
     id: "profissional",
     nome: "Profissional",
-    preco: "59,90",
+    preco: "89,90",
     periodo: "/mês",
     destaque: true,
     features: [
@@ -54,7 +54,7 @@ const PLANOS = [
   {
     id: "premium",
     nome: "Premium",
-    preco: "99,90",
+    preco: "139,90",
     periodo: "/mês",
     destaque: false,
     features: [
@@ -147,7 +147,7 @@ export default function LandingPage() {
                 <i className="fas fa-store text-white text-sm"></i>
               </div>
               <span className="font-bold text-gray-800 text-lg">
-                System<span className="text-blue-600">PDV</span>
+                Facil<span className="text-blue-600">Sistemas</span>
               </span>
             </div>
 
@@ -725,7 +725,9 @@ export default function LandingPage() {
                 <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                   <i className="fas fa-store text-white text-sm"></i>
                 </div>
-                <span className="font-bold text-white text-lg">SystemPDV</span>
+                <span className="font-bold text-white text-lg">
+                  Facíl Sistemas
+                </span>
               </div>
               <p className="text-sm">
                 Sistema de gestão comercial completo com PDV, NF-e e multi-ramo.

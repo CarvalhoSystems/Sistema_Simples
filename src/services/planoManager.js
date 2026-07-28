@@ -372,3 +372,103 @@ export function getDadosTenant() {
     plano: status.plano,
   };
 }
+
+// ===== CONTROLE MANUAL (Admin) =====
+
+/**
+ * Altera o plano de um tenant manualmente
+ */
+export function alterarPlanoManual(tenantId, novoTenant, novoPlanoId) {
+  try {
+    // Salva no tenant
+    const tenantKey = `pdv_tenant_${tenantId}`;
+    const tenantSalvo = localStorage.getItem(tenantKey);
+    if (!tenantSalvo) return { success: false, error: "Tenant não encontrado" };
+
+    const tenant = JSON.parse(tenantSalvo);
+    tenant.assinatura = tenant.assinatura || {};
+    tenant.assinatura.plano = novoPlanoId;
+
+    // Atualiza a assinatura
+    const assinatura = JSON.parse(localStorage.getItem(ASSINATURA_KEY) || "{}");
+    assinatura.planoId = novoPlanoId;
+    assinatura.tenantId = tenantId;
+    salvarAssinatura(assinatura);
+
+    return { success: true, mensagem: `Plano alterado para ${PLANOS[novoPlanoId]?.nome || novoPlanoId}` };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Renova trial do tenant por mais 7 dias
+ */
+export function renovarTrialManual(tenantId, dias = 7) {
+  try {
+    const assinatura = JSON.parse(localStorage.getItem(ASSINATURA_KEY) || "{}");
+    if (!assinatura.tenantId) return { success: false, error: "Nenhuma assinatura encontrada" };
+
+    const agora = new Date();
+    assinatura.status = "trial";
+    assinatura.iniciadoEm = agora.toISOString();
+    assinatura.trialExpiracao = new Date(agora.getTime() + dias * 24 * 60 * 60 * 1000).toISOString();
+    assinatura.proximoVencimento = new Date(agora.getTime() + dias * 24 * 60 * 60 * 1000).toISOString();
+    salvarAssinatura(assinatura);
+
+    return { success: true, mensagem: `Trial renovado por mais ${dias} dias` };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Ativa ou desativa a assinatura manualmente
+ */
+export function alterarStatusManual(tenantId, novoStatus) {
+  try {
+    const assinatura = JSON.parse(localStorage.getItem(ASSINATURA_KEY) || "{}");
+    if (!assinatura.tenantId) return { success: false, error: "Nenhuma assinatura encontrada" };
+
+    assinatura.status = novoStatus;
+    if (novoStatus === "ativa") {
+      // Se for ativar, renova por 30 dias
+      const agora = new Date();
+      assinatura.proximoVencimento = new Date(agora.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    }
+    salvarAssinatura(assinatura);
+
+    const nomesStatus = {
+      ativa: "Ativada",
+      cancelada: "Cancelada",
+      vencida: "Vencida",
+      trial: "Teste Grátis",
+      trial_expirado: "Trial Expirado",
+    };
+
+    return { success: true, mensagem: `Assinatura ${nomesStatus[novoStatus] || novoStatus} com sucesso` };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Lista todos os tenants do localStorage (para o admin)
+ */
+export function listarTodosTenants() {
+  const tenants = [];
+  const keys = Object.keys(localStorage);
+
+  for (const key of keys) {
+    if (key.startsWith("pdv_tenant")) {
+      try {
+        const tenant = JSON.parse(localStorage.getItem(key));
+        tenants.push(tenant);
+      } catch (e) {
+        // Ignora
+      }
+    }
+  }
+
+  return tenants;
+}
