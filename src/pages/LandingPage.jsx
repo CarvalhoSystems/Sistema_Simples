@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, Route, Routes } from "react-router-dom";
 import { RAMOS_NEGOCIO } from "../services/supabaseClient";
+import Contato from "./contato";
 
 const PLANOS = [
   {
@@ -776,9 +777,12 @@ export default function LandingPage() {
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-white transition-colors">
-                    Contato
-                  </a>
+                  <Link
+                    to="/contato"
+                    className="hover:text-white transition-colors"
+                  >
+                    contato
+                  </Link>
                 </li>
               </ul>
             </div>
