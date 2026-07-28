@@ -39,7 +39,7 @@ export const PLANOS = {
   basico: {
     id: "basico",
     nome: "Básico",
-    preco: 49.9,
+    preco: 79.9,
     periodo: "/mês",
     maxEstabelecimentos: 1,
     maxProdutos: Infinity,
@@ -57,7 +57,7 @@ export const PLANOS = {
   profissional: {
     id: "profissional",
     nome: "Profissional",
-    preco: 74.9,
+    preco: 99.9,
     periodo: "/mês",
     maxEstabelecimentos: 3,
     maxProdutos: Infinity,
@@ -75,7 +75,7 @@ export const PLANOS = {
   premium: {
     id: "premium",
     nome: "Premium",
-    preco: 99.9,
+    preco: 149.9,
     periodo: "/mês",
     maxEstabelecimentos: Infinity,
     maxProdutos: Infinity,

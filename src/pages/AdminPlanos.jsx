@@ -35,7 +35,7 @@ export default function AdminPlanos() {
     {
       id: "basico",
       nome: "Básico",
-      preco: "R$ 49,90",
+      preco: "R$ 79,90",
       cor: "bg-green-500",
       corBg: "bg-green-50",
       corTexto: "text-green-700",
@@ -50,7 +50,7 @@ export default function AdminPlanos() {
     {
       id: "profissional",
       nome: "Profissional",
-      preco: "R$ 74,90",
+      preco: "R$ 99,90",
       cor: "bg-purple-500",
       corBg: "bg-purple-50",
       corTexto: "text-purple-700",
@@ -65,7 +65,7 @@ export default function AdminPlanos() {
     {
       id: "premium",
       nome: "Premium",
-      preco: "R$ 99,90",
+      preco: "R$ 149,90",
       cor: "bg-yellow-500",
       corBg: "bg-yellow-50",
       corTexto: "text-yellow-700",
