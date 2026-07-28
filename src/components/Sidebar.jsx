@@ -26,7 +26,7 @@ export default function Sidebar() {
     <aside className="sidebar">
       <div className="sidebar-header">
         <h1>
-          <i className="fas fa-store"></i> System PDV
+          <i className="fas fa-store"></i> Facil Sistemas
         </h1>
         <p>Sistema de Gestão</p>
       </div>

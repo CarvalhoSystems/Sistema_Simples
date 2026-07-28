@@ -1,6 +1,7 @@
 /**
  * Serviço de dados Firebase Firestore
  *
+ *
  * Camada de abstração que usa Firebase quando disponível,
  * e faz fallback automático para localStorage.
  *
@@ -10,6 +11,7 @@
  *     ├── produtos: [{ codigo, descricao, preco, ... }]
  *     ├── categorias: ["Padaria", "Bebidas", ...]
  *     └── vendas: [{ id, data, total, ... }]
+ *
  */
 
 import { firebaseDisponivel, db } from "./firebaseClient";
@@ -26,6 +28,7 @@ import {
   getDocs,
   writeBatch,
 } from "firebase/firestore";
+import { mockProdutos, mockCategorias } from "../mockData"; // Importa os dados mockados
 import { getTenantId } from "../hooks/useTenant";
 
 // ===== UTILITÁRIOS =====
@@ -101,6 +104,12 @@ export async function carregarProdutosFirebase() {
           JSON.stringify(produtos),
         );
         return produtos;
+      } else {
+        // Se o documento existe, mas não tem produtos, retorna array vazio
+        // para evitar fallback desnecessário para o localStorage.
+        if (docSnap.exists()) {
+          return [];
+        }
       }
     } catch (error) {
       console.warn("⚠️ Erro ao carregar produtos do Firebase:", error.message);
@@ -252,6 +261,38 @@ export function exportarDadosTenant() {
   } catch (error) {
     console.error("Erro ao exportar dados:", error);
     alert("Erro ao exportar dados. Tente novamente.");
+  }
+}
+
+// ===== INICIALIZAÇÃO DE DADOS (NOVO) =====
+
+/**
+ * Inicializa os dados para um novo tenant no Firebase.
+ * Usa os dados do mockData.js como base.
+ */
+export async function inicializarDadosTenant(tenantId) {
+  if (!tenantId || !isFirebaseReady()) {
+    console.log("Firebase não disponível ou tenantId não fornecido para inicialização.");
+    return;
+  }
+
+  try {
+    console.log(`🚀 Inicializando dados para o novo tenant: ${tenantId}`);
+    const docRef = getTenantDocRef(tenantId);
+
+    // Usa os dados do mockData como base para o novo usuário
+    await setDoc(docRef, {
+      produtos: mockProdutos,
+      categorias: mockCategorias,
+      // Você pode adicionar outros dados iniciais aqui
+      // info: { ... }
+    }, { merge: true });
+
+    console.log("✅ Dados iniciais do tenant salvos no Firebase.");
+    return true;
+  } catch (error) {
+    console.error("❌ Erro ao inicializar dados do tenant:", error);
+    return false;
   }
 }
 

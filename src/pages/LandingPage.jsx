@@ -21,7 +21,7 @@ const PLANOS = [
   {
     id: "basico",
     nome: "Básico",
-    preco: "49,90",
+    preco: "79,90",
     periodo: "/mês",
     destaque: false,
     features: [
@@ -37,7 +37,7 @@ const PLANOS = [
   {
     id: "profissional",
     nome: "Profissional",
-    preco: "89,90",
+    preco: "99,90",
     periodo: "/mês",
     destaque: true,
     features: [
@@ -54,7 +54,7 @@ const PLANOS = [
   {
     id: "premium",
     nome: "Premium",
-    preco: "139,90",
+    preco: "149,90",
     periodo: "/mês",
     destaque: false,
     features: [
