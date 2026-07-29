@@ -1,6 +1,6 @@
 /**
  * Serviço de dados multi-tenant
- *
+ * 
  * Gerencia produtos, categorias e vendas de forma isolada
  * para cada tenant (cliente/estabelecimento).
  *
@@ -10,7 +10,12 @@
  * - pdv_vendas_{tenantId}
  */
 import { getTenantId, getTenantRamo } from "../hooks/useTenant";
-import { PRODUTOS_PADRAO, CATEGORIAS_PADRAO } from "./supabaseClient";
+import { PRODUTOS_PADRAO, CATEGORIAS_PADRAO as CATEGORIAS_MOCK } from "./supabaseClient";
+import {
+  carregarProdutosFirebase,
+  salvarProdutosFirebase,
+  salvarVendaFirebase,
+} from "./firebaseData";
 
 /**
  * Retorna a chave do localStorage para um dado do tenant
@@ -22,28 +27,20 @@ function tenantKey(tenantId, tipo) {
 /**
  * Obtém os produtos do tenant atual
  */
-export function getProdutos() {
+export async function getProdutos() {
   const tenantId = getTenantId();
   if (!tenantId) return [];
-
-  try {
-    const data = localStorage.getItem(tenantKey(tenantId, "produtos"));
-    if (data) {
-      return JSON.parse(data);
-    }
-  } catch (e) {
-    console.warn("Erro ao carregar produtos:", e);
-  }
-
-  // Fallback: carrega produtos padrão do ramo
-  const ramo = getTenantRamo();
-  return PRODUTOS_PADRAO[ramo] || PRODUTOS_PADRAO.mercado;
+  // Prioriza Firebase, com fallback para localStorage
+  return await carregarProdutosFirebase();
 }
 
 /**
  * Salva os produtos do tenant atual
  */
-export function setProdutos(produtos) {
+export async function setProdutos(produtos) {
+  // Salva no Firebase e no localStorage (o firebaseData já faz o fallback)
+  await salvarProdutosFirebase(produtos);
+
   const tenantId = getTenantId();
   if (!tenantId) return;
   localStorage.setItem(
@@ -55,59 +52,51 @@ export function setProdutos(produtos) {
 /**
  * Adiciona um produto ao tenant atual
  */
-export function addProduto(produto) {
-  const produtos = getProdutos();
+export async function addProduto(produto) {
+  const produtos = await getProdutos();
   const novoProduto = {
     ...produto,
     codigo: produto.codigo || String(Date.now()).slice(-6),
   };
   produtos.push(novoProduto);
-  setProdutos(produtos);
+  await setProdutos(produtos);
   return novoProduto;
 }
 
 /**
  * Atualiza um produto do tenant atual
  */
-export function updateProduto(codigo, dadosAtualizados) {
-  const produtos = getProdutos();
+export async function updateProduto(codigo, dadosAtualizados) {
+  const produtos = await getProdutos();
   const index = produtos.findIndex((p) => p.codigo === codigo);
   if (index === -1) return null;
 
   produtos[index] = { ...produtos[index], ...dadosAtualizados };
-  setProdutos(produtos);
+  await setProdutos(produtos);
   return produtos[index];
 }
 
 /**
  * Remove um produto do tenant atual
  */
-export function removeProduto(codigo) {
-  const produtos = getProdutos();
+export async function removeProduto(codigo) {
+  const produtos = await getProdutos();
   const novosProdutos = produtos.filter((p) => p.codigo !== codigo);
-  setProdutos(novosProdutos);
+  await setProdutos(novosProdutos);
   return novosProdutos;
 }
 
 /**
  * Obtém as categorias do tenant atual
  */
-export function getCategorias() {
+export async function getCategorias() {
   const tenantId = getTenantId();
   if (!tenantId) return [];
 
-  try {
-    const data = localStorage.getItem(tenantKey(tenantId, "categorias"));
-    if (data) {
-      return JSON.parse(data);
-    }
-  } catch (e) {
-    console.warn("Erro ao carregar categorias:", e);
-  }
-
-  // Fallback: categorias padrão do ramo
-  const ramo = getTenantRamo();
-  return CATEGORIAS_PADRAO[ramo] || CATEGORIAS_PADRAO.mercado;
+  // Categorias são salvas junto com produtos no Firebase
+  const produtos = await carregarProdutosFirebase();
+  // Se não houver produtos/categorias no Firebase, usa o fallback do localStorage.
+  return produtos.categorias || getCategoriasFromLocalStorage();
 }
 
 /**
@@ -143,21 +132,9 @@ export function getVendas() {
 /**
  * Salva uma nova venda no histórico do tenant
  */
-export function addVenda(dadosVenda) {
-  const vendas = getVendas();
-  const novaVenda = {
-    id: Date.now(),
-    data: new Date().toISOString(),
-    ...dadosVenda,
-  };
-  vendas.unshift(novaVenda);
-  const tenantId = getTenantId();
-  if (tenantId) {
-    localStorage.setItem(
-      tenantKey(tenantId, "vendas"),
-      JSON.stringify(vendas.slice(0, 500)), // mantém últimas 500 vendas
-    );
-  }
+export async function addVenda(dadosVenda) {
+  // A função salvarVendaFirebase já faz o fallback para localStorage
+  const novaVenda = await salvarVendaFirebase(dadosVenda);
   return novaVenda;
 }
 

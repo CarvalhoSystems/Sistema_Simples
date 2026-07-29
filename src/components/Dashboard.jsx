@@ -1,23 +1,36 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext.jsx";
-import { VENDAS_REALIZADAS, BANCO_PRODUTOS } from "../mockData.js";
+// Importa o serviço para carregar dados do tenant (usuário logado)
+import { getProdutos, getVendas } from "../services/tenantData.js";
 import { formatCurrency } from "../utils/formatters.js";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState("");
+  const [stats, setStats] = useState({
+    totalRevenue: 0,
+    totalProducts: 0,
+    todaySales: 0,
+  });
 
-  // Cálculos para os cards
-  const totalRevenue = VENDAS_REALIZADAS.reduce(
-    (acc, venda) => acc + venda.total,
-    0,
-  );
-  const totalProducts = BANCO_PRODUTOS.length;
-  const todaySales = VENDAS_REALIZADAS.filter((venda) =>
-    venda.data.startsWith(new Date().toISOString().split("T")[0]),
-  ).length;
+  // Carrega os dados e calcula as estatísticas
+  useEffect(() => {
+    const carregarEstatisticas = async () => {
+      const vendas = await getVendas();
+      const produtos = await getProdutos();
+
+      const totalRevenue = vendas.reduce((acc, venda) => acc + venda.total, 0);
+      const totalProducts = produtos.length;
+      const todaySales = vendas.filter((venda) =>
+        venda.data.startsWith(new Date().toISOString().split("T")[0]),
+      ).length;
+
+      setStats({ totalRevenue, totalProducts, todaySales });
+    };
+    carregarEstatisticas();
+  }, []);
 
   useEffect(() => {
     const date = new Date();
@@ -60,7 +73,7 @@ export default function Dashboard() {
                     <i className="fas fa-box"></i>
                   </div>
                   <div className="stat-info">
-                    <h3 id="totalProducts">{totalProducts}</h3>
+                    <h3 id="totalProducts">{stats.totalProducts}</h3>
                     <p>Produtos no Estoque</p>
                   </div>
                 </div>
@@ -69,7 +82,7 @@ export default function Dashboard() {
                     <i className="fas fa-shopping-cart"></i>
                   </div>
                   <div className="stat-info">
-                    <h3 id="todaySales">{todaySales}</h3>
+                    <h3 id="todaySales">{stats.todaySales}</h3>
                     <p>Vendas Hoje</p>
                   </div>
                 </div>
@@ -78,7 +91,7 @@ export default function Dashboard() {
                     <i className="fas fa-dollar-sign"></i>
                   </div>
                   <div className="stat-info">
-                    <h3 id="totalRevenue">{formatCurrency(totalRevenue)}</h3>
+                    <h3 id="totalRevenue">{formatCurrency(stats.totalRevenue)}</h3>
                     <p>Receita Total</p>
                   </div>
                 </div>

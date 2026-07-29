@@ -1,181 +1,190 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../components/AuthContext";
 import Swal from "sweetalert2";
+import {
+  getDadosTenant,
+  PLANOS,
+  gerarLinkPagamentoMercadoPago,
+  registrarPagamento,
+} from "../services/planoManager";
+
+const statusInfo = {
+  trial: {
+    icon: "fa-hourglass-half",
+    color: "text-blue-500",
+    bgColor: "bg-blue-50",
+    borderColor: "border-blue-200",
+  },
+  ativa: {
+    icon: "fa-check-circle",
+    color: "text-green-500",
+    bgColor: "bg-green-50",
+    borderColor: "border-green-200",
+  },
+  vencida: {
+    icon: "fa-exclamation-triangle",
+    color: "text-red-500",
+    bgColor: "bg-red-50",
+    borderColor: "border-red-200",
+  },
+  trial_expirado: {
+    icon: "fa-hourglass-end",
+    color: "text-yellow-500",
+    bgColor: "bg-yellow-50",
+    borderColor: "border-yellow-200",
+  },
+  cancelada: {
+    icon: "fa-times-circle",
+    color: "text-gray-500",
+    bgColor: "bg-gray-100",
+    borderColor: "border-gray-200",
+  },
+};
 
 export default function Configuracoes() {
-  const { logout } = useAuth();
   const navigate = useNavigate();
+  const [dados, setDados] = useState(null);
 
-  const [settings, setSettings] = useState({
-    storeName: "Papelaria do Zé",
-    storeCnpj: "12.345.678/0001-99",
-    storeAddress: "Rua Fictícia, 123, Centro, São Paulo - SP",
-    pixKey: "email@example.com",
-    pixHolder: "José da Silva",
-    receiptMessage: "Obrigado pela preferência! Volte sempre.",
-    mercadoPagoAccessToken: "",
-    mercadoPagoDeviceId: "",
-  });
+  useEffect(() => {
+    const carregarDados = async () => {
+      setDados(await getDadosTenant());
+    };
+    carregarDados();
+  }, []);
 
-  const handleChange = (e) => {
-    const { id, value } = e.target;
-    setSettings((prev) => ({ ...prev, [id]: value }));
-  };
+  const handleSelectPlan = async (planoId) => {
+    const planoSelecionado = PLANOS[planoId];
+    if (!planoSelecionado) return;
 
-  const handleSave = (e) => {
-    e.preventDefault();
-    // Em um app real, você enviaria 'settings' para sua API/backend
-    console.log("Salvando configurações:", settings);
     Swal.fire({
-      icon: "success",
-      title: "Salvo!",
-      text: "As configurações da loja foram atualizadas.",
-      timer: 2000,
-      showConfirmButton: false,
+      title: `Confirmar Upgrade para ${planoSelecionado.nome}?`,
+      html: `Você será cobrado <strong>R$ ${planoSelecionado.preco.toFixed(
+        2,
+      )}</strong>.<br/>Sua assinatura será renovada por 30 dias.`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#3085d6",
+      cancelButtonColor: "#d33",
+      confirmButtonText: "Sim, confirmar!",
+      cancelButtonText: "Cancelar",
+    }).then((result) => {
+      if (result.isConfirmed) {
+        // Simula o pagamento e atualiza a assinatura
+        registrarPagamento(planoId, planoSelecionado.preco).then(() => {
+          Swal.fire(
+            "Upgrade Realizado!",
+            `Seu plano agora é o ${planoSelecionado.nome}.`,
+            "success",
+          ).then(async () => {
+            // Recarrega os dados da página para refletir a mudança
+            setDados(await getDadosTenant());
+            navigate("/dashboard"); // Redireciona para o dashboard
+          });
+        });
+      }
     });
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
+  if (!dados) {
+    return <div>Carregando...</div>;
+  }
+
+  const { status, plano } = dados;
+  const info = statusInfo[status.status] || statusInfo.cancelada;
+
+  const planosDisponiveis = Object.values(PLANOS).filter(
+    (p) => p.id !== "free",
+  );
 
   return (
-    <main className="main-content">
-      <header className="content-header">
-        <div className="header-title">
-          <h1>
-            <i className="fas fa-cog"></i> Configurações da Unidade
-          </h1>
-          <p>Gerencie os dados que aparecem nos comprovantes e notas</p>
+    <main className="flex-1 p-6 bg-gray-50">
+      <h1 className="text-2xl font-bold text-gray-800 mb-4">
+        Planos e Assinatura
+      </h1>
+
+      {/* Status Atual */}
+      <div
+        className={`p-6 rounded-lg border-2 ${info.borderColor} ${info.bgColor} mb-8`}
+      >
+        <div className="flex items-center gap-4">
+          <i className={`fas ${info.icon} text-3xl ${info.color}`}></i>
+          <div>
+            <p className="text-sm text-gray-500">Seu plano atual</p>
+            <h2 className="text-2xl font-bold text-gray-800">{plano.nome}</h2>
+            <p className={`font-semibold ${info.color}`}>{status.mensagem}</p>
+          </div>
         </div>
-        <div className="header-actions">
-          <button type="button" onClick={handleSave} className="btn-primary">
-            <i className="fas fa-save"></i> Salvar Alterações
-          </button>
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="btn-secondary"
-          >
-            <i className="fas fa-sign-out-alt"></i> Sair
-          </button>
-        </div>
-      </header>
+      </div>
 
-      <section className="settings-grid">
-        <form id="settingsForm" onSubmit={handleSave}>
-          {/* Dados da Empresa */}
-          <div className="settings-card">
-            <h3>
-              <i className="fas fa-building"></i> Dados da Empresa
-            </h3>
-            <div className="form-group-grid">
-              <div className="form-group">
-                <label htmlFor="storeName">Nome Fantasia</label>
-                <input
-                  type="text"
-                  id="storeName"
-                  value={settings.storeName}
-                  onChange={handleChange}
-                  placeholder="Ex: Papelaria do Zé"
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="storeCnpj">CNPJ</label>
-                <input
-                  type="text"
-                  id="storeCnpj"
-                  value={settings.storeCnpj}
-                  onChange={handleChange}
-                  placeholder="00.000.000/0000-00"
-                />
-              </div>
-            </div>
-            <div className="form-group">
-              <label htmlFor="storeAddress">Endereço Completo</label>
-              <input
-                type="text"
-                id="storeAddress"
-                value={settings.storeAddress}
-                onChange={handleChange}
-                placeholder="Rua, Número, Bairro, Cidade - UF"
-              />
-            </div>
-          </div>
+      {/* Planos para Upgrade */}
+      <div className="mb-6">
+        <h3 className="text-xl font-semibold text-gray-700">
+          Escolha um plano para contratar ou fazer upgrade
+        </h3>
+        <p className="text-gray-500">
+          Desbloqueie mais funcionalidades e cresça seu negócio.
+        </p>
+      </div>
 
-          {/* Recebimentos (PIX) */}
-          <div className="settings-card">
-            <h3>
-              <i className="fas fa-wallet"></i> Recebimentos (PIX)
-            </h3>
-            <div className="form-group-grid">
-              <div className="form-group">
-                <label htmlFor="pixKey">Chave PIX Principal</label>
-                <input
-                  type="text"
-                  id="pixKey"
-                  value={settings.pixKey}
-                  onChange={handleChange}
-                  placeholder="CPF, E-mail, Celular ou Chave Aleatória"
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="pixHolder">Nome do Titular</label>
-                <input
-                  type="text"
-                  id="pixHolder"
-                  value={settings.pixHolder}
-                  onChange={handleChange}
-                  placeholder="Nome completo ou Razão Social"
-                />
-              </div>
-            </div>
-            <p className="helper-text">
-              Esta chave será utilizada para gerar o QR Code no PDV.
-            </p>
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {planosDisponiveis.map((p) => {
+          const isCurrentPlan = p.id === plano.id;
+          return (
+            <div
+              key={p.id}
+              className={`rounded-xl border-2 p-6 flex flex-col ${
+                isCurrentPlan
+                  ? "border-indigo-500 bg-indigo-50"
+                  : "bg-white hover:border-indigo-300"
+              }`}
+            >
+              <h4 className="text-lg font-bold text-indigo-700">{p.nome}</h4>
+              <p className="text-3xl font-extrabold text-gray-800 my-3">
+                R$ {p.preco.toFixed(2)}
+                <span className="text-sm font-normal text-gray-500">/mês</span>
+              </p>
 
-          {/* Rodapé do Recibo */}
-          <div className="settings-card">
-            <h3>
-              <i className="fas fa-file-invoice-dollar"></i> Rodapé do Recibo
-            </h3>
-            <div className="form-group">
-              <label htmlFor="receiptMessage">Mensagem de Agradecimento</label>
-              <textarea
-                id="receiptMessage"
-                rows="3"
-                value={settings.receiptMessage}
-                onChange={handleChange}
-                placeholder="Ex: Obrigado pela preferência! Volte sempre."
-              ></textarea>
-            </div>
-          </div>
+              <ul className="space-y-2 text-sm text-gray-600 flex-1 mb-6">
+                {Object.entries(p.features)
+                  .filter(([, enabled]) => enabled)
+                  .map(([featureKey]) => {
+                    const featureNames = {
+                      pdv: "PDV Completo",
+                      dashboard: "Dashboard",
+                      relatorios: "Relatórios Avançados",
+                      nfp: "Nota Fiscal Paulista",
+                      backup: "Backup na Nuvem",
+                      api: "Acesso à API",
+                      multiplosEstabelecimentos: "Múltiplos Estabelecimentos",
+                    };
+                    return (
+                      <li key={featureKey} className="flex items-start gap-2">
+                        <i className="fas fa-check-circle text-indigo-500 mt-1"></i>
+                        <span>{featureNames[featureKey] || featureKey}</span>
+                      </li>
+                    );
+                  })}
+              </ul>
 
-          {/* Integração Mercado Pago */}
-          <div className="settings-card">
-            <h3>
-              <i className="fas fa-credit-card"></i> Integração Mercado Pago
-            </h3>
-            <p className="helper-text" style={{ marginBottom: "15px" }}>
-              Configure sua maquininha para receber pagamentos automáticos.
-            </p>
-            <div className="form-group">
-              <label htmlFor="mercadoPagoAccessToken">Access Token</label>
-              <input
-                type="password"
-                id="mercadoPagoAccessToken"
-                value={settings.mercadoPagoAccessToken}
-                onChange={handleChange}
-                placeholder="Seu access token do Mercado Pago"
-              />
+              {isCurrentPlan ? (
+                <button
+                  disabled
+                  className="w-full mt-auto px-4 py-2.5 font-semibold text-white bg-indigo-400 rounded-lg cursor-not-allowed"
+                >
+                  Plano Atual
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleSelectPlan(p.id)}
+                  className="w-full mt-auto px-4 py-2.5 font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition-colors"
+                >
+                  {plano.preco > p.preco ? "Fazer Downgrade" : "Fazer Upgrade"}
+                </button> // O texto do botão será "Fazer Upgrade" ou "Fazer Downgrade"
+              )}
             </div>
-          </div>
-        </form>
-      </section>
+          );
+        })}
+      </div>
     </main>
   );
 }

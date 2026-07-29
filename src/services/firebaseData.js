@@ -27,8 +27,11 @@ import {
   limit,
   getDocs,
   writeBatch,
-} from "firebase/firestore";
-import { mockProdutos, mockCategorias } from "../mockData"; // Importa os dados mockados
+} from "firebase/firestore"; // Importa os dados mockados
+import {
+  BANCO_PRODUTOS as mockProdutos,
+  CATEGORIAS_MOCK as mockCategorias,
+} from "../mockData";
 import { getTenantId } from "../hooks/useTenant";
 
 // ===== UTILITÁRIOS =====

@@ -6,20 +6,20 @@ export default function AdminDashboard() {
   const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
-    carregarDados();
+    carregarDados(); // A função carregarDados agora é assíncrona
   }, []);
 
-  function carregarDados() {
+  async function carregarDados() {
     setCarregando(true);
-    const dados = gerarRelatorioAdmin();
-    setClientes(dados);
+    const dados = await gerarRelatorioAdmin();
+    setClientes(dados || []); // Garante que seja sempre um array
     setCarregando(false);
   }
 
-  const totalClientes = clientes.length;
+  const totalClientes = clientes.length; // Já é um array
   const emTrial = clientes.filter(
     (c) => c.assinatura?.status === "trial",
-  ).length;
+  ).length; // Filtra pelo status correto
   const ativos = clientes.filter(
     (c) => c.assinatura?.status === "ativa",
   ).length;
@@ -27,9 +27,14 @@ export default function AdminDashboard() {
     (c) =>
       c.assinatura?.status === "vencida" ||
       c.assinatura?.status === "trial_expirado",
-  ).length;
+  ).length; // Filtra pelo status correto
   const faturamentoTotal = clientes.reduce(
-    (acc, c) => acc + (c.valorTotalVendas || 0),
+    // Estes campos não estarão mais disponíveis diretamente
+    (acc, c) =>
+      acc +
+      (c.assinatura?.planoId !== "free"
+        ? PLANOS[c.assinatura?.planoId]?.preco || 0
+        : 0), // Simula faturamento mensal dos planos ativos
     0,
   );
   const totalVendas = clientes.reduce(
@@ -40,7 +45,7 @@ export default function AdminDashboard() {
   // Contagem por plano
   const planosCount = {};
   clientes.forEach((c) => {
-    const plano = c.assinatura?.plano || "free";
+    const plano = c.assinatura?.planoId || "free"; // Usa planoId
     planosCount[plano] = (planosCount[plano] || 0) + 1;
   });
 
@@ -239,6 +244,66 @@ export default function AdminDashboard() {
                   </span>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Novas Assinaturas/Upgrades Recentes */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm mt-6">
+            <div className="p-4 border-b border-gray-100">
+              <h3 className="font-semibold text-gray-700 flex items-center gap-2">
+                <i className="fas fa-bell text-blue-500"></i>
+                Assinaturas/Upgrades Recentes
+              </h3>
+              <p className="text-xs text-gray-500">
+                Últimas 5 ativações ou upgrades de planos pagos.
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="text-left p-3 font-medium text-gray-600">
+                      Cliente
+                    </th>
+                    <th className="text-center p-3 font-medium text-gray-600">
+                      Plano
+                    </th>
+                    <th className="text-center p-3 font-medium text-gray-600">
+                      Ativado Em
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {clientes
+                    .filter((c) => c.assinatura?.dataAtivacaoPlano)
+                    .sort(
+                      (a, b) =>
+                        new Date(b.assinatura.dataAtivacaoPlano) -
+                        new Date(a.assinatura.dataAtivacaoPlano),
+                    )
+                    .slice(0, 5)
+                    .map((cliente, i) => (
+                      <tr
+                        key={i}
+                        className="border-b border-gray-100 hover:bg-gray-50"
+                      >
+                        <td className="p-3 font-medium text-gray-800">
+                          {cliente.nome}
+                        </td>
+                        <td className="p-3 text-center">
+                          <span className="font-medium">
+                            {PLANOS[cliente.assinatura.plano]?.nome || "N/A"}
+                          </span>
+                        </td>
+                        <td className="p-3 text-center text-xs text-gray-500">
+                          {new Date(
+                            cliente.assinatura.dataAtivacaoPlano,
+                          ).toLocaleDateString("pt-BR")}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
             </div>
           </div>
 

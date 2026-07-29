@@ -7,8 +7,13 @@ import Toolbar from "./Toolbar.jsx";
 import ProductTable from "./ProductTable.jsx";
 import ProductModal from "./ProductModal.jsx";
 
-// Dados mocados - substitua pela chamada à sua API/Firebase
-import { BANCO_PRODUTOS, CATEGORIAS_MOCK } from "../mockData";
+// Importa o serviço para carregar dados do tenant (usuário logado)
+import {
+  getProdutos,
+  getCategorias,
+  addProduto,
+  updateProduto,
+} from "../services/tenantData";
 
 export default function Inventario() {
   const [products, setProducts] = useState([]);
@@ -23,9 +28,14 @@ export default function Inventario() {
 
   // Carrega os dados iniciais
   useEffect(() => {
-    // Simula uma chamada de API
-    setProducts(BANCO_PRODUTOS);
-    setCategories(CATEGORIAS_MOCK);
+    const carregarDados = async () => {
+      // Carrega os produtos e categorias do tenant logado
+      const produtosData = await getProdutos();
+      const categoriasData = await getCategorias();
+      setProducts(produtosData);
+      setCategories(categoriasData);
+    };
+    carregarDados();
   }, []);
 
   // Lógica de filtragem dos produtos
@@ -67,26 +77,22 @@ export default function Inventario() {
     setEditingProduct(null);
   };
 
-  const handleSaveProduct = (productData) => {
+  const handleSaveProduct = async (productData) => {
     // Lógica para salvar (adicionar novo ou editar existente)
     if (editingProduct) {
       // Editar
-      setProducts(
-        products.map((p) =>
-          p.codigo === editingProduct.codigo ? { ...p, ...productData } : p,
-        ),
-      );
+      await updateProduto(editingProduct.codigo, productData);
       Swal.fire("Sucesso!", "Produto atualizado com sucesso.", "success");
     } else {
       // Adicionar novo
-      const newProduct = {
-        ...productData,
-        // Em um app real, o ID seria gerado no backend
-        codigo: `PROD-${Date.now()}`,
-      };
-      setProducts([newProduct, ...products]);
+      await addProduto(productData);
       Swal.fire("Sucesso!", "Produto adicionado com sucesso.", "success");
     }
+
+    // Recarrega os produtos para refletir a mudança
+    const produtosData = await getProdutos();
+    setProducts(produtosData);
+
     handleCloseModal();
   };
 

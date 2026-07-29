@@ -19,9 +19,11 @@ export default function AdminClientes() {
     carregarClientes();
   }, []);
 
-  function carregarClientes() {
-    const dados = gerarRelatorioAdmin();
-    setClientes(dados);
+  async function carregarClientes() {
+    setCarregando(true);
+    const dados = await gerarRelatorioAdmin();
+    setClientes(dados || []); // Garante que seja sempre um array
+    setCarregando(false);
   }
 
   function getStatusInfo(status) {
@@ -52,7 +54,7 @@ export default function AdminClientes() {
     setCarregando(true);
     const result = alterarPlanoManual(cliente.id, cliente, novoPlano);
     setMensagem(result);
-    setModalAberto(null);
+    setModalAberto(null); // Fecha o modal
     carregarClientes();
     setCarregando(false);
   }
@@ -60,7 +62,7 @@ export default function AdminClientes() {
   async function handleRenovarTrial(cliente, dias = 7) {
     setCarregando(true);
     const result = renovarTrialManual(cliente.id, dias);
-    setMensagem(result);
+    setMensagem(result); // Exibe mensagem de sucesso/erro
     setModalAberto(null);
     carregarClientes();
     setCarregando(false);
@@ -68,7 +70,7 @@ export default function AdminClientes() {
 
   async function handleAlterarStatus(cliente, novoStatus) {
     setCarregando(true);
-    const result = alterarStatusManual(cliente.id, novoStatus);
+    const result = alterarStatusManual(cliente.id, novoStatus); // Altera o status
     setMensagem(result);
     setModalAberto(null);
     carregarClientes();

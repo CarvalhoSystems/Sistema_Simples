@@ -12,7 +12,7 @@
  */
 
 import { firebaseDisponivel, db } from "./firebaseClient";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc, collection, getDocs } from "firebase/firestore";
 import { getTenantId, getTenant } from "../hooks/useTenant";
 
 // ===== CONFIGURAÇÃO DOS PLANOS =====
@@ -113,6 +113,7 @@ export function criarAssinatura(planoId, periodoTeste = true) {
     planoId: plano.id,
     status: periodoTeste ? "trial" : "ativa",
     iniciadoEm: agora.toISOString(),
+    dataAtivacaoPlano: periodoTeste ? null : agora.toISOString(), // Nova data de ativação do plano
     trialExpiracao: periodoTeste
       ? new Date(agora.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
       : null,
@@ -149,7 +150,26 @@ export function salvarAssinatura(assinatura) {
 /**
  * Carrega a assinatura do tenant
  */
-export function carregarAssinatura() {
+export async function carregarAssinatura() {
+  const tenantId = getTenantId();
+  if (!tenantId) return null;
+
+  // Tenta carregar do Firebase primeiro
+  if (firebaseDisponivel && db) {
+    try {
+      const docRef = doc(db, "tenants", tenantId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists() && docSnap.data().assinatura) {
+        const assinatura = docSnap.data().assinatura;
+        localStorage.setItem(ASSINATURA_KEY, JSON.stringify(assinatura)); // Atualiza o cache local
+        return assinatura;
+      }
+    } catch (error) {
+      console.warn("Falha ao carregar assinatura do Firebase:", error);
+    }
+  }
+
+  // Fallback para localStorage
   try {
     const data = localStorage.getItem(ASSINATURA_KEY);
     if (data) return JSON.parse(data);
@@ -162,8 +182,8 @@ export function carregarAssinatura() {
 /**
  * Verifica o status atual da assinatura
  */
-export function verificarStatusAssinatura() {
-  const assinatura = carregarAssinatura();
+export async function verificarStatusAssinatura() {
+  const assinatura = await carregarAssinatura();
   if (!assinatura) {
     return {
       ativo: false,
@@ -264,8 +284,8 @@ export function podeAdicionarProduto(qtdAtual) {
 /**
  * Registra um pagamento (simulado)
  */
-export function registrarPagamento(planoId, valor) {
-  const assinatura = carregarAssinatura();
+export async function registrarPagamento(planoId, valor) {
+  const assinatura = await carregarAssinatura();
   if (!assinatura) return null;
 
   const agora = new Date();
@@ -273,6 +293,8 @@ export function registrarPagamento(planoId, valor) {
   assinatura.status = "ativa";
   assinatura.planoId = planoId;
   assinatura.ultimoPagamento = agora.toISOString();
+  assinatura.dataAtivacaoPlano = agora.toISOString(); // Registra a data de ativação do plano
+  assinatura.trialExpiracao = null; // Remove a data de expiração do trial
   assinatura.proximoVencimento = new Date(
     agora.getTime() + 30 * 24 * 60 * 60 * 1000,
   ).toISOString();
@@ -290,8 +312,8 @@ export function registrarPagamento(planoId, valor) {
 /**
  * Cancela a assinatura
  */
-export function cancelarAssinatura() {
-  const assinatura = carregarAssinatura();
+export async function cancelarAssinatura() {
+  const assinatura = await carregarAssinatura();
   if (!assinatura) return;
 
   assinatura.status = "cancelada";
@@ -311,21 +333,76 @@ export function inicializarAssinatura(planoId = "profissional") {
 /**
  * Gera relatório de todos os tenants cadastrados
  * (apenas para uso do administrador)
+ * Agora busca do Firebase.
  */
-export function gerarRelatorioAdmin() {
+export async function gerarRelatorioAdmin() {
+  if (!firebaseDisponivel || !db) {
+    console.warn(
+      "Firebase não disponível. Não é possível gerar relatório admin.",
+    );
+    // Fallback para localStorage se Firebase não estiver disponível
+    return gerarRelatorioAdminLocalStorageFallback();
+  }
+
+  const tenants = [];
+  try {
+    const querySnapshot = await getDocs(collection(db, "tenants"));
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      if (data.info) {
+        const tenantInfo = data.info;
+        const assinatura = data.assinatura || null;
+
+        tenants.push({
+          id: docSnap.id,
+          nome: tenantInfo.nomeEstabelecimento || tenantInfo.nome,
+          email: tenantInfo.email,
+          ramo: tenantInfo.ramo,
+          criadoEm: tenantInfo.criadoEm,
+          // totalVendas e valorTotalVendas removidos para evitar consultas caras
+          assinatura: assinatura
+            ? {
+                plano: assinatura.planoId,
+                status: assinatura.status,
+                trialExpiracao: assinatura.trialExpiracao,
+                proximoVencimento: assinatura.proximoVencimento,
+                dataAtivacaoPlano: assinatura.dataAtivacaoPlano, // Inclui a nova data
+              }
+            : null,
+        });
+      }
+    });
+  } catch (error) {
+    console.error("Erro ao carregar relatório admin do Firebase:", error);
+    // Em caso de erro no Firebase, tenta o fallback do localStorage
+    return gerarRelatorioAdminLocalStorageFallback();
+  }
+
+  return tenants.sort((a, b) => new Date(b.criadoEm) - new Date(a.criadoEm));
+}
+
+// Fallback para localStorage (apenas para desenvolvimento/demo sem Firebase)
+function gerarRelatorioAdminLocalStorageFallback() {
+  // ... (código existente para ler do localStorage)
+  // Este código não será alterado aqui, mas deve ser o que já existia antes
+  // e que você pode manter como um fallback ou remover se o Firebase for obrigatório.
+  // Para este diff, vou manter a estrutura original do fallback, mas em um sistema real
+  // você precisaria garantir que ele também leria os dados de assinatura corretamente.
   const tenants = [];
   const keys = Object.keys(localStorage);
 
-  // Procura todos os tenants salvos
   for (const key of keys) {
-    if (key.startsWith("pdv_tenant")) {
+    if (key.startsWith("pdv_tenant_")) {
+      // Corrigido para buscar tenants específicos
       try {
         const tenant = JSON.parse(localStorage.getItem(key));
+        const tenantId = tenant.id;
+        const assinaturaKey = `pdv_assinatura_${tenantId}`; // Assinatura agora é por tenant
         const assinatura = JSON.parse(
-          localStorage.getItem(ASSINATURA_KEY) || "null",
+          localStorage.getItem(assinaturaKey) || "null",
         );
         const vendas = JSON.parse(
-          localStorage.getItem(`pdv_vendas_${tenant.id}`) || "[]",
+          localStorage.getItem(`pdv_vendas_${tenantId}`) || "[]",
         );
 
         tenants.push({
@@ -335,35 +412,60 @@ export function gerarRelatorioAdmin() {
           ramo: tenant.ramo,
           criadoEm: tenant.criadoEm,
           totalVendas: vendas.length,
-          valorTotalVendas: vendas.reduce(
-            (acc, v) => acc + (v.total || 0),
-            0,
-          ),
+          valorTotalVendas: vendas.reduce((acc, v) => acc + (v.total || 0), 0),
           assinatura: assinatura
             ? {
                 plano: assinatura.planoId,
                 status: assinatura.status,
                 trialExpiracao: assinatura.trialExpiracao,
                 proximoVencimento: assinatura.proximoVencimento,
+                dataAtivacaoPlano: assinatura.dataAtivacaoPlano,
               }
             : null,
         });
       } catch (e) {
-        // Ignora erros
+        console.warn(
+          "Erro ao carregar tenant do localStorage para relatório admin:",
+          e,
+        );
       }
     }
   }
+  return tenants.sort((a, b) => new Date(b.criadoEm) - new Date(a.criadoEm));
+}
 
-  return tenants;
+/**
+ * Simula a geração de um link de pagamento do Mercado Pago.
+ * Em um ambiente real, esta função faria uma chamada a um backend
+ * que, por sua vez, se comunicaria com a API do Mercado Pago.
+ */
+export function gerarLinkPagamentoMercadoPago(planoId, tenantId, valor) {
+  // URL de exemplo do Mercado Pago para checkout de um produto/serviço
+  // Em produção, você usaria a API do Mercado Pago para criar uma preferência de pagamento
+  // e obter um link real.
+  const baseUrl = "https://www.mercadopago.com.br/checkout/v1/redirect";
+  const params = new URLSearchParams({
+    preference_id: `mock_pref_${planoId}_${tenantId}_${Date.now()}`, // ID de preferência simulado
+    external_reference: `${tenantId}_${planoId}`, // Referência externa para identificar a transação
+    amount: valor.toFixed(2), // Valor do plano
+    description: `Assinatura Plano ${PLANOS[planoId].nome} - Sistema PDV`,
+    // Em um cenário real, você teria URLs de sucesso, pendente e falha
+    // back_urls: JSON.stringify({
+    //   success: `${window.location.origin}/pagamento/sucesso?tenantId=${tenantId}&planoId=${planoId}`,
+    //   pending: `${window.location.origin}/pagamento/pendente?tenantId=${tenantId}&planoId=${planoId}`,
+    //   failure: `${window.location.origin}/pagamento/falha?tenantId=${tenantId}&planoId=${planoId}`,
+    // }),
+  });
+  return `${baseUrl}?${params.toString()}`;
 }
 
 /**
  * Obtém dados do tenant para exibição no dashboard
  */
-export function getDadosTenant() {
+export async function getDadosTenant() {
   const tenant = getTenant();
-  const assinatura = carregarAssinatura();
-  const status = verificarStatusAssinatura();
+  const assinatura = await carregarAssinatura();
+  const status = await verificarStatusAssinatura();
 
   return {
     tenant,

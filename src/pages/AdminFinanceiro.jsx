@@ -6,18 +6,20 @@ export default function AdminFinanceiro() {
   const [periodo, setPeriodo] = useState("todos");
 
   useEffect(() => {
-    const dados = gerarRelatorioAdmin();
-    setClientes(dados);
+    async function carregarDadosFinanceiros() {
+      const dados = await gerarRelatorioAdmin();
+      setClientes(dados);
+    }
+    carregarDadosFinanceiros();
   }, []);
 
-  const totalFaturamento = clientes.reduce(
-    (acc, c) => acc + (c.valorTotalVendas || 0),
-    0,
-  );
-  const totalVendas = clientes.reduce(
-    (acc, c) => acc + (c.totalVendas || 0),
-    0,
-  );
+  // O faturamento agora é simulado com base nos planos ativos, já que os dados de venda não são agregados no tenant principal
+  const totalFaturamentoEstimado = clientes.reduce((acc, c) => {
+    if (c.assinatura?.status === "ativa" && PLANOS[c.assinatura.planoId]) {
+      return acc + PLANOS[c.assinatura.planoId].preco;
+    }
+    return acc;
+  }, 0);
   const qtdPagantes = clientes.filter(
     (c) => c.assinatura?.status === "ativa",
   ).length;
@@ -38,20 +40,23 @@ export default function AdminFinanceiro() {
         <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
           <p className="text-sm text-gray-500 font-medium">Faturamento Total</p>
           <p className="text-3xl font-bold text-green-600 mt-1">
-            R$ {totalFaturamento.toFixed(2)}
+            {" "}
+            {/* Este é um faturamento estimado mensal */}
+            R$ {totalFaturamentoEstimado.toFixed(2)}
           </p>
           <div className="mt-2 text-xs text-gray-400">
-            Total de todas as vendas realizadas
+            Faturamento mensal estimado com base nos planos ativos
           </div>
         </div>
 
         <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
           <p className="text-sm text-gray-500 font-medium">Total de Vendas</p>
-          <p className="text-3xl font-bold text-blue-600 mt-1">{totalVendas}</p>
+          <p className="text-3xl font-bold text-blue-600 mt-1">N/A</p>{" "}
+          {/* Removido, pois não é mais facilmente acessível */}
           <div className="mt-2 text-xs text-gray-400">
             {clientes.length > 0
-              ? `Média de ${(totalVendas / clientes.length).toFixed(1)} por cliente`
-              : "Nenhuma venda ainda"}
+              ? `Não disponível diretamente no dashboard admin`
+              : "N/A"}
           </div>
         </div>
 
@@ -98,9 +103,13 @@ export default function AdminFinanceiro() {
                   Plano
                 </th>
                 <th className="text-center p-3 font-medium text-gray-600">
+                  {" "}
+                  {/* Removido */}
                   Total Vendas
                 </th>
                 <th className="text-right p-3 font-medium text-gray-600">
+                  {" "}
+                  {/* Removido */}
                   Valor Total
                 </th>
                 <th className="text-right p-3 font-medium text-gray-600">
@@ -130,20 +139,19 @@ export default function AdminFinanceiro() {
                           : "Free"}
                       </span>
                     </td>
-                    <td className="p-3 text-center font-medium">
-                      {cliente.totalVendas || 0}
-                    </td>
+                    <td className="p-3 text-center font-medium">N/A</td>{" "}
+                    {/* Removido */}
                     <td className="p-3 text-right font-medium text-green-600">
-                      R$ {(cliente.valorTotalVendas || 0).toFixed(2)}
-                    </td>
+                      N/A
+                    </td>{" "}
+                    {/* Removido */}
                     <td className="p-3 text-right font-medium">
                       R${" "}
-                      {cliente.totalVendas > 0
-                        ? (
-                            (cliente.valorTotalVendas || 0) /
-                            cliente.totalVendas
-                          ).toFixed(2)
-                        : "0,00"}
+                      {cliente.assinatura?.planoId !== "free" &&
+                      PLANOS[cliente.assinatura?.planoId]
+                        ? PLANOS[cliente.assinatura.planoId].preco.toFixed(2)
+                        : "0,00"}{" "}
+                      {/* Exibe o preço do plano como ticket médio simulado */}
                     </td>
                   </tr>
                 ))}

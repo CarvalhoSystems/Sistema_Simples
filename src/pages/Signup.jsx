@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../components/AuthContext";
 import { RAMOS_NEGOCIO } from "../services/supabaseClient";
+import { setProdutos, setCategorias } from "../services/tenantData";
 import { getInitialDataForRamo } from "../hooks/useTenant";
 
 export default function Signup() {
@@ -38,17 +39,9 @@ export default function Signup() {
 
       if (result.success) {
         // Inicializa dados do ramo
-        const dadosIniciais = getInitialDataForRamo(businessType);
-        const tenantId = result.user.uid;
-
-        localStorage.setItem(
-          `pdv_produtos_${tenantId}`,
-          JSON.stringify(dadosIniciais.produtos),
-        );
-        localStorage.setItem(
-          `pdv_categorias_${tenantId}`,
-          JSON.stringify(dadosIniciais.categorias),
-        );
+        const { produtos, categorias } = getInitialDataForRamo(businessType);
+        await setProdutos(produtos);
+        await setCategorias(categorias);
         localStorage.setItem(`pdv_vendas_${tenantId}`, JSON.stringify([]));
 
         alert(

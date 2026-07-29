@@ -5,11 +5,14 @@ export default function AdminPlanos() {
   const [clientes, setClientes] = useState([]);
 
   useEffect(() => {
-    const dados = gerarRelatorioAdmin();
-    setClientes(dados);
+    async function carregarDadosPlanos() {
+      const dados = await gerarRelatorioAdmin();
+      setClientes(dados);
+    }
+    carregarDadosPlanos();
   }, []);
 
-  // Distribuição por plano
+  // Distribuição por plano (usa planoId)
   const planosCount = {};
   clientes.forEach((c) => {
     const plano = c.assinatura?.plano || "free";
