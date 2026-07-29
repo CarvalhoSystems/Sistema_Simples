@@ -11,7 +11,7 @@ export default function RodapeAtalhos() {
     { tecla: "F9", acao: "Cartao" },
     { tecla: "F10", acao: "Produtos" },
     { tecla: "F11", acao: "Dashboard" },
-    { tecla: "F12", acao: "Imprimir Nota" },
+    { tecla: "F12", acao: "Fechamento de Caixa" },
   ];
 
   return (

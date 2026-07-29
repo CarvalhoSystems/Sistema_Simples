@@ -7,6 +7,8 @@ import Login from "./pages/Login.jsx";
 import Inventario from "./pages/inventario.jsx";
 import Relatorios from "./pages/Relatorios.jsx";
 import Configuracoes from "./pages/Configuracoes.jsx";
+import Planos from "./pages/Planos.jsx";
+import MeusEstabelecimentos from "./pages/MeusEstabelecimentos.jsx";
 import Suporte from "./pages/Suporte.jsx";
 import NotaFiscalPaulista from "./pages/NotaFiscalPaulista.jsx";
 import Signup from "./pages/Signup.jsx";
@@ -45,6 +47,8 @@ export default function App() {
           <Route path="/inventario" element={<Inventario />} />
           <Route path="/relatorios" element={<Relatorios />} />
           <Route path="/configuracoes" element={<Configuracoes />} />
+          <Route path="/planos" element={<Planos />} />
+          <Route path="/estabelecimentos" element={<MeusEstabelecimentos />} />
           <Route path="/suporte" element={<Suporte />} />
           <Route path="/nfp" element={<NotaFiscalPaulista />} />
         </Route>

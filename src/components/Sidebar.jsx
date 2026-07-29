@@ -17,6 +17,8 @@ export default function Sidebar() {
     { to: "/inventario", icon: "fa-boxes", text: "Inventário" },
     { to: "/caixa", icon: "fa-cash-register", text: "CAIXA" },
     { to: "/relatorios", icon: "fa-chart-bar", text: "Relatórios" },
+    { to: "/planos", icon: "fa-crown", text: "Planos" },
+    { to: "/estabelecimentos", icon: "fa-store-alt", text: "Estabelecimentos" },
     { to: "/configuracoes", icon: "fa-cog", text: "Configurações" },
     { to: "/suporte", icon: "fa-life-ring", text: "Suporte" },
     { to: "/nfp", icon: "fa-file-invoice", text: "N. Fiscal Paulista" },

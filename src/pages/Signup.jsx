@@ -5,6 +5,10 @@ import { RAMOS_NEGOCIO } from "../services/supabaseClient";
 import { getInitialDataForRamo } from "../hooks/useTenant";
 import { inicializarDadosTenant } from "../services/firebaseData";
 import { criarAssinatura } from "../services/planoManager";
+import {
+  criarEstabelecimento,
+  alternarEstabelecimento,
+} from "../services/estabelecimentoManager";
 
 export default function Signup() {
   const [fullName, setFullName] = useState("");
@@ -54,6 +58,15 @@ export default function Signup() {
 
         // Inicializa a assinatura com trial grátis de 7 dias
         criarAssinatura("free", true);
+
+        // Cria o primeiro estabelecimento automaticamente
+        const nomeEstab =
+          nomeEstabelecimento ||
+          RAMOS_NEGOCIO.find((r) => r.id === businessType)?.nome;
+        const resultEstab = criarEstabelecimento(nomeEstab, businessType);
+        if (resultEstab.success) {
+          alternarEstabelecimento(resultEstab.estabelecimento.id);
+        }
 
         alert(
           `✅ Conta criada com sucesso!\n\nBem-vindo, ${fullName}!\nSeus produtos já foram carregados automaticamente.`,

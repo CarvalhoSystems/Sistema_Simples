@@ -142,7 +142,7 @@ export default function PlanBlock({ feature, children, mensagem }) {
             Desbloqueie todas as funcionalidades
           </p>
           <button
-            onClick={() => navigate("/configuracoes")}
+            onClick={() => navigate("/planos")}
             className="w-full px-6 py-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg hover:from-yellow-600 hover:to-orange-600 transition-colors font-semibold shadow-lg"
           >
             <i className="fas fa-arrow-up mr-2"></i>

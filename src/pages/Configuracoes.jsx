@@ -1,208 +1,592 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { getTenant, setTenant } from "../hooks/useTenant";
 import Swal from "sweetalert2";
-import {
-  getDadosTenant,
-  PLANOS,
-  verificarStatusAssinatura,
-  registrarPagamento,
-} from "../services/planoManager";
-import CheckoutMercadoPago from "../components/CheckoutMercadoPago";
-
-const statusInfo = {
-  trial: {
-    icon: "fa-hourglass-half",
-    color: "text-blue-500",
-    bgColor: "bg-blue-50",
-    borderColor: "border-blue-200",
-  },
-  ativa: {
-    icon: "fa-check-circle",
-    color: "text-green-500",
-    bgColor: "bg-green-50",
-    borderColor: "border-green-200",
-  },
-  vencida: {
-    icon: "fa-exclamation-triangle",
-    color: "text-red-500",
-    bgColor: "bg-red-50",
-    borderColor: "border-red-200",
-  },
-  trial_expirado: {
-    icon: "fa-hourglass-end",
-    color: "text-yellow-500",
-    bgColor: "bg-yellow-50",
-    borderColor: "border-yellow-200",
-  },
-  cancelada: {
-    icon: "fa-times-circle",
-    color: "text-gray-500",
-    bgColor: "bg-gray-100",
-    borderColor: "border-gray-200",
-  },
-};
 
 export default function Configuracoes() {
   const navigate = useNavigate();
-  const [dados, setDados] = useState(null);
-  const [checkoutData, setCheckoutData] = useState(null); // Novo estado para controlar o checkout
+  const [formData, setFormData] = useState({
+    nomeFantasia: "",
+    cnpj: "",
+    endereco: "",
+    pixKey: "",
+    pixHolder: "",
+    receiptMessage: "",
+    mercadoPagoAccessToken: "",
+    mercadoPagoDeviceId: "",
+    mercadoPagoCommercialAddress: "",
+  });
+  const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
-    const carregarDados = async () => {
-      setDados(await getDadosTenant());
-    };
-    // Este efeito agora depende de `checkoutData`.
-    // Ele só vai carregar os dados se não estivermos no meio de um checkout.
-    if (!checkoutData) carregarDados();
-  }, [checkoutData]);
+    const tenant = getTenant();
+    if (tenant) {
+      setFormData({
+        nomeFantasia: tenant.nomeFantasia || tenant.nomeEstabelecimento || "",
+        cnpj: tenant.cnpj || "",
+        endereco: tenant.endereco || "",
+        pixKey: tenant.pixKey || "",
+        pixHolder: tenant.pixHolder || "",
+        receiptMessage: tenant.receiptMessage || "",
+        mercadoPagoAccessToken: tenant.mercadoPagoAccessToken || "",
+        mercadoPagoDeviceId: tenant.mercadoPagoDeviceId || "",
+        mercadoPagoCommercialAddress: tenant.mercadoPagoCommercialAddress || "",
+      });
+    }
+  }, []);
 
-  const handleSelectPlan = async (planoId) => {
-    const planoSelecionado = PLANOS[planoId];
-    if (!planoSelecionado) return;
-
-    // Define os dados para o checkout, o que fará o componente de pagamento ser renderizado
-    setCheckoutData({
-      amount: planoSelecionado.preco,
-      planName: planoSelecionado.nome,
-      planoId: planoSelecionado.id,
-    });
+  const handleChange = (e) => {
+    const { id, value } = e.target;
+    setFormData((prev) => ({ ...prev, [id]: value }));
   };
 
-  const handlePaymentSuccess = async (paymentData) => {
-    console.log(
-      "Pagamento recebido com sucesso no componente pai:",
-      paymentData,
-    );
-    const { planoId, amount } = checkoutData;
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSalvando(true);
 
-    // Registra o pagamento e atualiza a assinatura no sistema
-    await registrarPagamento(planoId, amount);
+    try {
+      const tenant = getTenant();
+      if (!tenant) {
+        Swal.fire(
+          "Erro",
+          "Nenhuma loja encontrada. Faça login novamente.",
+          "error",
+        );
+        return;
+      }
 
-    Swal.fire(
-      "Pagamento Confirmado!",
-      `Seu plano foi atualizado para ${checkoutData.planName}.`,
-      "success",
-    ).then(() => {
-      // Força a verificação do status para limpar caches antigos antes de navegar
-      verificarStatusAssinatura(true);
-      setCheckoutData(null); // Limpa os dados de checkout
-      navigate("/dashboard"); // Redireciona para o dashboard
-    });
+      const updatedTenant = {
+        ...tenant,
+        nomeFantasia: formData.nomeFantasia,
+        nomeEstabelecimento:
+          formData.nomeFantasia || tenant.nomeEstabelecimento,
+        cnpj: formData.cnpj,
+        endereco: formData.endereco,
+        pixKey: formData.pixKey,
+        pixHolder: formData.pixHolder,
+        receiptMessage: formData.receiptMessage,
+        mercadoPagoAccessToken: formData.mercadoPagoAccessToken,
+        mercadoPagoDeviceId: formData.mercadoPagoDeviceId,
+        mercadoPagoCommercialAddress: formData.mercadoPagoCommercialAddress,
+      };
+
+      setTenant(updatedTenant);
+
+      Swal.fire(
+        "Salvo!",
+        "As configurações da loja foram salvas com sucesso.",
+        "success",
+      );
+    } catch (error) {
+      Swal.fire("Erro", "Ocorreu um erro ao salvar as configurações.", "error");
+    } finally {
+      setSalvando(false);
+    }
   };
-
-  // Se checkoutData tiver valor, renderiza o componente de pagamento
-  if (checkoutData) {
-    return (
-      <main className="flex-1 p-6 bg-gray-50">
-        <CheckoutMercadoPago
-          {...checkoutData}
-          onPaymentSuccess={handlePaymentSuccess}
-          onCancel={() => setCheckoutData(null)}
-        />
-      </main>
-    );
-  }
-
-  if (!dados) {
-    return <div>Carregando...</div>;
-  }
-
-  const { status, plano } = dados;
-  const info = statusInfo[status.status] || statusInfo.cancelada;
-
-  const planosDisponiveis = Object.values(PLANOS).filter(
-    (p) => p.id !== "free",
-  );
 
   return (
     <main className="flex-1 p-6 bg-gray-50">
-      <h1 className="text-2xl font-bold text-gray-800 mb-4">
-        Planos e Assinatura
-      </h1>
-
-      {/* Status Atual */}
-      <div
-        className={`p-6 rounded-lg border-2 ${info.borderColor} ${info.bgColor} mb-8`}
+      <header
+        className="content-header"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          padding: "1.5rem",
+          backgroundColor: "#fff",
+          borderBottom: "1px solid #e2e8f0",
+          borderRadius: "0.5rem",
+          marginBottom: "1.5rem",
+        }}
       >
-        <div className="flex items-center gap-4">
-          <i className={`fas ${info.icon} text-3xl ${info.color}`}></i>
-          <div>
-            <p className="text-sm text-gray-500">Seu plano atual</p>
-            <h2 className="text-2xl font-bold text-gray-800">{plano.nome}</h2>
-            <p className={`font-semibold ${info.color}`}>{status.mensagem}</p>
-          </div>
+        <div className="header-title">
+          <h1
+            style={{
+              fontSize: "1.75rem",
+              fontWeight: 700,
+              color: "#1e293b",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+            }}
+          >
+            <i className="fas fa-cog"></i> Configurações da Unidade
+          </h1>
+          <p
+            style={{
+              fontSize: "0.9rem",
+              color: "#64748b",
+              marginTop: "0.25rem",
+            }}
+          >
+            Gerencie os dados que aparecem nos comprovantes e notas
+          </p>
         </div>
-      </div>
 
-      {/* Planos para Upgrade */}
-      <div className="mb-6">
-        <h3 className="text-xl font-semibold text-gray-700">
-          Escolha um plano para contratar ou fazer upgrade
-        </h3>
-        <p className="text-gray-500">
-          Desbloqueie mais funcionalidades e cresça seu negócio.
-        </p>
-      </div>
+        <div
+          className="header-actions"
+          style={{ display: "flex", gap: "0.75rem" }}
+        >
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={salvando}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 font-medium"
+          >
+            <i className="fas fa-save"></i>
+            {salvando ? "Salvando..." : "Salvar Alterações"}
+          </button>
+        </div>
+      </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {planosDisponiveis.map((p) => {
-          const isCurrentPlan = p.id === plano.id;
-          return (
-            <div
-              key={p.id}
-              className={`rounded-xl border-2 p-6 flex flex-col ${
-                isCurrentPlan
-                  ? "border-indigo-500 bg-indigo-50"
-                  : "bg-white hover:border-indigo-300"
-              }`}
+      <section
+        className="settings-grid"
+        style={{ display: "grid", gap: "1.5rem" }}
+      >
+        <form id="settingsForm" onSubmit={handleSave}>
+          {/* Dados da Empresa */}
+          <div
+            className="settings-card"
+            style={{
+              backgroundColor: "#fff",
+              padding: "1.5rem",
+              borderRadius: "0.5rem",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+              border: "1px solid #e2e8f0",
+              marginBottom: "1.5rem",
+            }}
+          >
+            <h3
+              style={{
+                fontSize: "1.1rem",
+                fontWeight: 600,
+                color: "#334155",
+                borderBottom: "1px solid #f1f5f9",
+                paddingBottom: "0.75rem",
+                marginBottom: "1rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+              }}
             >
-              <h4 className="text-lg font-bold text-indigo-700">{p.nome}</h4>
-              <p className="text-3xl font-extrabold text-gray-800 my-3">
-                R$ {p.preco.toFixed(2)}
-                <span className="text-sm font-normal text-gray-500">/mês</span>
-              </p>
-
-              <ul className="space-y-2 text-sm text-gray-600 flex-1 mb-6">
-                {Object.entries(p.features)
-                  .filter(([, enabled]) => enabled)
-                  .map(([featureKey]) => {
-                    const featureNames = {
-                      pdv: "PDV Completo",
-                      dashboard: "Dashboard",
-                      relatorios: "Relatórios Avançados",
-                      nfp: "Nota Fiscal Paulista",
-                      backup: "Backup na Nuvem",
-                      api: "Acesso à API",
-                      multiplosEstabelecimentos: "Múltiplos Estabelecimentos",
-                    };
-                    return (
-                      <li key={featureKey} className="flex items-start gap-2">
-                        <i className="fas fa-check-circle text-indigo-500 mt-1"></i>
-                        <span>{featureNames[featureKey] || featureKey}</span>
-                      </li>
-                    );
-                  })}
-              </ul>
-
-              {isCurrentPlan ? (
-                <button
-                  disabled
-                  className="w-full mt-auto px-4 py-2.5 font-semibold text-white bg-indigo-400 rounded-lg cursor-not-allowed"
+              <i className="fas fa-building"></i> Dados da Empresa
+            </h3>
+            <div
+              className="form-group-grid"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                gap: "1rem",
+              }}
+            >
+              <div className="form-group" style={{ marginBottom: "1rem" }}>
+                <label
+                  htmlFor="nomeFantasia"
+                  style={{
+                    display: "block",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    color: "#475569",
+                    marginBottom: "0.25rem",
+                  }}
                 >
-                  Plano Atual
-                </button>
-              ) : (
-                <button
-                  onClick={() => handleSelectPlan(p.id)}
-                  className="w-full mt-auto px-4 py-2.5 font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition-colors"
+                  Nome Fantasia
+                </label>
+                <input
+                  type="text"
+                  id="nomeFantasia"
+                  value={formData.nomeFantasia}
+                  onChange={handleChange}
+                  placeholder="Ex: Papelaria do João"
+                  style={{
+                    width: "100%",
+                    padding: "0.6rem 0.75rem",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "0.375rem",
+                    fontSize: "0.9rem",
+                  }}
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: "1rem" }}>
+                <label
+                  htmlFor="cnpj"
+                  style={{
+                    display: "block",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    color: "#475569",
+                    marginBottom: "0.25rem",
+                  }}
                 >
-                  {plano.preco > p.preco ? "Fazer Downgrade" : "Fazer Upgrade"}
-                </button> // O texto do botão será "Fazer Upgrade" ou "Fazer Downgrade"
-              )}
+                  CNPJ
+                </label>
+                <input
+                  type="text"
+                  id="cnpj"
+                  value={formData.cnpj}
+                  onChange={handleChange}
+                  placeholder="00.000.000/0000-00"
+                  style={{
+                    width: "100%",
+                    padding: "0.6rem 0.75rem",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "0.375rem",
+                    fontSize: "0.9rem",
+                  }}
+                />
+              </div>
             </div>
-          );
-        })}
-      </div>
+            <div className="form-group" style={{ marginBottom: "1rem" }}>
+              <label
+                htmlFor="endereco"
+                style={{
+                  display: "block",
+                  fontSize: "0.875rem",
+                  fontWeight: 500,
+                  color: "#475569",
+                  marginBottom: "0.25rem",
+                }}
+              >
+                Endereço Completo
+              </label>
+              <input
+                type="text"
+                id="endereco"
+                value={formData.endereco}
+                onChange={handleChange}
+                placeholder="Rua, Número, Bairro, Cidade - UF"
+                style={{
+                  width: "100%",
+                  padding: "0.6rem 0.75rem",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: "0.375rem",
+                  fontSize: "0.9rem",
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Recebimentos PIX */}
+          <div
+            className="settings-card"
+            style={{
+              backgroundColor: "#fff",
+              padding: "1.5rem",
+              borderRadius: "0.5rem",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+              border: "1px solid #e2e8f0",
+              marginBottom: "1.5rem",
+            }}
+          >
+            <h3
+              style={{
+                fontSize: "1.1rem",
+                fontWeight: 600,
+                color: "#334155",
+                borderBottom: "1px solid #f1f5f9",
+                paddingBottom: "0.75rem",
+                marginBottom: "1rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+              }}
+            >
+              <i className="fas fa-wallet"></i> Recebimentos (PIX)
+            </h3>
+            <div
+              className="form-group-grid"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                gap: "1rem",
+              }}
+            >
+              <div className="form-group" style={{ marginBottom: "1rem" }}>
+                <label
+                  htmlFor="pixKey"
+                  style={{
+                    display: "block",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    color: "#475569",
+                    marginBottom: "0.25rem",
+                  }}
+                >
+                  Chave PIX Principal
+                </label>
+                <input
+                  type="text"
+                  id="pixKey"
+                  value={formData.pixKey}
+                  onChange={handleChange}
+                  placeholder="CPF, E-mail, Celular ou Chave Aleatória"
+                  style={{
+                    width: "100%",
+                    padding: "0.6rem 0.75rem",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "0.375rem",
+                    fontSize: "0.9rem",
+                  }}
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: "1rem" }}>
+                <label
+                  htmlFor="pixHolder"
+                  style={{
+                    display: "block",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    color: "#475569",
+                    marginBottom: "0.25rem",
+                  }}
+                >
+                  Nome do Titular
+                </label>
+                <input
+                  type="text"
+                  id="pixHolder"
+                  value={formData.pixHolder}
+                  onChange={handleChange}
+                  placeholder="Nome completo ou Razão Social"
+                  style={{
+                    width: "100%",
+                    padding: "0.6rem 0.75rem",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "0.375rem",
+                    fontSize: "0.9rem",
+                  }}
+                />
+              </div>
+            </div>
+            <p
+              className="helper-text"
+              style={{
+                fontSize: "0.8rem",
+                color: "#64748b",
+                marginTop: "0.5rem",
+              }}
+            >
+              Esta chave será utilizada para gerar o QR Code no PDV.
+            </p>
+          </div>
+
+          {/* Rodapé do Recibo */}
+          <div
+            className="settings-card"
+            style={{
+              backgroundColor: "#fff",
+              padding: "1.5rem",
+              borderRadius: "0.5rem",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+              border: "1px solid #e2e8f0",
+              marginBottom: "1.5rem",
+            }}
+          >
+            <h3
+              style={{
+                fontSize: "1.1rem",
+                fontWeight: 600,
+                color: "#334155",
+                borderBottom: "1px solid #f1f5f9",
+                paddingBottom: "0.75rem",
+                marginBottom: "1rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+              }}
+            >
+              <i className="fas fa-file-invoice-dollar"></i> Rodapé do Recibo
+            </h3>
+            <div className="form-group" style={{ marginBottom: "1rem" }}>
+              <label
+                htmlFor="receiptMessage"
+                style={{
+                  display: "block",
+                  fontSize: "0.875rem",
+                  fontWeight: 500,
+                  color: "#475569",
+                  marginBottom: "0.25rem",
+                }}
+              >
+                Mensagem de Agradecimento
+              </label>
+              <textarea
+                id="receiptMessage"
+                rows="3"
+                value={formData.receiptMessage}
+                onChange={handleChange}
+                placeholder="Ex: Obrigado pela preferência! Volte sempre."
+                style={{
+                  width: "100%",
+                  padding: "0.6rem 0.75rem",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: "0.375rem",
+                  fontSize: "0.9rem",
+                  resize: "vertical",
+                }}
+              ></textarea>
+            </div>
+          </div>
+
+          {/* Integração Mercado Pago */}
+          <div
+            className="settings-card"
+            style={{
+              backgroundColor: "#fff",
+              padding: "1.5rem",
+              borderRadius: "0.5rem",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+              border: "1px solid #e2e8f0",
+              marginBottom: "1.5rem",
+            }}
+          >
+            <h3
+              style={{
+                fontSize: "1.1rem",
+                fontWeight: 600,
+                color: "#334155",
+                borderBottom: "1px solid #f1f5f9",
+                paddingBottom: "0.75rem",
+                marginBottom: "1rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+              }}
+            >
+              <i className="fas fa-credit-card"></i> Integração Mercado Pago
+              (Point Smart 2)
+            </h3>
+            <p
+              className="helper-text"
+              style={{
+                fontSize: "0.8rem",
+                color: "#64748b",
+                marginBottom: "15px",
+              }}
+            >
+              Configure sua maquininha Point Smart 2 para receber pagamentos
+              automáticos no cartão.
+            </p>
+            <div
+              className="form-group-grid"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                gap: "1rem",
+              }}
+            >
+              <div className="form-group" style={{ marginBottom: "1rem" }}>
+                <label
+                  htmlFor="mercadoPagoAccessToken"
+                  style={{
+                    display: "block",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    color: "#475569",
+                    marginBottom: "0.25rem",
+                  }}
+                >
+                  Access Token
+                </label>
+                <input
+                  type="password"
+                  id="mercadoPagoAccessToken"
+                  value={formData.mercadoPagoAccessToken}
+                  onChange={handleChange}
+                  placeholder="Seu access token do Mercado Pago"
+                  style={{
+                    width: "100%",
+                    padding: "0.6rem 0.75rem",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "0.375rem",
+                    fontSize: "0.9rem",
+                  }}
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: "1rem" }}>
+                <label
+                  htmlFor="mercadoPagoDeviceId"
+                  style={{
+                    display: "block",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    color: "#475569",
+                    marginBottom: "0.25rem",
+                  }}
+                >
+                  Device ID
+                </label>
+                <input
+                  type="text"
+                  id="mercadoPagoDeviceId"
+                  value={formData.mercadoPagoDeviceId}
+                  onChange={handleChange}
+                  placeholder="ID do dispositivo da maquininha"
+                  style={{
+                    width: "100%",
+                    padding: "0.6rem 0.75rem",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "0.375rem",
+                    fontSize: "0.9rem",
+                  }}
+                />
+              </div>
+            </div>
+            <div className="form-group" style={{ marginBottom: "1rem" }}>
+              <label
+                htmlFor="mercadoPagoCommercialAddress"
+                style={{
+                  display: "block",
+                  fontSize: "0.875rem",
+                  fontWeight: 500,
+                  color: "#475569",
+                  marginBottom: "0.25rem",
+                }}
+              >
+                Endereço Comercial (Opcional)
+              </label>
+              <input
+                type="text"
+                id="mercadoPagoCommercialAddress"
+                value={formData.mercadoPagoCommercialAddress}
+                onChange={handleChange}
+                placeholder="Endereço onde a maquininha está localizada"
+                style={{
+                  width: "100%",
+                  padding: "0.6rem 0.75rem",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: "0.375rem",
+                  fontSize: "0.9rem",
+                }}
+              />
+            </div>
+            <p
+              className="helper-text"
+              style={{
+                fontSize: "0.8rem",
+                color: "#64748b",
+                marginTop: "0.5rem",
+              }}
+            >
+              <i className="fas fa-info-circle"></i> O Access Token e Device ID
+              são obtidos no painel do Mercado Pago Developers. Cada loja pode
+              ter sua própria configuração.
+            </p>
+          </div>
+
+          {/* Botão Salvar no final do formulário */}
+          <div style={{ textAlign: "right", marginTop: "1rem" }}>
+            <button
+              type="submit"
+              disabled={salvando}
+              className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 font-medium inline-flex"
+            >
+              <i className="fas fa-save"></i>
+              {salvando ? "Salvando..." : "Salvar Alterações"}
+            </button>
+          </div>
+        </form>
+      </section>
     </main>
   );
 }
