@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import { verificarStatusAssinatura, PLANOS } from "../services/planoManager";
@@ -7,7 +7,25 @@ const PLANOS_ORDEM = ["free", "basico", "profissional", "premium"];
 
 export default function PlanBlock({ feature, children, mensagem }) {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, carregando: authCarregando } = useAuth();
+  const [status, setStatus] = useState(null);
+  const [carregando, setCarregando] = useState(true);
+
+  useEffect(() => {
+    if (authCarregando) {
+      return; // Aguarda a autenticação ser resolvida
+    }
+    if (!isAuthenticated) {
+      setCarregando(false);
+      return;
+    }
+    const checkStatus = async () => {
+      // O `true` força a busca dos dados mais recentes do Firebase
+      setStatus(await verificarStatusAssinatura(true));
+      setCarregando(false);
+    };
+    checkStatus();
+  }, [isAuthenticated, authCarregando]);
 
   if (!isAuthenticated) {
     return (
@@ -33,7 +51,19 @@ export default function PlanBlock({ feature, children, mensagem }) {
     );
   }
 
-  const status = verificarStatusAssinatura();
+  if (carregando) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <i className="fas fa-spinner fa-spin text-3xl text-gray-400"></i>
+          <p className="text-gray-500 mt-2">Verificando sua assinatura...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!status) return null; // Não deve acontecer, mas é uma guarda de segurança
+
   const planoAtual = status.plano;
 
   // Se o plano atual já tem a feature, renderiza os filhos

@@ -225,7 +225,7 @@ export default function AdminClientes() {
                         </span>
                       </td>
                       <td className="p-3 text-center">
-                        <span className="font-medium">
+                        <span className="font-medium text-gray-700">
                           {cliente.assinatura?.plano
                             ? PLANOS[cliente.assinatura.plano]?.nome ||
                               cliente.assinatura.plano

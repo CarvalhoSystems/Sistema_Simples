@@ -128,12 +128,21 @@ export default function PDV() {
     }
   }, [mostrarF10]);
 
-  // Obtém produtos do tenant atual
-  const produtosDoTenant = getProdutos();
+  // Novo estado para armazenar a lista de produtos do tenant
+  const [produtosDoTenant, setProdutosDoTenant] = useState([]);
+
+  // Carrega os produtos do tenant de forma assíncrona
+  useEffect(() => {
+    async function carregarProdutos() {
+      const produtos = await getProdutos();
+      setProdutosDoTenant(produtos);
+    }
+    carregarProdutos();
+  }, []);
 
   // Filtra os produtos para o modal F10
   const produtosFiltradosF10 = termoBuscaF10
-    ? buscarProdutos(termoBuscaF10)
+    ? buscarProdutos(termoBuscaF10, produtosDoTenant) // Passa a lista de produtos
     : produtosDoTenant;
 
   // Efeito para recalcular os totais sempre que o carrinho ou o desconto mudar
@@ -192,8 +201,9 @@ export default function PDV() {
   }, [mostrarF10]); // Dependência adicionada aqui
 
   const lidarComBipe = (codigoBipado) => {
-    const produtos = getProdutos();
-    const produtoEncontrado = produtos.find((p) => p.codigo === codigoBipado);
+    const produtoEncontrado = produtosDoTenant.find(
+      (p) => p.codigo === codigoBipado,
+    );
 
     if (!produtoEncontrado) {
       Swal.fire({

@@ -201,7 +201,7 @@ export default function AdminPlanos() {
                       {cliente.email || "-"}
                     </td>
                     <td className="p-3 text-center">
-                      <span
+                      <span // eslint-disable-next-line react/jsx-no-undef
                         className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${planoInfo?.corBg} ${planoInfo?.corTexto}`}
                       >
                         {planoInfo?.nome || "Free"}

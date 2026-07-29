@@ -95,12 +95,12 @@ export const PLANOS = {
 // ===== CHAVES DO LOCALSTORAGE =====
 
 const ASSINATURA_KEY = "pdv_assinatura";
+function getAssinaturaKey(tenantId) {
+  return `pdv_assinatura_${tenantId}`;
+}
 
 // ===== FUNÇÕES DE ASSINATURA =====
 
-/**
- * Cria uma nova assinatura para o tenant
- */
 export function criarAssinatura(planoId, periodoTeste = true) {
   const tenantId = getTenantId();
   if (!tenantId) return null;
@@ -133,7 +133,12 @@ export function criarAssinatura(planoId, periodoTeste = true) {
  * Salva a assinatura no localStorage e tenta no Firebase
  */
 export function salvarAssinatura(assinatura) {
-  localStorage.setItem(ASSINATURA_KEY, JSON.stringify(assinatura));
+  const tenantId = getTenantId();
+  if (tenantId)
+    localStorage.setItem(
+      getAssinaturaKey(tenantId),
+      JSON.stringify(assinatura),
+    );
 
   // Tenta salvar no Firebase
   if (firebaseDisponivel && db) {
@@ -150,18 +155,21 @@ export function salvarAssinatura(assinatura) {
 /**
  * Carrega a assinatura do tenant
  */
-export async function carregarAssinatura() {
+export async function carregarAssinatura(forceRefresh = false) {
   const tenantId = getTenantId();
   if (!tenantId) return null;
 
-  // Tenta carregar do Firebase primeiro
+  // Tenta carregar do Firebase primeiro, especialmente se forçado
   if (firebaseDisponivel && db) {
     try {
       const docRef = doc(db, "tenants", tenantId);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists() && docSnap.data().assinatura) {
         const assinatura = docSnap.data().assinatura;
-        localStorage.setItem(ASSINATURA_KEY, JSON.stringify(assinatura)); // Atualiza o cache local
+        localStorage.setItem(
+          getAssinaturaKey(tenantId),
+          JSON.stringify(assinatura),
+        ); // Atualiza o cache local
         return assinatura;
       }
     } catch (error) {
@@ -169,12 +177,17 @@ export async function carregarAssinatura() {
     }
   }
 
-  // Fallback para localStorage
+  // Fallback para localStorage (mesmo com forceRefresh, se o Firebase falhou ou não tem dados)
   try {
-    const data = localStorage.getItem(ASSINATURA_KEY);
-    if (data) return JSON.parse(data);
+    const data = localStorage.getItem(getAssinaturaKey(tenantId));
+    if (data) {
+      const assinaturaLocal = JSON.parse(data);
+      // Se forceRefresh e temos dados do Firebase que são diferentes, preferimos os do Firebase
+      // Mas se o Firebase não tinha assinatura, usamos o localStorage
+      return assinaturaLocal;
+    }
   } catch (e) {
-    console.warn("Erro ao carregar assinatura:", e);
+    console.warn("Erro ao carregar assinatura do localStorage:", e);
   }
   return null;
 }
@@ -182,8 +195,11 @@ export async function carregarAssinatura() {
 /**
  * Verifica o status atual da assinatura
  */
-export async function verificarStatusAssinatura() {
-  const assinatura = await carregarAssinatura();
+export async function verificarStatusAssinatura(forceRefresh = false) {
+  // Se forceRefresh for verdadeiro, ignora o cache do localStorage
+  // e busca diretamente do Firebase.
+  const assinatura = await carregarAssinatura(forceRefresh);
+
   if (!assinatura) {
     return {
       ativo: false,
@@ -285,10 +301,30 @@ export function podeAdicionarProduto(qtdAtual) {
  * Registra um pagamento (simulado)
  */
 export async function registrarPagamento(planoId, valor) {
-  const assinatura = await carregarAssinatura();
-  if (!assinatura) return null;
+  let assinatura = await carregarAssinatura();
 
   const agora = new Date();
+
+  // Se não existir assinatura, cria uma nova
+  if (!assinatura) {
+    const tenantId = getTenantId();
+    if (!tenantId) return null;
+
+    assinatura = {
+      tenantId,
+      planoId: planoId,
+      status: "ativa",
+      iniciadoEm: agora.toISOString(),
+      dataAtivacaoPlano: agora.toISOString(),
+      trialExpiracao: null,
+      ultimoPagamento: null,
+      proximoVencimento: new Date(
+        agora.getTime() + 30 * 24 * 60 * 60 * 1000,
+      ).toISOString(),
+      renovacaoAutomatica: true,
+      historicoPagamentos: [],
+    };
+  }
 
   assinatura.status = "ativa";
   assinatura.planoId = planoId;

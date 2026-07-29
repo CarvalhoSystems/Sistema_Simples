@@ -100,6 +100,28 @@ export async function getCategorias() {
 }
 
 /**
+ * Função de fallback para obter categorias do localStorage.
+ */
+function getCategoriasFromLocalStorage() {
+  const tenantId = getTenantId();
+  if (!tenantId) return [];
+
+  try {
+    const data = localStorage.getItem(tenantKey(tenantId, "categorias"));
+    if (data) {
+      return JSON.parse(data);
+    }
+  } catch (e) {
+    console.warn("Erro ao carregar categorias do localStorage:", e);
+  }
+
+  // Fallback para categorias padrão do ramo
+  const ramo = getTenantRamo();
+  // CATEGORIAS_MOCK é um alias para CATEGORIAS_PADRAO de supabaseClient.js
+  return CATEGORIAS_MOCK[ramo] || CATEGORIAS_MOCK.mercado;
+}
+
+/**
  * Salva as categorias do tenant atual
  */
 export function setCategorias(categorias) {
@@ -149,10 +171,9 @@ export function buscarProdutoPorCodigo(codigo) {
 /**
  * Busca produtos por termo (código ou descrição)
  */
-export function buscarProdutos(termo) {
-  const produtos = getProdutos();
+export function buscarProdutos(termo, produtos) {
   if (!termo) return produtos;
-  const termoLower = termo.toLowerCase();
+  const termoLower = String(termo).toLowerCase();
   return produtos.filter(
     (p) =>
       p.descricao.toLowerCase().includes(termoLower) ||

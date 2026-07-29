@@ -4,9 +4,10 @@ import Swal from "sweetalert2";
 import {
   getDadosTenant,
   PLANOS,
-  gerarLinkPagamentoMercadoPago,
+  verificarStatusAssinatura,
   registrarPagamento,
 } from "../services/planoManager";
+import CheckoutMercadoPago from "../components/CheckoutMercadoPago";
 
 const statusInfo = {
   trial: {
@@ -44,46 +45,63 @@ const statusInfo = {
 export default function Configuracoes() {
   const navigate = useNavigate();
   const [dados, setDados] = useState(null);
+  const [checkoutData, setCheckoutData] = useState(null); // Novo estado para controlar o checkout
 
   useEffect(() => {
     const carregarDados = async () => {
       setDados(await getDadosTenant());
     };
-    carregarDados();
-  }, []);
+    // Este efeito agora depende de `checkoutData`.
+    // Ele só vai carregar os dados se não estivermos no meio de um checkout.
+    if (!checkoutData) carregarDados();
+  }, [checkoutData]);
 
   const handleSelectPlan = async (planoId) => {
     const planoSelecionado = PLANOS[planoId];
     if (!planoSelecionado) return;
 
-    Swal.fire({
-      title: `Confirmar Upgrade para ${planoSelecionado.nome}?`,
-      html: `Você será cobrado <strong>R$ ${planoSelecionado.preco.toFixed(
-        2,
-      )}</strong>.<br/>Sua assinatura será renovada por 30 dias.`,
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonColor: "#3085d6",
-      cancelButtonColor: "#d33",
-      confirmButtonText: "Sim, confirmar!",
-      cancelButtonText: "Cancelar",
-    }).then((result) => {
-      if (result.isConfirmed) {
-        // Simula o pagamento e atualiza a assinatura
-        registrarPagamento(planoId, planoSelecionado.preco).then(() => {
-          Swal.fire(
-            "Upgrade Realizado!",
-            `Seu plano agora é o ${planoSelecionado.nome}.`,
-            "success",
-          ).then(async () => {
-            // Recarrega os dados da página para refletir a mudança
-            setDados(await getDadosTenant());
-            navigate("/dashboard"); // Redireciona para o dashboard
-          });
-        });
-      }
+    // Define os dados para o checkout, o que fará o componente de pagamento ser renderizado
+    setCheckoutData({
+      amount: planoSelecionado.preco,
+      planName: planoSelecionado.nome,
+      planoId: planoSelecionado.id,
     });
   };
+
+  const handlePaymentSuccess = async (paymentData) => {
+    console.log(
+      "Pagamento recebido com sucesso no componente pai:",
+      paymentData,
+    );
+    const { planoId, amount } = checkoutData;
+
+    // Registra o pagamento e atualiza a assinatura no sistema
+    await registrarPagamento(planoId, amount);
+
+    Swal.fire(
+      "Pagamento Confirmado!",
+      `Seu plano foi atualizado para ${checkoutData.planName}.`,
+      "success",
+    ).then(() => {
+      // Força a verificação do status para limpar caches antigos antes de navegar
+      verificarStatusAssinatura(true);
+      setCheckoutData(null); // Limpa os dados de checkout
+      navigate("/dashboard"); // Redireciona para o dashboard
+    });
+  };
+
+  // Se checkoutData tiver valor, renderiza o componente de pagamento
+  if (checkoutData) {
+    return (
+      <main className="flex-1 p-6 bg-gray-50">
+        <CheckoutMercadoPago
+          {...checkoutData}
+          onPaymentSuccess={handlePaymentSuccess}
+          onCancel={() => setCheckoutData(null)}
+        />
+      </main>
+    );
+  }
 
   if (!dados) {
     return <div>Carregando...</div>;

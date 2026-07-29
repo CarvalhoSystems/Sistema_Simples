@@ -32,8 +32,8 @@ export default function AdminDashboard() {
     // Estes campos não estarão mais disponíveis diretamente
     (acc, c) =>
       acc +
-      (c.assinatura?.planoId !== "free"
-        ? PLANOS[c.assinatura?.planoId]?.preco || 0
+      (c.assinatura?.plano !== "free"
+        ? PLANOS[c.assinatura?.plano]?.preco || 0
         : 0), // Simula faturamento mensal dos planos ativos
     0,
   );
@@ -45,7 +45,7 @@ export default function AdminDashboard() {
   // Contagem por plano
   const planosCount = {};
   clientes.forEach((c) => {
-    const plano = c.assinatura?.planoId || "free"; // Usa planoId
+    const plano = c.assinatura?.plano || "free"; // Usa plano (que contém o planoId)
     planosCount[plano] = (planosCount[plano] || 0) + 1;
   });
 
@@ -374,7 +374,7 @@ export default function AdminDashboard() {
                           {cliente.email || "-"}
                         </td>
                         <td className="p-3 text-center">
-                          <span className="font-medium">
+                          <span className="font-medium text-gray-700">
                             {cliente.assinatura?.plano
                               ? PLANOS[cliente.assinatura.plano]?.nome ||
                                 cliente.assinatura.plano

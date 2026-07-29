@@ -2,8 +2,9 @@ import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../components/AuthContext";
 import { RAMOS_NEGOCIO } from "../services/supabaseClient";
-import { setProdutos, setCategorias } from "../services/tenantData";
 import { getInitialDataForRamo } from "../hooks/useTenant";
+import { inicializarDadosTenant } from "../services/firebaseData";
+import { criarAssinatura } from "../services/planoManager";
 
 export default function Signup() {
   const [fullName, setFullName] = useState("");
@@ -38,11 +39,21 @@ export default function Signup() {
       );
 
       if (result.success) {
-        // Inicializa dados do ramo
-        const { produtos, categorias } = getInitialDataForRamo(businessType);
-        await setProdutos(produtos);
-        await setCategorias(categorias);
-        localStorage.setItem(`pdv_vendas_${tenantId}`, JSON.stringify([]));
+        // Após criar o usuário, inicializa seus dados no Firebase
+        const tenantId = result.user.uid;
+        const tenantInfo = {
+          nome: fullName,
+          nomeEstabelecimento:
+            nomeEstabelecimento ||
+            RAMOS_NEGOCIO.find((r) => r.id === businessType)?.nome,
+          email: email,
+          ramo: businessType,
+          criadoEm: new Date().toISOString(),
+        };
+        await inicializarDadosTenant(tenantId, businessType, tenantInfo);
+
+        // Inicializa a assinatura com trial grátis de 7 dias
+        criarAssinatura("free", true);
 
         alert(
           `✅ Conta criada com sucesso!\n\nBem-vindo, ${fullName}!\nSeus produtos já foram carregados automaticamente.`,

@@ -28,11 +28,8 @@ import {
   getDocs,
   writeBatch,
 } from "firebase/firestore"; // Importa os dados mockados
-import {
-  BANCO_PRODUTOS as mockProdutos,
-  CATEGORIAS_MOCK as mockCategorias,
-} from "../mockData";
-import { getTenantId } from "../hooks/useTenant";
+import { PRODUTOS_PADRAO, CATEGORIAS_PADRAO } from "./supabaseClient";
+import { getTenantId, getTenantRamo } from "../hooks/useTenant";
 
 // ===== UTILITÁRIOS =====
 
@@ -69,10 +66,7 @@ export async function salvarProdutosFirebase(produtos) {
   if (!tenantId) return;
 
   // Sempre salva no localStorage (fallback)
-  localStorage.setItem(
-    `pdv_produtos_${tenantId}`,
-    JSON.stringify(produtos),
-  );
+  localStorage.setItem(`pdv_produtos_${tenantId}`, JSON.stringify(produtos));
 
   // Tenta salvar no Firebase
   if (isFirebaseReady()) {
@@ -195,10 +189,7 @@ export async function carregarVendasFirebase() {
         });
 
         // Atualiza localStorage com dados do Firebase
-        localStorage.setItem(
-          `pdv_vendas_${tenantId}`,
-          JSON.stringify(vendas),
-        );
+        localStorage.setItem(`pdv_vendas_${tenantId}`, JSON.stringify(vendas));
         return vendas;
       }
     } catch (error) {
@@ -242,12 +233,8 @@ export function exportarDadosTenant() {
       vendas: JSON.parse(
         localStorage.getItem(`pdv_vendas_${tenantId}`) || "[]",
       ),
-      configNFP: JSON.parse(
-        localStorage.getItem("nfp_config") || "{}",
-      ),
-      notasFiscais: JSON.parse(
-        localStorage.getItem("nfp_notas") || "[]",
-      ),
+      configNFP: JSON.parse(localStorage.getItem("nfp_config") || "{}"),
+      notasFiscais: JSON.parse(localStorage.getItem("nfp_notas") || "[]"),
     };
 
     const blob = new Blob([JSON.stringify(dados, null, 2)], {
@@ -273,23 +260,32 @@ export function exportarDadosTenant() {
  * Inicializa os dados para um novo tenant no Firebase.
  * Usa os dados do mockData.js como base.
  */
-export async function inicializarDadosTenant(tenantId) {
+export async function inicializarDadosTenant(tenantId, ramo, info) {
   if (!tenantId || !isFirebaseReady()) {
-    console.log("Firebase não disponível ou tenantId não fornecido para inicialização.");
+    console.log(
+      "Firebase não disponível ou tenantId não fornecido para inicialização.",
+    );
     return;
   }
 
   try {
+    const ramoNegocio = ramo || getTenantRamo() || "mercado";
     console.log(`🚀 Inicializando dados para o novo tenant: ${tenantId}`);
     const docRef = getTenantDocRef(tenantId);
 
-    // Usa os dados do mockData como base para o novo usuário
-    await setDoc(docRef, {
-      produtos: mockProdutos,
-      categorias: mockCategorias,
-      // Você pode adicionar outros dados iniciais aqui
-      // info: { ... }
-    }, { merge: true });
+    // Carrega os produtos e categorias padrão para o ramo de negócio
+    const produtosIniciais = PRODUTOS_PADRAO[ramoNegocio] || [];
+    const categoriasIniciais = CATEGORIAS_PADRAO[ramoNegocio] || [];
+
+    await setDoc(
+      docRef,
+      {
+        produtos: produtosIniciais,
+        categorias: categoriasIniciais,
+        info: info, // Salva as informações do tenant
+      },
+      { merge: true },
+    );
 
     console.log("✅ Dados iniciais do tenant salvos no Firebase.");
     return true;

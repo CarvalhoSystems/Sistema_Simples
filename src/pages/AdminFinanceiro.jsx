@@ -132,7 +132,7 @@ export default function AdminFinanceiro() {
                       {cliente.nome}
                     </td>
                     <td className="p-3 text-center">
-                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                      <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded font-medium">
                         {cliente.assinatura?.plano
                           ? PLANOS[cliente.assinatura.plano]?.nome ||
                             cliente.assinatura.plano
