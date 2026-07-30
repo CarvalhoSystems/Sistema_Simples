@@ -178,6 +178,14 @@ export default function Login() {
             Cadastre-se grátis
           </Link>
         </p>
+        <p className="text-sm text-center text-slate-500">
+          <Link
+            to="/forgot-password"
+            className="font-medium text-blue-600 hover:underline"
+          >
+            Esqueceu a senha?
+          </Link>
+        </p>
       </div>
     </div>
   );

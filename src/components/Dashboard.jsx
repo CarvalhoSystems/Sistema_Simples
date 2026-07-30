@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext.jsx";
 // Importa o serviço para carregar dados do tenant (usuário logado)
 import { getProdutos, getVendas } from "../services/tenantData.js";
+import { getTenant } from "../hooks/useTenant.js";
 import { formatCurrency } from "../utils/formatters.js";
 
 export default function Dashboard() {
@@ -14,9 +15,16 @@ export default function Dashboard() {
     totalProducts: 0,
     todaySales: 0,
   });
+  const [nomeEstabelecimento, setNomeEstabelecimento] = useState("");
 
   // Carrega os dados e calcula as estatísticas
   useEffect(() => {
+    const tenant = getTenant();
+    if (tenant) {
+      setNomeEstabelecimento(
+        tenant.nomeEstabelecimento || tenant.nome || "seu negócio",
+      );
+    }
     const carregarEstatisticas = async () => {
       const vendas = await getVendas();
       const produtos = await getProdutos();
@@ -65,8 +73,11 @@ export default function Dashboard() {
         <section className="welcome-section">
           <div className="welcome-card">
             <div className="welcome-content">
-              <h1>Bem-vindo ao seu Gerenciamento </h1>
-              <p>Seu sistema completo de gestão para Empresas</p>
+              <h1>
+                Olá! É um prazer cuidar do{" "}
+                <span className="text-blue-700">{nomeEstabelecimento}</span>
+              </h1>
+              <p>Seu sistema completo de gestão para seu Negocio !</p>
               <div className="welcome-stats">
                 <div className="stat-card">
                   <div className="stat-icon">
@@ -91,7 +102,9 @@ export default function Dashboard() {
                     <i className="fas fa-dollar-sign"></i>
                   </div>
                   <div className="stat-info">
-                    <h3 id="totalRevenue">{formatCurrency(stats.totalRevenue)}</h3>
+                    <h3 id="totalRevenue">
+                      {formatCurrency(stats.totalRevenue)}
+                    </h3>
                     <p>Receita Total</p>
                   </div>
                 </div>

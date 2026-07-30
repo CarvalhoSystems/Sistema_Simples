@@ -14,6 +14,9 @@ import {
   validarCPF,
   formatarCPF,
 } from "./services/notaFiscalPaulista";
+import FechamentoDeCaixa, {
+  abrirFechamentoCaixa,
+} from "./components/fechamentoDeCaixa";
 
 const estadoInicial = {
   carrinho: [],
@@ -115,6 +118,7 @@ function reducer(estado, acao) {
 export default function PDV() {
   const [mostrarF10, setMostrarF10] = useState(false);
   const [termoBuscaF10, setTermoBuscaF10] = useState("");
+  const vendasRealizadasRef = useRef([]);
   const [estado, dispatch] = useReducer(reducer, estadoInicial);
   const { carrinho, codigoInput, quantidade, subtotal, desconto, total } =
     estado;
@@ -380,14 +384,15 @@ export default function PDV() {
     if (areaImpressao) {
       window.print();
     }
-    // Salva a venda no histórico do tenant
-    addVenda({
+    // Adiciona ao estado local de vendas realizadas na sessão
+    const vendaAtual = {
       carrinho: [...carrinho],
       total,
       subtotal,
       desconto,
       metodo,
       cpfCliente: cpfCliente || null,
+      data: new Date().toISOString(),
       notaFiscal: notaEmitida
         ? {
             numeroNota: notaEmitida.numeroNota,
@@ -395,7 +400,11 @@ export default function PDV() {
             protocolo: notaEmitida.protocolo,
           }
         : null,
-    });
+    };
+    vendasRealizadasRef.current = [...vendasRealizadasRef.current, vendaAtual];
+
+    // Salva a venda no histórico do tenant
+    addVenda(vendaAtual);
 
     dispatch({ type: "FINALIZAR_VENDA" });
   };
@@ -542,7 +551,24 @@ export default function PDV() {
 
     F11: () => navigate("/dashboard"),
 
-    F12: () => window.print(),
+    F12: () => {
+      // Filtra as vendas de hoje para passar ao fechamento
+      const vendasHoje = vendasRealizadasRef.current.filter((v) => {
+        const dataVenda = new Date(v.data);
+        const hoje = new Date();
+        return dataVenda.toDateString() === hoje.toDateString();
+      });
+
+      // Chama a função de abrir o fechamento de caixa
+      abrirFechamentoCaixa(vendasHoje, (total) => {
+        dispatch({ type: "LIMPAR_CARRINHO" });
+        Swal.fire(
+          "Caixa Fechado",
+          `Total: ${formatCurrency(total)}`,
+          "success",
+        );
+      });
+    },
 
     Escape: () => {
       if (mostrarF10) {

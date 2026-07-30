@@ -59,7 +59,7 @@ export const PLANOS = {
     nome: "Profissional",
     preco: 99.9,
     periodo: "/mês",
-    maxEstabelecimentos: 3,
+    maxEstabelecimentos: 2,
     maxProdutos: Infinity,
     maxUsuarios: 3,
     features: {
@@ -77,7 +77,7 @@ export const PLANOS = {
     nome: "Premium",
     preco: 149.9,
     periodo: "/mês",
-    maxEstabelecimentos: Infinity,
+    maxEstabelecimentos: 4,
     maxProdutos: Infinity,
     maxUsuarios: Infinity,
     features: {
@@ -131,9 +131,11 @@ export function criarAssinatura(planoId, periodoTeste = true) {
 
 /**
  * Salva a assinatura no localStorage e tenta no Firebase
+ * @param {Object} assinatura - Dados da assinatura
+ * @param {string} [tenantIdOverride] - ID do tenant (opcional, para uso do admin ao alterar assinatura de outro cliente)
  */
-export function salvarAssinatura(assinatura) {
-  const tenantId = getTenantId();
+export function salvarAssinatura(assinatura, tenantIdOverride) {
+  const tenantId = tenantIdOverride || getTenantId();
   if (tenantId)
     localStorage.setItem(
       getAssinaturaKey(tenantId),
@@ -142,7 +144,6 @@ export function salvarAssinatura(assinatura) {
 
   // Tenta salvar no Firebase
   if (firebaseDisponivel && db) {
-    const tenantId = getTenantId();
     if (tenantId) {
       const docRef = doc(db, "tenants", tenantId);
       setDoc(docRef, { assinatura }, { merge: true }).catch((err) =>
@@ -282,8 +283,8 @@ export function featureDisponivel(featureName) {
 /**
  * Verifica se pode adicionar mais estabelecimentos
  */
-export function podeAdicionarEstabelecimento(qtdAtual) {
-  const status = verificarStatusAssinatura();
+export async function podeAdicionarEstabelecimento(qtdAtual) {
+  const status = await verificarStatusAssinatura();
   if (!status.ativo) return false;
   return qtdAtual < status.plano.maxEstabelecimentos;
 }
@@ -518,22 +519,25 @@ export async function getDadosTenant() {
  */
 export function alterarPlanoManual(tenantId, novoTenant, novoPlanoId) {
   try {
-    // Salva no tenant
-    const tenantKey = `pdv_tenant_${tenantId}`;
-    const tenantSalvo = localStorage.getItem(tenantKey);
-    if (!tenantSalvo) return { success: false, error: "Tenant não encontrado" };
-
-    const tenant = JSON.parse(tenantSalvo);
+    // O tenant já vem como parâmetro (novoTenant), não precisa buscar do localStorage
+    const tenant = novoTenant || {};
     tenant.assinatura = tenant.assinatura || {};
     tenant.assinatura.plano = novoPlanoId;
 
-    // Atualiza a assinatura
-    const assinatura = JSON.parse(localStorage.getItem(ASSINATURA_KEY) || "{}");
+    // Atualiza a assinatura usando a chave específica do tenant
+    const assinatura = JSON.parse(
+      localStorage.getItem(getAssinaturaKey(tenantId)) || "{}",
+    );
     assinatura.planoId = novoPlanoId;
     assinatura.tenantId = tenantId;
-    salvarAssinatura(assinatura);
+    assinatura.status = assinatura.status || "trial";
+    // Passa o tenantId do cliente para salvar na chave correta
+    salvarAssinatura(assinatura, tenantId);
 
-    return { success: true, mensagem: `Plano alterado para ${PLANOS[novoPlanoId]?.nome || novoPlanoId}` };
+    return {
+      success: true,
+      mensagem: `Plano alterado para ${PLANOS[novoPlanoId]?.nome || novoPlanoId}`,
+    };
   } catch (e) {
     return { success: false, error: e.message };
   }
@@ -544,15 +548,23 @@ export function alterarPlanoManual(tenantId, novoTenant, novoPlanoId) {
  */
 export function renovarTrialManual(tenantId, dias = 7) {
   try {
-    const assinatura = JSON.parse(localStorage.getItem(ASSINATURA_KEY) || "{}");
-    if (!assinatura.tenantId) return { success: false, error: "Nenhuma assinatura encontrada" };
+    const assinatura = JSON.parse(
+      localStorage.getItem(getAssinaturaKey(tenantId)) || "{}",
+    );
+    if (!assinatura.tenantId)
+      return { success: false, error: "Nenhuma assinatura encontrada" };
 
     const agora = new Date();
     assinatura.status = "trial";
     assinatura.iniciadoEm = agora.toISOString();
-    assinatura.trialExpiracao = new Date(agora.getTime() + dias * 24 * 60 * 60 * 1000).toISOString();
-    assinatura.proximoVencimento = new Date(agora.getTime() + dias * 24 * 60 * 60 * 1000).toISOString();
-    salvarAssinatura(assinatura);
+    assinatura.trialExpiracao = new Date(
+      agora.getTime() + dias * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    assinatura.proximoVencimento = new Date(
+      agora.getTime() + dias * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    // Passa o tenantId do cliente para salvar na chave correta
+    salvarAssinatura(assinatura, tenantId);
 
     return { success: true, mensagem: `Trial renovado por mais ${dias} dias` };
   } catch (e) {
@@ -565,16 +577,22 @@ export function renovarTrialManual(tenantId, dias = 7) {
  */
 export function alterarStatusManual(tenantId, novoStatus) {
   try {
-    const assinatura = JSON.parse(localStorage.getItem(ASSINATURA_KEY) || "{}");
-    if (!assinatura.tenantId) return { success: false, error: "Nenhuma assinatura encontrada" };
+    const assinatura = JSON.parse(
+      localStorage.getItem(getAssinaturaKey(tenantId)) || "{}",
+    );
+    if (!assinatura.tenantId)
+      return { success: false, error: "Nenhuma assinatura encontrada" };
 
     assinatura.status = novoStatus;
     if (novoStatus === "ativa") {
       // Se for ativar, renova por 30 dias
       const agora = new Date();
-      assinatura.proximoVencimento = new Date(agora.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      assinatura.proximoVencimento = new Date(
+        agora.getTime() + 30 * 24 * 60 * 60 * 1000,
+      ).toISOString();
     }
-    salvarAssinatura(assinatura);
+    // Passa o tenantId do cliente para salvar na chave correta
+    salvarAssinatura(assinatura, tenantId);
 
     const nomesStatus = {
       ativa: "Ativada",
@@ -584,7 +602,10 @@ export function alterarStatusManual(tenantId, novoStatus) {
       trial_expirado: "Trial Expirado",
     };
 
-    return { success: true, mensagem: `Assinatura ${nomesStatus[novoStatus] || novoStatus} com sucesso` };
+    return {
+      success: true,
+      mensagem: `Assinatura ${nomesStatus[novoStatus] || novoStatus} com sucesso`,
+    };
   } catch (e) {
     return { success: false, error: e.message };
   }

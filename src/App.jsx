@@ -12,6 +12,7 @@ import MeusEstabelecimentos from "./pages/MeusEstabelecimentos.jsx";
 import Suporte from "./pages/Suporte.jsx";
 import NotaFiscalPaulista from "./pages/NotaFiscalPaulista.jsx";
 import Signup from "./pages/Signup.jsx";
+import ForgotPassword from "./pages/ForgotPassword.jsx";
 import PdvLayout from "./components/Layout.jsx";
 import DashboardLayout from "./components/DashboardLayout.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
@@ -24,6 +25,7 @@ import AdminClientes from "./pages/AdminClientes.jsx";
 import AdminFinanceiro from "./pages/AdminFinanceiro.jsx";
 import AdminPlanos from "./pages/AdminPlanos.jsx";
 import Contato from "./pages/contato.jsx";
+import FechamentoDeCaixa from "./components/fechamentoDeCaixa.jsx";
 
 export default function App() {
   return (
@@ -34,6 +36,7 @@ export default function App() {
       {/* Autenticação do Cliente */}
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
 
       {/* PDV (Caixa) - Rota separada e protegida */}
       <Route path="/caixa" element={<PdvLayout />}>

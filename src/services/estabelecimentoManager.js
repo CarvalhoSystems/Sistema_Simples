@@ -80,13 +80,16 @@ export function getEstabelecimentoAtivo() {
 /**
  * Cria um novo estabelecimento para o usuário
  */
-export function criarEstabelecimento(nome, ramo = "mercado") {
+export async function criarEstabelecimento(nome, ramo = "") {
   const userId = getTenantId();
   if (!userId) return { success: false, error: "Usuário não encontrado" };
 
   // Verifica limite do plano
   const estabelecimentos = listarEstabelecimentos();
-  if (!podeAdicionarEstabelecimento(estabelecimentos.length)) {
+  const podeAdicionar = await podeAdicionarEstabelecimento(
+    estabelecimentos.length,
+  );
+  if (!podeAdicionar) {
     return {
       success: false,
       error:
