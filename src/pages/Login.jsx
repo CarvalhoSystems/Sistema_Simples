@@ -1,7 +1,13 @@
 import React, { useState } from "react";
 import { useAuth } from "../components/AuthContext.jsx";
 import { useNavigate, Link } from "react-router-dom";
-import { setTenant, getTenant } from "../hooks/useTenant";
+import {
+  setTenant,
+  getTenant,
+  clearTenant,
+  getTenantByEmail,
+  setTenantByEmail,
+} from "../hooks/useTenant";
 import {
   RAMOS_NEGOCIO,
   PRODUTOS_PADRAO,
@@ -25,35 +31,53 @@ export default function Login() {
       const success = await login(email, password);
 
       if (success) {
-        const tenantExistente = getTenant();
+        // PASSO 1: Limpa qualquer tenant anterior (de outro usuário)
+        // Isso evita que um usuário veja dados de outro usuário
+        clearTenant();
 
-        if (!tenantExistente) {
-          // Cria tenant padrão para login demo
-          const novoTenant = {
-            id: `demo_${Date.now()}`,
-            uid: `demo_user`,
-            nome: email || "Usuário Demo",
-            nomeEstabelecimento: "Meu Estabelecimento",
-            email: email,
-            ramo: "mercado",
-            ramoInfo: RAMOS_NEGOCIO.find((r) => r.id === "mercado"),
-            criadoEm: new Date().toISOString(),
-          };
-          setTenant(novoTenant);
+        // PASSO 2: Verifica se este email já tem dados salvos anteriormente
+        const tenantPorEmail = getTenantByEmail(email);
 
-          if (!localStorage.getItem(`pdv_produtos_${novoTenant.id}`)) {
-            localStorage.setItem(
-              `pdv_produtos_${novoTenant.id}`,
-              JSON.stringify(PRODUTOS_PADRAO.mercado),
-            );
-            localStorage.setItem(
-              `pdv_categorias_${novoTenant.id}`,
-              JSON.stringify(CATEGORIAS_PADRAO.mercado),
-            );
-            localStorage.setItem(
-              `pdv_vendas_${novoTenant.id}`,
-              JSON.stringify([]),
-            );
+        if (tenantPorEmail) {
+          // Usuário já tem dados salvos, restaura o tenant
+          setTenant(tenantPorEmail);
+        } else {
+          // PASSO 3: Verifica se existe tenant no formato antigo (sem email)
+          const tenantExistente = getTenant();
+
+          if (tenantExistente && tenantExistente.email === email) {
+            // Este tenant pertence ao email logado, mantém e salva por email
+            setTenantByEmail(email, tenantExistente);
+          } else {
+            // PASSO 4: Cria novo tenant para este email
+            const novoTenant = {
+              id: `demo_${Date.now()}`,
+              uid: `demo_user`,
+              nome: email || "Usuário Demo",
+              nomeEstabelecimento: "Meu Estabelecimento",
+              email: email,
+              ramo: "mercado",
+              ramoInfo: RAMOS_NEGOCIO.find((r) => r.id === "mercado"),
+              criadoEm: new Date().toISOString(),
+            };
+
+            // Salva tanto no tenant ativo quanto no específico por email
+            setTenantByEmail(email, novoTenant);
+
+            if (!localStorage.getItem(`pdv_produtos_${novoTenant.id}`)) {
+              localStorage.setItem(
+                `pdv_produtos_${novoTenant.id}`,
+                JSON.stringify(PRODUTOS_PADRAO.mercado),
+              );
+              localStorage.setItem(
+                `pdv_categorias_${novoTenant.id}`,
+                JSON.stringify(CATEGORIAS_PADRAO.mercado),
+              );
+              localStorage.setItem(
+                `pdv_vendas_${novoTenant.id}`,
+                JSON.stringify([]),
+              );
+            }
           }
         }
 

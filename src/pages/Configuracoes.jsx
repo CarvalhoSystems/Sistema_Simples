@@ -3,12 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { getTenant, setTenant } from "../hooks/useTenant";
 import Swal from "sweetalert2";
 
+
 export default function Configuracoes() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     nomeFantasia: "",
     cnpj: "",
     endereco: "",
+    telefone: "",
     pixKey: "",
     pixHolder: "",
     receiptMessage: "",
@@ -23,6 +25,7 @@ export default function Configuracoes() {
     if (tenant) {
       setFormData({
         nomeFantasia: tenant.nomeFantasia || tenant.nomeEstabelecimento || "",
+        telefone: tenant.telefone || "",
         cnpj: tenant.cnpj || "",
         endereco: tenant.endereco || "",
         pixKey: tenant.pixKey || "",
@@ -62,6 +65,7 @@ export default function Configuracoes() {
           formData.nomeFantasia || tenant.nomeEstabelecimento,
         cnpj: formData.cnpj,
         endereco: formData.endereco,
+        telefone: formData.telefone,
         pixKey: formData.pixKey,
         pixHolder: formData.pixHolder,
         receiptMessage: formData.receiptMessage,
@@ -264,6 +268,34 @@ export default function Configuracoes() {
                 }}
               />
             </div>
+            <div className="form-group" style={{ marginBottom: "1rem" }}>
+              <label
+                htmlFor="telefone"
+                style={{
+                  display: "block",
+                  fontSize: "0.875rem",
+                  fontWeight: 500,
+                  color: "#475569",
+                  marginBottom: "0.25rem",
+                }}
+              >
+                Telefone
+              </label>
+            </div>
+            <input
+              type="text"
+              id="telefone"
+              value={formData.telefone}
+              onChange={handleChange}
+              placeholder="(00) 00000-0000"
+              style={{
+                width: "100%",
+                padding: "0.6rem 0.75rem",
+                border: "1px solid #cbd5e1",
+                borderRadius: "0.375rem",
+                fontSize: "0.9rem",
+              }}
+            />
           </div>
 
           {/* Recebimentos PIX */}

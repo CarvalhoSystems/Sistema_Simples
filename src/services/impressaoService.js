@@ -74,15 +74,15 @@ export function imprimirCupom(dadosVenda) {
 <body>
   <div class="header">
     <h2>${estabelecimento.nome}</h2>
-    <p>${estabelecimento.endereco}</p>
-    <p>CNPJ: ${estabelecimento.cnpj}</p>
-    <p>Tel: ${estabelecimento.telefone}</p>
+    <p>${getTenant()?.nomeEstabelecimento || estabelecimento.endereco}</p>
+    <p>CNPJ: ${getTenant()?.cnpj || estabelecimento.cnpj}</p>
+    <p>Tel: ${getTenant()?.telefone || estabelecimento.telefone}</p>
   </div>
   <div class="divisoria"></div>
   <div class="info">
     <p>Data: ${dataHora}</p>
-    <p>Caixa: PDV Principal</p>
-    <p>Operador: ${dadosVenda.operador || "Sistema"}</p>
+    <p>Caixa: ${estabelecimento.nome}</p>
+    <p>Operador: ${dadosVenda.operador || ""}</p>
     ${dadosVenda.cpfCliente ? `<p class="cpf">CPF: ${dadosVenda.cpfCliente}</p>` : ""}
   </div>
   <div class="divisoria"></div>
@@ -121,18 +121,22 @@ export function imprimirCupom(dadosVenda) {
   <div class="info">
     <p>Forma de Pagamento: ${dadosVenda.metodo || "N/A"}</p>
   </div>
-  ${dadosVenda.notaFiscal ? `
+  ${
+    dadosVenda.notaFiscal
+      ? `
   <div class="divisoria"></div>
   <div class="info" style="font-size: 9px;">
     <p>NF-e: ${dadosVenda.notaFiscal.numeroNota}</p>
     <p>Chave: ${dadosVenda.notaFiscal.chaveAcesso}</p>
     <p>Protocolo: ${dadosVenda.notaFiscal.protocolo}</p>
   </div>
-  ` : ""}
+  `
+      : ""
+  }
   <div class="divisoria"></div>
   <div class="footer">
     <p>Obrigado pela preferência!</p>
-    <p>System PDV - Gestão Comercial</p>
+    <p>Sistema Simples  - Gestão Comercial</p>
   </div>
   <script>window.print();</script>
 </body>

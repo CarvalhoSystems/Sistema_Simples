@@ -35,6 +35,7 @@ export function setTenant(tenantData) {
  */
 export function clearTenant() {
   localStorage.removeItem(TENANT_KEY);
+  localStorage.removeItem("pdv_estabelecimento_ativo");
 }
 
 /**
@@ -75,6 +76,53 @@ export function getInitialDataForRamo(ramoId) {
       ambiente: "homologacao",
     },
   };
+}
+
+/**
+ * Obtém tenant específico de um usuário pelo email
+ * Isso permite que cada usuário tenha seus dados isolados
+ */
+export function getTenantByEmail(email) {
+  if (!email) return null;
+  try {
+    const key = `${TENANT_KEY}_email_${btoa(email)}`;
+    const data = localStorage.getItem(key);
+    if (data) {
+      return JSON.parse(data);
+    }
+  } catch (e) {
+    console.warn("Erro ao carregar tenant por email:", e);
+  }
+  return null;
+}
+
+/**
+ * Salva tenant específico de um usuário pelo email
+ * Também atualiza o tenant ativo
+ */
+export function setTenantByEmail(email, tenantData) {
+  if (!email || !tenantData) return;
+  try {
+    const key = `${TENANT_KEY}_email_${btoa(email)}`;
+    localStorage.setItem(key, JSON.stringify(tenantData));
+    // Também atualiza o tenant ativo
+    setTenant(tenantData);
+  } catch (e) {
+    console.warn("Erro ao salvar tenant por email:", e);
+  }
+}
+
+/**
+ * Remove tenant específico de um usuário pelo email
+ */
+export function clearTenantByEmail(email) {
+  if (!email) return;
+  try {
+    const key = `${TENANT_KEY}_email_${btoa(email)}`;
+    localStorage.removeItem(key);
+  } catch (e) {
+    console.warn("Erro ao limpar tenant por email:", e);
+  }
 }
 
 export default function useTenant() {

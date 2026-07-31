@@ -29,7 +29,7 @@ import {
   writeBatch,
 } from "firebase/firestore"; // Importa os dados mockados
 import { PRODUTOS_PADRAO, CATEGORIAS_PADRAO } from "./supabaseClient";
-import { getTenantId, getTenantRamo } from "../hooks/useTenant";
+import { getTenantId, getTenantRamo, getTenant } from "../hooks/useTenant";
 
 // ===== UTILITÁRIOS =====
 
@@ -223,7 +223,7 @@ export function exportarDadosTenant() {
   try {
     const dados = {
       exportadoEm: new Date().toISOString(),
-      tenant: JSON.parse(localStorage.getItem("pdv_tenant") || "{}"),
+      tenant: getTenant() || {},
       produtos: JSON.parse(
         localStorage.getItem(`pdv_produtos_${tenantId}`) || "[]",
       ),

@@ -12,11 +12,18 @@ import {
   emitirNotaFiscal,
   isConfigurado,
   validarCPF,
-  formatarCPF,
 } from "./services/notaFiscalPaulista";
-import FechamentoDeCaixa, {
-  abrirFechamentoCaixa,
-} from "./components/fechamentoDeCaixa";
+import { abrirFechamentoCaixa } from "./components/fechamentoDeCaixa";
+import { imprimirCupom } from "./services/impressaoService";
+import { useAuth } from "./components/AuthContext";
+import PixQrCodeModal from "./components/PixQrCodeModal";
+import {
+  gerarPayloadPix,
+  getPixKeyFromTenant,
+  getPixHolderFromTenant,
+  getMerchantCityFromTenant,
+} from "./services/pixService";
+//import minhaLogo from "./assets/hero.png"; // Sua logo importada corretamente
 
 const estadoInicial = {
   carrinho: [],
@@ -32,49 +39,28 @@ const estadoInicial = {
 function reducer(estado, acao) {
   switch (acao.type) {
     case "DIGITAR_CODIGO":
-      return {
-        ...estado,
-        codigoInput: acao.payload,
-      };
-
+      return { ...estado, codigoInput: acao.payload };
     case "DEFINIR_QUANTIDADE":
-      return {
-        ...estado,
-        quantidade: acao.payload,
-      };
-
+      return { ...estado, quantidade: acao.payload };
     case "ATUALIZAR_TOTAIS":
       const { subtotal, desconto, total } = acao.payload;
       return { ...estado, subtotal, desconto, total };
-
     case "LIMPAR_INPUT":
-      return {
-        ...estado,
-        codigoInput: "",
-        quantidade: 1,
-      };
-
+      return { ...estado, codigoInput: "", quantidade: 1 };
     case "LIMPAR_CARRINHO":
       return { ...estadoInicial };
-
     case "REMOVER_ITEM":
       const itemNumero = acao.payload;
       const carrinhoAtualizado = estado.carrinho.filter(
         (_, index) => index !== itemNumero - 1,
       );
-      return {
-        ...estado,
-        carrinho: carrinhoAtualizado,
-      };
-
+      return { ...estado, carrinho: carrinhoAtualizado };
     case "ADICIONAR_PRODUTO":
       const { produto, quantidade } = acao.payload;
       const itemExistenteIndex = estado.carrinho.findIndex(
         (item) => item.codigo === produto.codigo,
       );
-
       let novoCarrinho = [...estado.carrinho];
-
       if (itemExistenteIndex > -1) {
         novoCarrinho[itemExistenteIndex].qtd += quantidade;
       } else {
@@ -85,31 +71,18 @@ function reducer(estado, acao) {
           vUnit: produto.preco,
         });
       }
-
       return {
         ...estado,
         carrinho: novoCarrinho,
         codigoInput: "",
         quantidade: 1,
       };
-
     case "APLICAR_DESCONTO":
       return { ...estado, desconto: acao.payload };
-
     case "DEFINIR_PAGAMENTO":
-      return {
-        ...estado,
-        pagamentoRecebido: acao.payload,
-      };
-
+      return { ...estado, pagamentoRecebido: acao.payload };
     case "FINALIZAR_VENDA":
-      return {
-        ...estado,
-        carrinho: [],
-        codigoInput: "",
-        quantidade: 1,
-      };
-
+      return { ...estado, carrinho: [], codigoInput: "", quantidade: 1 };
     default:
       return estado;
   }
@@ -118,24 +91,26 @@ function reducer(estado, acao) {
 export default function PDV() {
   const [mostrarF10, setMostrarF10] = useState(false);
   const [termoBuscaF10, setTermoBuscaF10] = useState("");
+  const [mostrarPixModal, setMostrarPixModal] = useState(false);
+  const [pixPayload, setPixPayload] = useState("");
+  const [caixaFechado, setCaixaFechado] = useState(false);
+  const [dadosFechamento, setDadosFechamento] = useState(null);
   const vendasRealizadasRef = useRef([]);
   const [estado, dispatch] = useReducer(reducer, estadoInicial);
   const { carrinho, codigoInput, quantidade, subtotal, desconto, total } =
     estado;
   const navigate = useNavigate();
   const inputBuscaF10Ref = useRef(null);
+  const { login } = useAuth();
+  const [reabrindoCaixa, setReabrindoCaixa] = useState(false);
+  const [produtosDoTenant, setProdutosDoTenant] = useState([]);
 
-  // Efeito para focar o input de busca quando o modal F10 é aberto
   useEffect(() => {
     if (mostrarF10 && inputBuscaF10Ref.current) {
       setTimeout(() => inputBuscaF10Ref.current.focus(), 100);
     }
   }, [mostrarF10]);
 
-  // Novo estado para armazenar a lista de produtos do tenant
-  const [produtosDoTenant, setProdutosDoTenant] = useState([]);
-
-  // Carrega os produtos do tenant de forma assíncrona
   useEffect(() => {
     async function carregarProdutos() {
       const produtos = await getProdutos();
@@ -144,12 +119,10 @@ export default function PDV() {
     carregarProdutos();
   }, []);
 
-  // Filtra os produtos para o modal F10
   const produtosFiltradosF10 = termoBuscaF10
-    ? buscarProdutos(termoBuscaF10, produtosDoTenant) // Passa a lista de produtos
+    ? buscarProdutos(termoBuscaF10, produtosDoTenant)
     : produtosDoTenant;
 
-  // Efeito para recalcular os totais sempre que o carrinho ou o desconto mudar
   useEffect(() => {
     const novoSubtotal = carrinho.reduce(
       (acc, item) => acc + item.vUnit * item.qtd,
@@ -167,42 +140,42 @@ export default function PDV() {
     });
   }, [carrinho, estado.desconto]);
 
-  // CORREÇÃO 1: Efeito do foco do código de barras ignorando quando F10 está aberto
   useEffect(() => {
     const inputCodigoBarras = document.getElementById("codigo-barras-input");
-
     const manterFoco = () => {
-      // Se a busca F10 estiver aberta, não rouba o foco de volta!
-      if (mostrarF10) return;
-
       const isSwalOpen = document.body.classList.contains("swal2-shown");
       const activeElement = document.activeElement;
       const isInsideSwal = activeElement?.closest(".swal2-container");
+      const deveManterFoco = !caixaFechado && !mostrarF10 && !isSwalOpen;
 
-      if (
-        !isSwalOpen &&
-        !isInsideSwal &&
-        document.activeElement !== inputCodigoBarras
-      ) {
+      if (!deveManterFoco) return;
+
+      if (!isInsideSwal && activeElement !== inputCodigoBarras) {
         inputCodigoBarras?.focus();
       }
     };
 
     manterFoco();
 
-    const observer = new MutationObserver(() => {
-      manterFoco();
-    });
+    if (!caixaFechado) {
+      const observer = new MutationObserver(() => manterFoco());
+      observer.observe(document.body, {
+        attributes: true,
+        attributeFilter: ["class"],
+        childList: true,
+        subtree: true,
+      });
+      return () => observer.disconnect();
+    }
+  }, [mostrarF10, caixaFechado]);
 
-    observer.observe(document.body, {
-      attributes: true,
-      attributeFilter: ["class"],
-      childList: true,
-      subtree: true,
-    });
-
-    return () => observer.disconnect();
-  }, [mostrarF10]); // Dependência adicionada aqui
+  // Foca no email quando o caixa fecha
+  useEffect(() => {
+    if (caixaFechado) {
+      const inputEmail = document.getElementById("reabrir-email");
+      inputEmail?.focus();
+    }
+  }, [caixaFechado]);
 
   const lidarComBipe = (codigoBipado) => {
     const produtoEncontrado = produtosDoTenant.find(
@@ -265,9 +238,6 @@ export default function PDV() {
       showDenyButton: true,
       confirmButtonText: "Sim",
       denyButtonText: "Não",
-      footer: nfpConfigurada
-        ? 'Nota Fiscal Paulista disponível <i class="fas fa-check-circle text-green-500 ml-1"></i>'
-        : 'Nota Fiscal Paulista não configurada <i class="fas fa-exclamation-triangle text-yellow-500 ml-1"></i>',
     });
 
     let cpfCliente = null;
@@ -304,30 +274,18 @@ export default function PDV() {
       });
 
       if (!valorRecebido) return;
-
       const troco = parseFloat(valorRecebido) - total;
       await Swal.fire("Troco", `O troco é de ${formatCurrency(troco)}`, "info");
-    } else if (metodo === "PIX") {
-      const { isConfirmed } = await Swal.fire({
-        title: "Pagamento via PIX",
-        text: `Total da venda: ${formatCurrency(total)}. Gerar QR Code?`,
-        icon: "question",
-        showCancelButton: true,
-      });
-      if (!isConfirmed) return;
     } else if (metodo === "Cartão") {
       const { isConfirmed } = await Swal.fire({
         title: "Pagamento com Cartão",
-        text: `Total: ${formatCurrency(
-          total,
-        )}. Confirmar pagamento na maquininha?`,
+        text: `Total: ${formatCurrency(total)}. Confirmar pagamento na maquininha?`,
         icon: "question",
         showCancelButton: true,
       });
       if (!isConfirmed) return;
     }
 
-    // Emitir Nota Fiscal Paulista se tiver CPF e configuração
     let notaEmitida = null;
     if (cpfCliente && nfpConfigurada) {
       try {
@@ -338,53 +296,13 @@ export default function PDV() {
           desconto,
           metodo,
         };
-
         const resultado = await emitirNotaFiscal(dadosVenda, cpfCliente);
         notaEmitida = resultado;
-
-        await Swal.fire({
-          icon: "success",
-          title: "Nota Fiscal Emitida!",
-          html: `
-            <div style="text-align: left; font-family: monospace; font-size: 12px;">
-              <p><strong>Nota Fiscal Eletrônica</strong></p>
-              <p>Número: <strong>${resultado.numeroNota}</strong></p>
-              <p>Série: <strong>${resultado.serie}</strong></p>
-              <p>Chave: <strong>${resultado.chaveAcesso}</strong></p>
-              <p>CPF: <strong>${resultado.cpfCliente}</strong></p>
-              <p>Protocolo: <strong>${resultado.protocolo}</strong></p>
-              <hr/>
-              <p style="font-size: 10px; color: #666;">
-                Nota Fiscal Paulista - Consulte em www.nfpaulista.fazenda.sp.gov.br
-              </p>
-            </div>
-          `,
-          confirmButtonText: "OK",
-          confirmButtonColor: "#1e3a8a",
-        });
       } catch (error) {
-        await Swal.fire({
-          icon: "warning",
-          title: "Erro ao emitir NF-e",
-          text: error.message,
-          confirmButtonText: "Continuar mesmo assim",
-        });
+        console.error(error);
       }
     }
 
-    await Swal.fire({
-      icon: "success",
-      title: "Venda Finalizada!",
-      text: `Pagamento via ${metodo} confirmado.${notaEmitida ? ` NF-e: ${notaEmitida.numeroNota}` : ""}`,
-      timer: 2000,
-      showConfirmButton: false,
-    });
-
-    const areaImpressao = document.getElementById("cupom-impressao");
-    if (areaImpressao) {
-      window.print();
-    }
-    // Adiciona ao estado local de vendas realizadas na sessão
     const vendaAtual = {
       carrinho: [...carrinho],
       total,
@@ -393,6 +311,7 @@ export default function PDV() {
       metodo,
       cpfCliente: cpfCliente || null,
       data: new Date().toISOString(),
+      operador: "Sistema",
       notaFiscal: notaEmitida
         ? {
             numeroNota: notaEmitida.numeroNota,
@@ -401,56 +320,123 @@ export default function PDV() {
           }
         : null,
     };
+
+    await Swal.fire({
+      icon: "success",
+      title: "Venda Finalizada!",
+      text: `Pagamento via ${metodo} confirmado.`,
+      timer: 1500,
+      showConfirmButton: false,
+    });
+
+    const { value: querImprimir } = await Swal.fire({
+      title: "Imprimir Cupom?",
+      text: "Deseja imprimir o cupom da venda?",
+      icon: "question",
+      showDenyButton: true,
+      confirmButtonText: "Sim, imprimir",
+      denyButtonText: "Não",
+    });
+
+    if (querImprimir) {
+      imprimirCupom(vendaAtual);
+    }
+
     vendasRealizadasRef.current = [...vendasRealizadasRef.current, vendaAtual];
-
-    // Salva a venda no histórico do tenant
     addVenda(vendaAtual);
-
     dispatch({ type: "FINALIZAR_VENDA" });
+  };
+
+  const abrirPixQrCode = () => {
+    if (carrinho.length === 0) {
+      Swal.fire("Atenção", "O cupom está vazio!", "warning");
+      return;
+    }
+
+    const pixKey = getPixKeyFromTenant();
+    if (!pixKey) {
+      Swal.fire({
+        icon: "warning",
+        title: "Chave PIX não configurada",
+        text: "Configure sua chave PIX nas Configurações da Loja.",
+      });
+      return;
+    }
+
+    try {
+      const holderName = getPixHolderFromTenant();
+      const city = getMerchantCityFromTenant();
+      const txId = String(Date.now()).slice(-8);
+
+      const payload = gerarPayloadPix({
+        pixKey,
+        amount: total,
+        merchantName: holderName,
+        merchantCity: city,
+        description: "VENDA PDV",
+        txId,
+      });
+
+      setPixPayload(payload);
+      setMostrarPixModal(true);
+    } catch (error) {
+      Swal.fire("Erro", error.message, "error");
+    }
+  };
+
+  // Função segura para reabrir o caixa usando o Firebase Auth do context
+  const handleReabrirCaixa = async () => {
+    setReabrindoCaixa(true);
+    const emailField = document.getElementById("reabrir-email");
+    const senhaField = document.getElementById("reabrir-senha");
+
+    const email = emailField?.value?.trim();
+    const senha = senhaField?.value;
+
+    if (!email || !senha) {
+      Swal.fire("Atenção", "Preencha o e-mail e a senha!", "warning");
+      setReabrindoCaixa(false);
+      return;
+    }
+
+    // Chama a função real do AuthContext
+    const sucesso = await login(email, senha);
+    if (sucesso) {
+      setCaixaFechado(false);
+      setDadosFechamento(null);
+      vendasRealizadasRef.current = [];
+      Swal.fire("Sucesso!", "Caixa reaberto com sucesso.", "success");
+    } else {
+      Swal.fire("Erro", "E-mail ou senha inválidos no Firebase!", "error");
+    }
+    setReabrindoCaixa(false);
   };
 
   const acoesTeclado = {
     F2: () => {
-      if (carrinho.length === 0) {
-        Swal.fire(
-          "Atenção",
-          "O cupom está vazio! Nenhum item para cancelar.",
-          "warning",
-        );
-        return;
-      }
-
+      if (carrinho.length === 0) return;
       Swal.fire({
         title: "Cancelar Item",
         input: "number",
-        inputLabel: "Digite o número do item que deseja cancelar",
-        inputPlaceholder: "Ex: 1",
+        inputLabel: "Digite o número do item:",
         showCancelButton: true,
       }).then((result) => {
         if (result.isConfirmed) {
-          const numeroItem = parseInt(result.value, 10);
-          if (numeroItem > 0 && numeroItem <= carrinho.length) {
-            dispatch({ type: "REMOVER_ITEM", payload: numeroItem });
-            Swal.fire("Cancelado!", "O item foi removido do cupom.", "success");
-          } else {
-            Swal.fire("Erro", "Número de item inválido!", "error");
+          const itemNum = parseInt(result.value, 10);
+          if (itemNum > 0 && itemNum <= carrinho.length) {
+            dispatch({ type: "REMOVER_ITEM", payload: itemNum });
           }
         }
       });
     },
-
     F3: () => {
+      if (carrinho.length === 0) return;
       Swal.fire({
         title: "Cancelar Cupom?",
-        text: "Todos os itens serão removidos. Deseja continuar?",
-        icon: "warning",
         showCancelButton: true,
         confirmButtonColor: "#d33",
-        confirmButtonText: "Sim, cancelar!",
-      }).then((result) => {
-        if (result.isConfirmed) {
-          dispatch({ type: "LIMPAR_CARRINHO" });
-        }
+      }).then((res) => {
+        if (res.isConfirmed) dispatch({ type: "LIMPAR_CARRINHO" });
       });
     },
     F5: () => {
@@ -459,126 +445,60 @@ export default function PDV() {
         input: "number",
         inputValue: 1,
         showCancelButton: true,
-      }).then((result) => {
-        if (result.isConfirmed) {
-          const qtdFormatada = parseFloat(result.value);
-          if (qtdFormatada > 0) {
-            dispatch({ type: "DEFINIR_QUANTIDADE", payload: qtdFormatada });
-          }
-        }
-      });
-    },
-    F6: () => {
-      if (carrinho.length === 0) {
-        Swal.fire(
-          "Atenção",
-          "Adicione itens ao cupom antes de aplicar um desconto.",
-          "warning",
-        );
-        return;
-      }
-
-      Swal.fire({
-        title: "Aplicar Desconto (R$)",
-        input: "number",
-        inputLabel: `Valor do desconto em reais (Total: ${formatCurrency(
-          total,
-        )})`,
-        inputValue: 0,
-        showCancelButton: true,
-        inputValidator: (value) => {
-          if (value < 0 || value > subtotal) {
-            return "Valor de desconto inválido!";
-          }
-        },
-      }).then((result) => {
-        if (result.isConfirmed) {
+      }).then((res) => {
+        if (res.isConfirmed && res.value > 0) {
           dispatch({
-            type: "APLICAR_DESCONTO",
-            payload: parseFloat(result.value),
+            type: "DEFINIR_QUANTIDADE",
+            payload: parseFloat(res.value),
           });
         }
       });
     },
-
-    F7: () => {
-      if (carrinho.length === 0) {
-        Swal.fire("Atenção", "O cupom está vazio!", "warning");
-        return;
-      }
+    F6: () => {
+      if (carrinho.length === 0) return;
       Swal.fire({
-        title: "Pagamento via PIX",
-        text: `Total da venda: ${formatCurrency(total)}. Gerar QR Code?`,
-        icon: "question",
+        title: "Aplicar Desconto (R$)",
+        input: "number",
+        inputValue: 0,
         showCancelButton: true,
-      }).then((result) => {
-        if (result.isConfirmed) {
-          finalizarVenda("PIX");
+      }).then((res) => {
+        if (res.isConfirmed && res.value >= 0) {
+          dispatch({
+            type: "APLICAR_DESCONTO",
+            payload: parseFloat(res.value),
+          });
         }
       });
     },
+    F7: () => abrirPixQrCode(),
     F8: () => {
-      if (carrinho.length === 0) {
-        Swal.fire("Atenção", "O cupom está vazio!", "warning");
-        return;
-      }
-      finalizarVenda("Dinheiro");
+      if (carrinho.length > 0) finalizarVenda("Dinheiro");
     },
-
     F9: () => {
-      if (carrinho.length === 0) {
-        Swal.fire("Atenção", "O cupom está vazio!", "warning");
-        return;
-      }
-      Swal.fire({
-        title: "Pagamento com Cartão",
-        text: `Total: ${formatCurrency(
-          total,
-        )}. Confirmar pagamento na maquininha?`,
-        icon: "question",
-        showCancelButton: true,
-      }).then((result) => {
-        if (result.isConfirmed) {
-          finalizarVenda("Cartão");
-        }
-      });
+      if (carrinho.length > 0) finalizarVenda("Cartão");
     },
-
     F10: () => {
       setTermoBuscaF10("");
       setMostrarF10((prev) => !prev);
     },
-
     F11: () => navigate("/dashboard"),
-
     F12: () => {
-      // Filtra as vendas de hoje para passar ao fechamento
       const vendasHoje = vendasRealizadasRef.current.filter((v) => {
-        const dataVenda = new Date(v.data);
-        const hoje = new Date();
-        return dataVenda.toDateString() === hoje.toDateString();
+        return new Date(v.data).toDateString() === new Date().toDateString();
       });
 
-      // Chama a função de abrir o fechamento de caixa
-      abrirFechamentoCaixa(vendasHoje, (total) => {
+      abrirFechamentoCaixa(vendasHoje, null, (dadosFechamento) => {
+        setDadosFechamento(dadosFechamento);
+        setCaixaFechado(true);
         dispatch({ type: "LIMPAR_CARRINHO" });
-        Swal.fire(
-          "Caixa Fechado",
-          `Total: ${formatCurrency(total)}`,
-          "success",
-        );
       });
     },
-
     Escape: () => {
-      if (mostrarF10) {
-        setMostrarF10(false);
-        return;
-      }
+      if (mostrarF10) setMostrarF10(false);
     },
   };
 
-  useKeyboardShortcuts(acoesTeclado, mostrarF10);
+  useKeyboardShortcuts(acoesTeclado, mostrarF10 || caixaFechado);
 
   return (
     <div className="h-full w-full bg-[#e2e8f0] flex flex-col justify-between p-2 select-none overflow-hidden">
@@ -602,33 +522,125 @@ export default function PDV() {
 
       <RodapeAtalhos />
 
-      {/* CORREÇÃO 2: Adicionada a classe `select-text` no wrapper do modal */}
+      {/* Overlay de Caixa Fechado com a SUA LOGO */}
+      {caixaFechado && (
+        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center z-[100] p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="bg-slate-900 text-white p-6 text-center flex flex-col items-center">
+              <img
+                src={minhaLogo}
+                alt="Logo do Estabelecimento"
+                className="w-20 h-20 object-contain mb-3 rounded-full bg-white p-1 shadow"
+              />
+              <h2 className="text-2xl font-bold tracking-wide">
+                CAIXA FECHADO
+              </h2>
+              <p className="text-slate-400 text-xs mt-1">
+                {dadosFechamento?.data
+                  ? `Fechado em ${new Date(dadosFechamento.data).toLocaleString("pt-BR")}`
+                  : "Sistema bloqueado"}
+              </p>
+            </div>
+
+            <div className="p-6">
+              {dadosFechamento && (
+                <div className="bg-slate-50 rounded-lg p-3 mb-4 font-mono text-xs border border-slate-100">
+                  <div className="flex justify-between mb-1">
+                    <span className="text-slate-500">Total do dia:</span>
+                    <span className="font-bold text-slate-800">
+                      {formatCurrency(dadosFechamento.totalGeral)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Vendas realizadas:</span>
+                    <span className="font-bold text-slate-800">
+                      {dadosFechamento.quantVendas}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-xs font-semibold text-slate-600 text-center mb-3">
+                Informe as credenciais do operador para reabrir o caixa:
+              </p>
+
+              <div className="space-y-3">
+                <input
+                  id="reabrir-email"
+                  type="email"
+                  placeholder="E-mail do operador"
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+                <input
+                  id="reabrir-senha"
+                  type="password"
+                  placeholder="Senha"
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleReabrirCaixa();
+                  }}
+                />
+                <button
+                  onClick={handleReabrirCaixa}
+                  disabled={reabrindoCaixa}
+                  className="w-full px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {reabrindoCaixa ? (
+                    <>
+                      <i className="fas fa-spinner fa-spin"></i> Reabrindo...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fas fa-unlock"></i> Abrir Caixa / Entrar
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mostrarPixModal && pixPayload && (
+        <PixQrCodeModal
+          payloadPix={pixPayload}
+          valor={total}
+          onConfirmar={() => {
+            setMostrarPixModal(false);
+            finalizarVenda("PIX");
+          }}
+          onCancelar={() => {
+            setMostrarPixModal(false);
+            setPixPayload("");
+          }}
+        />
+      )}
+
       {mostrarF10 && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 f10-modal-container select-text">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 select-text">
           <div className="bg-white w-full max-w-2xl rounded shadow-2xl border-2 border-[#1e3a8a] overflow-hidden flex flex-col max-h-[80vh]">
             <div className="bg-[#1e3a8a] text-white p-3 font-mono font-bold flex justify-between items-center">
-              <span>[F10] CONSULTA DE PRODUTOS CADASTRADOS</span>
+              <span>[F10] CONSULTA DE PRODUTOS</span>
               <button
                 onClick={() => setMostrarF10(false)}
-                className="bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded text-xs transition-colors"
+                className="bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded text-xs"
               >
                 ESC / FECHAR
               </button>
             </div>
 
-            {/* Input de Busca */}
             <div className="p-2 bg-slate-100 border-b border-slate-300">
               <input
                 ref={inputBuscaF10Ref}
                 type="text"
-                placeholder="Digite para buscar por código ou descrição..."
+                placeholder="Buscar por código ou descrição..."
                 value={termoBuscaF10}
                 onChange={(e) => setTermoBuscaF10(e.target.value)}
-                className="w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono"
+                className="w-full p-2 border border-slate-300 rounded-md focus:outline-none font-mono text-sm"
               />
             </div>
 
-            <div className="p-2 overflow-y-auto flex-1 bg-slate-50 font-mono text-sm min-h-[300px]">
+            <div className="p-2 overflow-y-auto flex-1 bg-slate-50 font-mono text-sm">
               <table className="w-full border-collapse table-fixed">
                 <thead>
                   <tr className="bg-slate-200 text-[#1e3a8a] border-b-2 border-slate-300">
@@ -641,80 +653,17 @@ export default function PDV() {
                   {produtosFiltradosF10.map((produto, index) => (
                     <tr
                       key={index}
-                      className="border-b border-slate-200 hover:bg-blue-50 text-slate-700 transition-colors"
+                      className="border-b border-slate-200 hover:bg-blue-50"
                     >
                       <td className="p-2 font-bold">{produto.codigo}</td>
                       <td className="p-2 truncate">{produto.descricao}</td>
-                      <td className="p-2 text-right font-bold text-blue-900 whitespace-nowrap">
+                      <td className="p-2 text-right font-bold text-blue-900">
                         {produto.preco.toFixed(2)}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-
-            <div className="bg-slate-100 p-2 text-center text-xs text-slate-500 font-mono border-t border-slate-200">
-              Pressione <strong className="text-[#1e3a8a]">F10</strong> ou{" "}
-              clique em Fechar para voltar ao caixa.
-            </div>
-
-            <div
-              id="cupom-impressao"
-              className="hidden print:block p-4 font-mono"
-            >
-              <div className="text-center font-bold text-base">
-                FÁCIL SISTEMAS S.A.
-              </div>
-              <div className="text-center text-xs">
-                AV. PRINCIPAL, 1000 - SÃO PAULO/SP
-              </div>
-              <div className="text-center text-xs">
-                CNPJ: 00.000.000/0001-00
-              </div>
-              <div className="border-b border-dashed my-2"></div>
-              <div className="text-center font-bold text-sm">
-                CUPOM FISCAL NÃO ELETRÔNICO
-              </div>
-              <div className="border-b border-dashed my-2"></div>
-
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-dashed">
-                    <th className="text-left">ITEM</th>
-                    <th className="text-left">QTD</th>
-                    <th className="text-right">VL.UN</th>
-                    <th className="text-right">TOTAL</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {carrinho.map((item, index) => (
-                    <tr key={index}>
-                      <td className="py-1">
-                        {item.descricao.substring(0, 15)}
-                      </td>
-                      <td>{item.qtd}</td>
-                      <td className="text-right">{item.vUnit.toFixed(2)}</td>
-                      <td className="text-right">
-                        {(item.qtd * item.vUnit).toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              <div className="border-b border-dashed my-2"></div>
-              <div className="flex justify-between font-bold">
-                <span>VALOR TOTAL R$:</span>
-                <span>{total.toFixed(2)}</span>
-              </div>
-              <div className="border-b border-dashed my-2"></div>
-              <div className="text-center text-xs mt-4">
-                Obrigado pela preferência!
-              </div>
-              <div className="text-center text-[10px] text-gray-500">
-                PDV React V1.0
-              </div>
             </div>
           </div>
         </div>

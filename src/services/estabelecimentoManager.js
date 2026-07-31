@@ -16,7 +16,12 @@
  *   pdv_assinatura_{estabId}
  */
 
-import { getTenantId, getTenant, setTenant } from "../hooks/useTenant";
+import {
+  getTenantId,
+  getTenant,
+  setTenant,
+  setTenantByEmail,
+} from "../hooks/useTenant";
 import { podeAdicionarEstabelecimento } from "./planoManager";
 
 const ESTABELECIMENTOS_KEY = "pdv_estabelecimentos";
@@ -133,7 +138,8 @@ export function alternarEstabelecimento(estabId) {
 
   const estabelecimentos = listarEstabelecimentos();
   const estab = estabelecimentos.find((e) => e.id === estabId);
-  if (!estab) return { success: false, error: "Estabelecimento não encontrado" };
+  if (!estab)
+    return { success: false, error: "Estabelecimento não encontrado" };
 
   // Salva o ID do estabelecimento ativo
   localStorage.setItem(ESTABELECIMENTO_ATIVO_KEY, estabId);
@@ -150,6 +156,10 @@ export function alternarEstabelecimento(estabId) {
       estabelecimentoAtivo: estabId,
     };
     setTenant(updatedTenant);
+    // Salva também no tenant por email para manter consistência
+    if (tenant.email) {
+      setTenantByEmail(tenant.email, updatedTenant);
+    }
   }
 
   return { success: true, estabelecimento: estab };
@@ -201,7 +211,8 @@ export function renomearEstabelecimento(estabId, novoNome) {
 
   const estabelecimentos = listarEstabelecimentos();
   const estab = estabelecimentos.find((e) => e.id === estabId);
-  if (!estab) return { success: false, error: "Estabelecimento não encontrado" };
+  if (!estab)
+    return { success: false, error: "Estabelecimento não encontrado" };
 
   estab.nome = novoNome;
   salvarEstabelecimentos(userId, estabelecimentos);
@@ -213,6 +224,10 @@ export function renomearEstabelecimento(estabId, novoNome) {
     if (tenant) {
       tenant.nomeEstabelecimento = novoNome;
       setTenant(tenant);
+      // Salva também no tenant por email para manter consistência
+      if (tenant.email) {
+        setTenantByEmail(tenant.email, tenant);
+      }
     }
   }
 

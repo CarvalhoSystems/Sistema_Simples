@@ -90,6 +90,9 @@ export default function ProductModal({ product, categories, onClose, onSave }) {
                 required
                 className="w-full p-2 border border-gray-300 rounded-md bg-white"
               >
+                <option key="" value="">
+                  Selecione uma categoria
+                </option>
                 {categories.map((cat) => (
                   <option key={cat.id} value={cat.id}>
                     {cat.name}

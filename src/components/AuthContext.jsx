@@ -9,7 +9,7 @@ import {
   signOut,
   onAuthStateChanged,
 } from "firebase/auth";
-import { clearTenant, setTenant } from "../hooks/useTenant";
+import { clearTenant, setTenant, setTenantByEmail } from "../hooks/useTenant";
 
 const AuthContext = createContext(null);
 
@@ -105,7 +105,7 @@ export function AuthProvider({ children }) {
         setUser(userData);
 
         // Salva dados do tenant no Firestore (via tenantData js)
-        setTenant({
+        const tenantData = {
           id: result.user.uid,
           uid: result.user.uid,
           nome,
@@ -113,7 +113,10 @@ export function AuthProvider({ children }) {
           email,
           ramo,
           criadoEm: new Date().toISOString(),
-        });
+        };
+        setTenant(tenantData);
+        // Salva também vinculado ao email para recuperação futura
+        setTenantByEmail(email, tenantData);
 
         return { success: true, user: userData };
       } catch (error) {
@@ -131,7 +134,7 @@ export function AuthProvider({ children }) {
     setUser(userData);
     sessionStorage.setItem("pdv_session_user", JSON.stringify(userData));
 
-    setTenant({
+    const tenantData = {
       id: userData.uid,
       uid: userData.uid,
       nome,
@@ -139,7 +142,10 @@ export function AuthProvider({ children }) {
       email,
       ramo,
       criadoEm: new Date().toISOString(),
-    });
+    };
+    setTenant(tenantData);
+    // Salva também vinculado ao email para recuperação futura
+    setTenantByEmail(email, tenantData);
 
     return { success: true, user: userData };
   };

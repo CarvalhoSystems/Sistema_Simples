@@ -9,8 +9,11 @@
  * - pdv_categorias_{tenantId}
  * - pdv_vendas_{tenantId}
  */
-import { getTenantId, getTenantRamo } from "../hooks/useTenant";
-import { PRODUTOS_PADRAO, CATEGORIAS_PADRAO as CATEGORIAS_MOCK } from "./supabaseClient";
+import { getTenantId, getTenantRamo, getTenant } from "../hooks/useTenant";
+import {
+  PRODUTOS_PADRAO,
+  CATEGORIAS_PADRAO as CATEGORIAS_MOCK,
+} from "./supabaseClient";
 import {
   carregarProdutosFirebase,
   salvarProdutosFirebase,
@@ -185,9 +188,7 @@ export function buscarProdutos(termo, produtos) {
  * Obtém informações do estabelecimento do tenant
  */
 export function getEstabelecimentoInfo() {
-  const tenant = JSON.parse(
-    localStorage.getItem("pdv_tenant") || "{}",
-  );
+  const tenant = getTenant() || {};
   return {
     nome: tenant.nomeEstabelecimento || "Meu Estabelecimento",
     ramo: tenant.ramo || "mercado",
