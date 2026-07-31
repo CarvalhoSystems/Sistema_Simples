@@ -2,7 +2,7 @@ import Swal from "sweetalert2";
 import { getTenant } from "../hooks/useTenant";
 import { formatCurrency } from "../utils/formatters";
 import { signInWithEmailAndPassword } from "firebase/auth"; // Exemplo usando Firebase Auth direto
-import { auth } from "../services/firebaseConfig"; // Ajuste o caminho do seu firebase
+import { auth } from "../services/firebaseClient.js"; // Ajuste o caminho do seu firebase
 
 /**
  * 1. Confirmação inicial para fechar o caixa
