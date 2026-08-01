@@ -72,21 +72,7 @@ export function AuthProvider({ children }) {
     return loginLocal(email, password);
   };
 
-  // Login local para demonstração (sem Firebase)
-  const loginLocal = (email, password) => {
-    // Aceita qualquer email com senha "1234" ou "admin" para teste
-    if (password === "1234" || password === "admin" || email === "admin") {
-      const userData = {
-        uid: `local_${Date.now()}`,
-        email: email || "admin@demo.com",
-        name: email || "Administrador",
-      };
-      setUser(userData);
-      sessionStorage.setItem("pdv_session_user", JSON.stringify(userData));
-      return true;
-    }
-    return false;
-  };
+
 
   // Cadastro com Firebase (fallback para localStorage)
   const signup = async (email, password, nome, estabelecimento, ramo) => {

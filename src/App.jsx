@@ -26,6 +26,7 @@ import AdminFinanceiro from "./pages/AdminFinanceiro.jsx";
 import AdminPlanos from "./pages/AdminPlanos.jsx";
 import Contato from "./pages/contato.jsx";
 import FechamentoDeCaixa from "./components/fechamentoDeCaixa.jsx";
+import NotFoundPage from "./pages/NotFoundPage.jsx";
 
 export default function App() {
   return (
@@ -73,6 +74,9 @@ export default function App() {
 
       {/* Contato */}
       <Route path="/contato" element={<Contato />} />
+
+      {/*ROTAS 404*/}
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }
