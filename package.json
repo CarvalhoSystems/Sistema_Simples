@@ -17,6 +17,7 @@
     "express-rate-limit": "^8.6.1",
     "firebase": "^12.16.0",
     "mercadopago": "^3.2.1",
+    "plugin-basic-ssl": "^0.0.1-security",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
