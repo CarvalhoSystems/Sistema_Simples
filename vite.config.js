@@ -9,4 +9,7 @@ export default defineConfig({
   server: {
     https: true,
   },
+  build: {
+    sourcemap: false,
+  },
 });

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "../components/AuthContext.jsx";
 import { useNavigate, Link } from "react-router-dom";
 import {
@@ -8,92 +8,142 @@ import {
   getTenantByEmail,
   setTenantByEmail,
 } from "../hooks/useTenant";
-import {
-  RAMOS_NEGOCIO,
-  PRODUTOS_PADRAO,
-  CATEGORIAS_PADRAO,
-} from "../services/supabaseClient";
+import { validateLoginInput } from "../utils/operacoesSeguras";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [carregando, setCarregando] = useState(false);
+
+  // Estados de controle de tentativas e bloqueio (Brute Force)
+  const [bloqueadoAte, setBloqueadoAte] = useState(null);
+  const [tempoRestante, setTempoRestante] = useState(0);
+
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  // Verifica se já existe um bloqueio ativo no localStorage ao carregar a página
+  useEffect(() => {
+    const bloqueioSalvo = localStorage.getItem("login_bloqueado_ate");
+    if (bloqueioSalvo) {
+      const tempoRestanteMs = parseInt(bloqueioSalvo, 10) - Date.now();
+      if (tempoRestanteMs > 0) {
+        setBloqueadoAte(parseInt(bloqueioSalvo, 10));
+        setTempoRestante(Math.ceil(tempoRestanteMs / 1000));
+      } else {
+        localStorage.removeItem("login_bloqueado_ate");
+        localStorage.removeItem("login_tentativas");
+      }
+    }
+  }, []);
+
+  // Timer decrescente para atualizar o bloqueio na tela
+  useEffect(() => {
+    if (!bloqueadoAte) return;
+
+    const intervalo = setInterval(() => {
+      const restanteMs = bloqueadoAte - Date.now();
+      if (restanteMs <= 0) {
+        setBloqueadoAte(null);
+        setTempoRestante(0);
+        localStorage.removeItem("login_bloqueado_ate");
+        localStorage.removeItem("login_tentativas");
+        clearInterval(intervalo);
+      } else {
+        setTempoRestante(Math.ceil(restanteMs / 1000));
+      }
+    }, 1000);
+
+    return () => clearInterval(intervalo);
+  }, [bloqueadoAte]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
+    if (bloqueadoAte && Date.now() < bloqueadoAte) {
+      return;
+    }
+
+    const loginValidation = validateLoginInput(email, password);
+    if (!loginValidation.valid) {
+      setError(
+        loginValidation.reason === "empty_fields"
+          ? "Informe e-mail e senha para continuar."
+          : "Informe um e-mail válido.",
+      );
+      return;
+    }
+
     setCarregando(true);
 
     try {
+      // Chama a função de login do seu AuthContext (que valida no Firebase)
       const success = await login(email, password);
 
       if (success) {
-        // PASSO 1: Limpa qualquer tenant anterior (de outro usuário)
-        // Isso evita que um usuário veja dados de outro usuário
+        // Se o login deu certo, limpa as penalidades de erro
+        localStorage.removeItem("login_tentativas");
+        localStorage.removeItem("login_bloqueado_ate");
+        setBloqueadoAte(null);
+
         clearTenant();
 
-        // PASSO 2: Verifica se este email já tem dados salvos anteriormente
         const tenantPorEmail = getTenantByEmail(email);
 
         if (tenantPorEmail) {
-          // Usuário já tem dados salvos, restaura o tenant
           setTenant(tenantPorEmail);
         } else {
-          // PASSO 3: Verifica se existe tenant no formato antigo (sem email)
           const tenantExistente = getTenant();
 
           if (tenantExistente && tenantExistente.email === email) {
-            // Este tenant pertence ao email logado, mantém e salva por email
             setTenantByEmail(email, tenantExistente);
           } else {
-            // PASSO 4: Cria novo tenant para este email
             const novoTenant = {
               id: `demo_${Date.now()}`,
               uid: `demo_user`,
-              nome: email || "Usuário Demo",
+              nome: email || "Usuário",
               nomeEstabelecimento: "Meu Estabelecimento",
               email: email,
               ramo: "mercado",
-              ramoInfo: RAMOS_NEGOCIO.find((r) => r.id === "mercado"),
               criadoEm: new Date().toISOString(),
             };
 
-            // Salva tanto no tenant ativo quanto no específico por email
             setTenantByEmail(email, novoTenant);
-
-            if (!localStorage.getItem(`pdv_produtos_${novoTenant.id}`)) {
-              localStorage.setItem(
-                `pdv_produtos_${novoTenant.id}`,
-                JSON.stringify(PRODUTOS_PADRAO.mercado),
-              );
-              localStorage.setItem(
-                `pdv_categorias_${novoTenant.id}`,
-                JSON.stringify(CATEGORIAS_PADRAO.mercado),
-              );
-              localStorage.setItem(
-                `pdv_vendas_${novoTenant.id}`,
-                JSON.stringify([]),
-              );
-            }
           }
         }
 
         navigate("/dashboard");
       } else {
-        setError("Usuário ou senha inválidos.");
+        // Se o login falhou, incrementa as tentativas
+        const tentativasAtuais =
+          parseInt(localStorage.getItem("login_tentativas") || "0", 10) + 1;
+        localStorage.setItem("login_tentativas", tentativasAtuais);
+
+        if (tentativasAtuais >= 5) {
+          const tempoBloqueio = Date.now() + 60 * 1000; // Bloqueia por 1 minuto
+          localStorage.setItem("login_bloqueado_ate", tempoBloqueio);
+          setBloqueadoAte(tempoBloqueio);
+          setTempoRestante(60);
+          setError("Muitas tentativas falhas. Acesso bloqueado por 1 minuto.");
+        } else {
+          setError(
+            `E-mail ou senha incorretos. Tentativa ${tentativasAtuais} de 5.`,
+          );
+        }
       }
     } catch (err) {
-      setError("Erro ao fazer login. Tente novamente.");
+      setError("Erro ao fazer login. Verifique suas credenciais.");
     } finally {
       setCarregando(false);
     }
   };
 
+  const estaBloqueado = bloqueadoAte && Date.now() < bloqueadoAte;
+
   return (
-    <div className="relative flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div className="relative flex items-center justify-center min-h-screen bg-linear-to-br from-blue-50 to-indigo-100 p-4">
       <button
         type="button"
         onClick={() => navigate("/")}
@@ -123,7 +173,7 @@ export default function Login() {
           </div>
           <h1 className="text-2xl font-bold text-slate-800">Acessar Sistema</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Entre com seu email e senha
+            Entre com sua conta do Firebase
           </p>
         </div>
 
@@ -136,7 +186,8 @@ export default function Login() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3.5 py-2.5 mt-1 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-800"
+              disabled={estaBloqueado}
+              className="w-full px-3.5 py-2.5 mt-1 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-800 disabled:bg-slate-100 disabled:cursor-not-allowed"
               placeholder="seu@email.com"
               required
             />
@@ -150,39 +201,34 @@ export default function Login() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3.5 py-2.5 mt-1 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-800"
+              disabled={estaBloqueado}
+              className="w-full px-3.5 py-2.5 mt-1 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-800 disabled:bg-slate-100 disabled:cursor-not-allowed"
               placeholder="Sua senha"
               required
             />
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
-            <p className="font-medium mb-1">
-              <i className="fas fa-info-circle mr-1"></i>
-              Modo demonstração:
-            </p>
-            <p>
-              Use qualquer email com senha <strong>1234</strong> ou cadastre-se
-              abaixo.
-            </p>
-          </div>
-
           {error && (
             <p className="text-sm text-red-600 font-medium flex items-center gap-1">
               <i className="fas fa-exclamation-circle"></i>
-              {error}
+              {error} {estaBloqueado && `(${tempoRestante}s)`}
             </p>
           )}
 
           <button
             type="submit"
-            disabled={carregando}
+            disabled={carregando || estaBloqueado}
             className="w-full px-4 py-2.5 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {carregando ? (
               <>
                 <i className="fas fa-spinner fa-spin"></i>
                 Entrando...
+              </>
+            ) : estaBloqueado ? (
+              <>
+                <i className="fas fa-lock"></i>
+                Bloqueado ({tempoRestante}s)
               </>
             ) : (
               <>

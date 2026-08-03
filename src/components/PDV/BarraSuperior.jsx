@@ -22,9 +22,6 @@ export default function BarraSuperior() {
             Sistemas
           </span>
         </span>
-        <span className="text-xs bg-[#1d4ed8] px-2 py-0.5 rounded text-blue-100 border border-blue-400">
-          Ambiente Homologação
-        </span>
       </div>
       <div className="flex gap-8 text-xs font-mono">
         <span>

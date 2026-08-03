@@ -46,18 +46,7 @@ export default function Relatorios() {
   const comparativoChartRef = useRef(null);
   const chartInstances = useRef({});
 
-  // Carrega vendas do tenant
-  useEffect(() => {
-    const todasVendas = getVendas();
-    setVendas(todasVendas);
-  }, []);
-
-  // Calcula estatísticas quando vendas, mês ou ano mudam
-  useEffect(() => {
-    calcularEstatisticas();
-  }, [vendas, mes, ano]);
-
-  function calcularEstatisticas() {
+  const calcularEstatisticas = React.useCallback(() => {
     // Filtra vendas do mês/ano selecionado
     const vendasFiltradas = vendas.filter((v) => {
       const data = new Date(v.data);
@@ -114,7 +103,18 @@ export default function Relatorios() {
       porPagamento,
       topProdutos,
     });
-  }
+  }, [mes, ano, vendas]);
+
+  // Carrega vendas do tenant
+  useEffect(() => {
+    const todasVendas = getVendas();
+    setVendas(todasVendas);
+  }, []);
+
+  // Calcula estatísticas quando vendas, mês ou ano mudam
+  useEffect(() => {
+    calcularEstatisticas();
+  }, [calcularEstatisticas]);
 
   // Renderiza gráficos
   useEffect(() => {

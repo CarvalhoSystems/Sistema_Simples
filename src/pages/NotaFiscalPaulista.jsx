@@ -22,16 +22,16 @@ export default function NotaFiscalPaulista() {
   const [resultadoConsulta, setResultadoConsulta] = useState(null);
   const [carregando, setCarregando] = useState(false);
 
-  useEffect(() => {
-    carregarDados();
-  }, []);
-
-  function carregarDados() {
+  const carregarDados = React.useCallback(() => {
     const configSalva = carregarConfiguracoes();
     setConfig(configSalva);
     const notasSalvas = carregarNotasEmitidas();
     setNotas(notasSalvas);
-  }
+  }, []);
+
+  useEffect(() => {
+    carregarDados();
+  }, [carregarDados]);
 
   function handleConfigChange(campo, valor) {
     if (campo.includes(".")) {

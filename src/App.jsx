@@ -1,5 +1,5 @@
 import React from "react";
-import { Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom"; // <-- Certifique-se de importar o BrowserRouter
 import LandingPage from "./pages/LandingPage.jsx";
 import PDV from "./PDV";
 import Dashboard from "./components/Dashboard.jsx";
@@ -27,6 +27,8 @@ import AdminPlanos from "./pages/AdminPlanos.jsx";
 import Contato from "./pages/contato.jsx";
 import FechamentoDeCaixa from "./components/fechamentoDeCaixa.jsx";
 import NotFoundPage from "./pages/NotFoundPage.jsx";
+import ErrorBoundary from "./components/ErrorBoundary.jsx";
+import { AuthProvider } from "./components/AuthContext.jsx";
 
 export default function App() {
   return (

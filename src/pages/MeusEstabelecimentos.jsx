@@ -12,6 +12,7 @@ import {
 } from "../services/estabelecimentoManager";
 import { RAMOS_NEGOCIO } from "../services/supabaseClient";
 import { verificarStatusAssinatura } from "../services/planoManager";
+import { sanitizeInput } from "../utils/sanitize";
 
 export default function MeusEstabelecimentos() {
   const navigate = useNavigate();
@@ -40,9 +41,16 @@ export default function MeusEstabelecimentos() {
       return;
     }
 
-    const result = criarEstabelecimento(novoNome.trim(), novoRamo);
+    const result = criarEstabelecimento(
+      sanitizeInput(novoNome.trim()),
+      novoRamo,
+    );
     if (result.success) {
-      Swal.fire("Criado!", `Estabelecimento "${novoNome}" criado com sucesso.`, "success");
+      Swal.fire(
+        "Criado!",
+        `Estabelecimento "${novoNome}" criado com sucesso.`,
+        "success",
+      );
       setShowModal(false);
       setNovoNome("");
       setNovoRamo("mercado");
@@ -82,7 +90,11 @@ export default function MeusEstabelecimentos() {
     if (confirm.isConfirmed) {
       const result = removerEstabelecimento(estabId);
       if (result.success) {
-        Swal.fire("Removido!", "Estabelecimento removido com sucesso.", "success");
+        Swal.fire(
+          "Removido!",
+          "Estabelecimento removido com sucesso.",
+          "success",
+        );
         carregarDados();
       } else {
         Swal.fire("Erro", result.error, "error");
@@ -95,7 +107,10 @@ export default function MeusEstabelecimentos() {
       Swal.fire("Atenção", "Digite um nome válido.", "warning");
       return;
     }
-    const result = renomearEstabelecimento(estabId, editandoNome.trim());
+    const result = renomearEstabelecimento(
+      estabId,
+      sanitizeInput(editandoNome.trim()),
+    );
     if (result.success) {
       setEditandoId(null);
       carregarDados();
@@ -117,7 +132,8 @@ export default function MeusEstabelecimentos() {
             Meus Estabelecimentos
           </h1>
           <p className="text-sm text-gray-500">
-            {total} de {limite === Infinity ? "ilimitados" : limite} estabelecimentos usados
+            {total} de {limite === Infinity ? "ilimitados" : limite}{" "}
+            estabelecimentos usados
           </p>
         </div>
         {podeAdicionar && (

@@ -30,9 +30,7 @@ export default function Toolbar({
             onChange={(e) => setCategoryFilter(e.target.value)}
             className="border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
-            <option key="all-categories" value="">
-              Todas as Categorias
-            </option>
+            <option value="">Todas as Categorias</option>
             {categories.map((cat) => (
               <option key={cat.id} value={cat.id}>
                 {cat.name}

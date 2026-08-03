@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { sanitizeInput } from "../utils/sanitize";
 
 export default function ProductModal({ product, categories, onClose, onSave }) {
   const [formData, setFormData] = useState({
@@ -37,7 +38,10 @@ export default function ProductModal({ product, categories, onClose, onSave }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave(formData);
+    onSave({
+      ...formData,
+      descricao: sanitizeInput(formData.descricao),
+    });
   };
 
   return (

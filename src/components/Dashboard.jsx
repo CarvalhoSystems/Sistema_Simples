@@ -58,10 +58,10 @@ export default function Dashboard() {
           <h2>Dashboard</h2>
         </div>
         <div className="header-right">
-          <div className="user-info" id="userInfo">
+          {/*<div className="user-info" id="userInfo">
             <i className="fas fa-user-circle"></i>
             <span>{user?.name || "Administrador"}</span>
-          </div>
+          </div>*/}
           <div className="date-info">
             <i className="fas fa-calendar"></i>
             <span id="currentDate">{currentDate}</span>

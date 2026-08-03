@@ -6,8 +6,17 @@ import TabelaCupom from "./components/PDV/TabelaCupom";
 import PainelLateral from "./components/PDV/PainelLateral";
 import RodapeAtalhos from "./components/PDV/RodapeAtalhos";
 import useKeyboardShortcuts from "./hooks/useKeyboardShortcuts";
-import { getProdutos, buscarProdutos, addVenda } from "./services/tenantData";
+import {
+  getProdutos,
+  buscarProdutos,
+  addVenda,
+  setProdutos,
+} from "./services/tenantData";
 import { formatCurrency } from "./utils/formatters";
+import {
+  canAddProductToCart,
+  calculateUpdatedStock,
+} from "./utils/operacoesSeguras";
 import {
   emitirNotaFiscal,
   isConfigurado,
@@ -23,7 +32,7 @@ import {
   getPixHolderFromTenant,
   getMerchantCityFromTenant,
 } from "./services/pixService";
-//import minhaLogo from "./assets/hero.png"; // Sua logo importada corretamente
+import { getTenantId } from "./hooks/useTenant";
 
 const estadoInicial = {
   carrinho: [],
@@ -192,12 +201,33 @@ export default function PDV() {
       return;
     }
 
-    let qtdFinal = quantidade;
+    const adicionarProduto = (qtdEscolhida) => {
+      const validacao = canAddProductToCart(produtoEncontrado, qtdEscolhida);
+      if (!validacao.allowed) {
+        Swal.fire({
+          icon: "warning",
+          title: "Estoque indisponível",
+          text:
+            validacao.reason === "out_of_stock"
+              ? "Este produto está sem estoque."
+              : `Quantidade solicitada excede o estoque disponível (${validacao.availableStock}).`,
+        });
+        dispatch({ type: "LIMPAR_INPUT" });
+        return;
+      }
+
+      dispatch({
+        type: "ADICIONAR_PRODUTO",
+        payload: { produto: produtoEncontrado, quantidade: qtdEscolhida },
+      });
+    };
+
+    const qtdInicial = quantidade > 0 ? quantidade : 1;
     if (produtoEncontrado.solicitarQuantidade) {
       Swal.fire({
         title: `Quantidade para ${produtoEncontrado.descricao}`,
         input: "number",
-        inputValue: 1,
+        inputValue: qtdInicial,
         showCancelButton: true,
         didOpen: () => {
           const inputSwal = Swal.getInput();
@@ -213,20 +243,13 @@ export default function PDV() {
         },
       }).then((result) => {
         if (result.isConfirmed) {
-          qtdFinal = parseFloat(result.value);
-          dispatch({
-            type: "ADICIONAR_PRODUTO",
-            payload: { produto: produtoEncontrado, quantidade: qtdFinal },
-          });
+          adicionarProduto(parseFloat(result.value));
         }
       });
       return;
     }
 
-    dispatch({
-      type: "ADICIONAR_PRODUTO",
-      payload: { produto: produtoEncontrado, quantidade: qtdFinal },
-    });
+    adicionarProduto(qtdInicial);
   };
 
   const finalizarVenda = async (metodo) => {
@@ -303,6 +326,20 @@ export default function PDV() {
       }
     }
 
+    const produtosAtualizados = carrinho.reduce((acc, item) => {
+      const produtoOriginal = produtosDoTenant.find(
+        (p) => p.codigo === item.codigo,
+      );
+      if (!produtoOriginal) return acc;
+
+      const produtoAtualizado = calculateUpdatedStock(
+        produtoOriginal,
+        item.qtd,
+      );
+      acc.push(produtoAtualizado);
+      return acc;
+    }, []);
+
     const vendaAtual = {
       carrinho: [...carrinho],
       total,
@@ -344,6 +381,18 @@ export default function PDV() {
 
     vendasRealizadasRef.current = [...vendasRealizadasRef.current, vendaAtual];
     addVenda(vendaAtual);
+
+    if (produtosAtualizados.length > 0) {
+      const produtosPersistidos = produtosDoTenant.map((produto) => {
+        const atualizado = produtosAtualizados.find(
+          (p) => p.codigo === produto.codigo,
+        );
+        return atualizado || produto;
+      });
+      await setProdutos(produtosPersistidos);
+      setProdutosDoTenant(produtosPersistidos);
+    }
+
     dispatch({ type: "FINALIZAR_VENDA" });
   };
 
@@ -481,7 +530,9 @@ export default function PDV() {
       setTermoBuscaF10("");
       setMostrarF10((prev) => !prev);
     },
-    F11: () => navigate("/dashboard"),
+    "Alt+F11": () => {
+      navigate("/dashboard");
+    },
     F12: () => {
       const vendasHoje = vendasRealizadasRef.current.filter((v) => {
         return new Date(v.data).toDateString() === new Date().toDateString();
@@ -524,11 +575,11 @@ export default function PDV() {
 
       {/* Overlay de Caixa Fechado com a SUA LOGO */}
       {caixaFechado && (
-        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center z-[100] p-4">
+        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center z-100 p-4">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
             <div className="bg-slate-900 text-white p-6 text-center flex flex-col items-center">
               <img
-                src={minhaLogo}
+                src="/favicon.svg"
                 alt="Logo do Estabelecimento"
                 className="w-20 h-20 object-contain mb-3 rounded-full bg-white p-1 shadow"
               />

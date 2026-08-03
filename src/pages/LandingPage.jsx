@@ -250,58 +250,66 @@ export default function LandingPage() {
 
       {/* ===== HERO ===== */}
       <section className="relative pt-20 pb-16 md:pt-28 md:pb-24 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-indigo-50"></div>
+        <div className="absolute inset-0 bg-linear-to-br from-blue-50 via-white to-indigo-50"></div>
         <div className="absolute top-0 right-0 w-96 h-96 bg-blue-100 rounded-full blur-3xl opacity-30 -translate-y-1/2 translate-x-1/2"></div>
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-100 rounded-full blur-3xl opacity-30 translate-y-1/2 -translate-x-1/2"></div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col lg:flex-row items-center gap-12">
             <div className="flex-1 text-center lg:text-left">
-              <div className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium mb-6">
+              <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 mb-4 shadow-sm">
                 <i className="fas fa-rocket"></i>
                 <span>Sistema completo para seu negócio</span>
               </div>
 
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight mb-6">
+              <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 mb-6 shadow-sm">
+                <i className="fas fa-desktop"></i>
+                <span>
+                  Para operar no caixa, é necessário um computador local no
+                  estabelecimento.
+                </span>
+              </div>
+
+              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight mb-6">
                 O PDV que{" "}
-                <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  cresce com você
+                <span className="bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  organiza o seu dia a dia
                 </span>
               </h1>
 
-              <p className="text-lg md:text-xl text-gray-600 mb-8 max-w-2xl mx-auto lg:mx-0">
-                Sistema de gestão completo com PDV, controle de estoque, emissão
-                de Nota Fiscal Paulista e planos para todos os tamanhos de
-                negócio.
+              <p className="text-base sm:text-lg md:text-xl text-gray-600 mb-8 max-w-2xl mx-auto lg:mx-0">
+                Controle de vendas, estoque, emissão de Nota Fiscal Paulista e
+                gestão do negócio em uma solução simples, rápida e preparada
+                para uso local no caixa.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
                 <Link
                   to="/signup"
-                  className="px-8 py-3.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 hover:shadow-xl text-center"
+                  className="w-full sm:w-auto px-8 py-3.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 hover:shadow-xl text-center"
                 >
                   <i className="fas fa-rocket mr-2"></i>
                   Começar Grátis
                 </Link>
                 <button
-                  onClick={() => scrollTo("ramos")}
-                  className="px-8 py-3.5 border-2 border-gray-200 text-gray-700 font-semibold rounded-xl hover:border-blue-600 hover:text-blue-600 transition-all"
+                  onClick={() => scrollTo("planos")}
+                  className="w-full sm:w-auto px-8 py-3.5 border-2 border-gray-200 text-gray-700 font-semibold rounded-xl hover:border-blue-600 hover:text-blue-600 transition-all"
                 >
                   <i className="fas fa-play-circle mr-2"></i>
-                  Ver Funcionalidades
+                  Ver Planos
                 </button>
               </div>
 
-              <div className="flex flex-wrap gap-4 mt-8 justify-center lg:justify-start">
-                <div className="flex items-center gap-1.5 text-xs text-gray-500">
+              <div className="flex flex-wrap gap-3 mt-8 justify-center lg:justify-start">
+                <div className="flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1.5 text-xs text-gray-600 shadow-sm border border-gray-100">
                   <i className="fas fa-check-circle text-green-500"></i>
                   Sem cartão de crédito
                 </div>
-                <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                <div className="flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1.5 text-xs text-gray-600 shadow-sm border border-gray-100">
                   <i className="fas fa-check-circle text-green-500"></i>7 dias
                   grátis
                 </div>
-                <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                <div className="flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1.5 text-xs text-gray-600 shadow-sm border border-gray-100">
                   <i className="fas fa-check-circle text-green-500"></i>
                   Cancele quando quiser
                 </div>
@@ -368,24 +376,73 @@ export default function LandingPage() {
       {/* ===== NÚMEROS ===== */}
       <section className="py-12 bg-blue-600">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center text-white">
-            <div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-8 text-center text-white">
+            <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
               <p className="text-3xl md:text-4xl font-bold">10+</p>
-              <p className="text-blue-200 text-sm mt-1">Ramos de Negócio</p>
+              <p className="text-blue-100 text-sm mt-1">Ramos de Negócio</p>
             </div>
-            <div>
+            <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
               <p className="text-3xl md:text-4xl font-bold">100+</p>
-              <p className="text-blue-200 text-sm mt-1">
-                Produtos Pré-cadastrados
+              <p className="text-blue-100 text-sm mt-1">Produtos Prontos</p>
+            </div>
+            <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
+              <p className="text-3xl md:text-4xl font-bold">7</p>
+              <p className="text-blue-100 text-sm mt-1">Dias Grátis</p>
+            </div>
+            <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
+              <p className="text-3xl md:text-4xl font-bold">100%</p>
+              <p className="text-blue-100 text-sm mt-1">Uso Local</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== COMO FUNCIONA ===== */}
+      <section className="py-16 md:py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="rounded-3xl border border-white/20 bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-700 p-6 md:p-8 text-white shadow-2xl shadow-blue-900/20">
+            <div className="text-center mb-8">
+              <span className="text-blue-100 font-semibold text-sm tracking-wider uppercase">
+                Como funciona
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-bold mt-2">
+                Simples de começar, poderoso no dia a dia
+              </h2>
+              <p className="text-blue-100 mt-3 max-w-2xl mx-auto text-sm sm:text-base">
+                O sistema foi pensado para entrar em operação rapidamente e
+                deixar o atendimento mais organizado.
               </p>
             </div>
-            <div>
-              <p className="text-3xl md:text-4xl font-bold">7</p>
-              <p className="text-blue-200 text-sm mt-1">Dias Grátis</p>
-            </div>
-            <div>
-              <p className="text-3xl md:text-4xl font-bold">100%</p>
-              <p className="text-blue-200 text-sm mt-1">Online</p>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              {[
+                {
+                  title: "1. Cadastre-se",
+                  desc: "Crie sua conta e escolha o ramo do seu negócio em poucos minutos.",
+                  icon: "fa-user-plus",
+                },
+                {
+                  title: "2. Configure o caixa",
+                  desc: "Adicione produtos, estoque e deixe o sistema pronto para uso local.",
+                  icon: "fa-desktop",
+                },
+                {
+                  title: "3. Comece a vender",
+                  desc: "Atenda clientes com mais rapidez, controle o estoque e emita nota quando precisar.",
+                  icon: "fa-cart-shopping",
+                },
+              ].map((item) => (
+                <div
+                  key={item.title}
+                  className="rounded-2xl border border-white/20 bg-white/10 p-5 backdrop-blur-sm"
+                >
+                  <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center mb-4">
+                    <i className={`fas ${item.icon}`} />
+                  </div>
+                  <h3 className="font-semibold text-lg mb-2">{item.title}</h3>
+                  <p className="text-sm text-blue-100">{item.desc}</p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -437,75 +494,49 @@ export default function LandingPage() {
       {/* ===== FEATURES ===== */}
       <section className="py-16 md:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
+          <div className="text-center mb-10 sm:mb-12">
             <span className="text-blue-600 font-semibold text-sm tracking-wider uppercase">
-              Funcionalidades
+              O essencial para operar
             </span>
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mt-2">
-              Tudo que seu negócio precisa
+              O que realmente importa no dia a dia
             </h2>
+            <p className="text-gray-500 mt-3 max-w-2xl mx-auto text-sm sm:text-base">
+              Para o uso no estabelecimento, o foco é simples: vender, controlar
+              estoque e emitir nota quando precisar.
+            </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:grid-cols-2 lg:grid-cols-4">
             {[
               {
                 icon: "fa-cash-register",
                 cor: "blue",
                 titulo: "PDV Completo",
-                desc: "Interface otimizada para operadores de caixa com atalhos de teclado (F1 a F12).",
-              },
-              {
-                icon: "fa-file-invoice",
-                cor: "green",
-                titulo: "Nota Fiscal Paulista",
-                desc: "Emissão de NF-e integrada com a SEFAZ-SP. Seus clientes acumulam créditos de ICMS.",
+                desc: "Caixa rápido, atalhos e fluxo pronto para o atendimento local.",
               },
               {
                 icon: "fa-boxes",
                 cor: "purple",
                 titulo: "Controle de Estoque",
-                desc: "Gerencie produtos, estoque mínimo e receba alertas quando precisar repor.",
+                desc: "Evite vender sem produto e acompanhe o que precisa repor.",
+              },
+              {
+                icon: "fa-file-invoice",
+                cor: "green",
+                titulo: "Nota Fiscal Paulista",
+                desc: "Emita NF-e com mais praticidade e organização no fechamento das vendas.",
               },
               {
                 icon: "fa-chart-bar",
                 cor: "orange",
-                titulo: "Relatórios",
-                desc: "Dashboard com gráficos, vendas por período e indicadores de desempenho.",
-              },
-              {
-                icon: "fa-layer-group",
-                cor: "red",
-                titulo: "Multi-ramo",
-                desc: "Cada estabelecimento pode ter seu próprio ramo com produtos e categorias específicas.",
-              },
-              {
-                icon: "fa-shield-alt",
-                cor: "teal",
-                titulo: "Multi-tenant Seguro",
-                desc: "Dados isolados por cliente. Cada estabelecimento tem seu próprio ambiente seguro.",
-              },
-              {
-                icon: "fa-print",
-                cor: "pink",
-                titulo: "Impressão de Cupom",
-                desc: "Impressão de cupom não fiscal e DANFE (Documento Auxiliar da NF-e).",
-              },
-              {
-                icon: "fa-barcode",
-                cor: "indigo",
-                titulo: "Código de Barras",
-                desc: "Suporte a leitura de código de barras e balanças com produtos por peso.",
-              },
-              {
-                icon: "fa-users",
-                cor: "cyan",
-                titulo: "Múltiplos Usuários",
-                desc: "Planos Premium permitem múltiplos usuários com níveis de acesso diferentes.",
+                titulo: "Gestão Simples",
+                desc: "Veja vendas, desempenho e informações importantes em poucos cliques.",
               },
             ].map((feat, i) => (
               <div
                 key={i}
-                className="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-all"
+                className="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-all hover:-translate-y-1"
               >
                 <div
                   className={`w-12 h-12 rounded-lg flex items-center justify-center mb-4`}
@@ -529,20 +560,21 @@ export default function LandingPage() {
       {/* ===== PLANOS ===== */}
       <section id="planos" className="py-16 md:py-24 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
+          <div className="text-center mb-8 sm:mb-12">
             <span className="text-blue-600 font-semibold text-sm tracking-wider uppercase">
               Planos
             </span>
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mt-2">
-              Invista no seu negócio
+              Escolha o nível certo para o seu negócio
             </h2>
-            <p className="text-gray-500 mt-3 max-w-2xl mx-auto">
-              Escolha o plano ideal para sua empresa. Todos incluem 7 dias
-              grátis.
+            <p className="text-gray-500 mt-3 max-w-2xl mx-auto text-sm sm:text-base">
+              O uso comercial exige um computador local no estabelecimento. Por
+              isso, os planos foram pensados para oferecer o essencial de forma
+              clara e objetiva.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
             {PLANOS.map((plano) => (
               <div
                 key={plano.id}
@@ -558,13 +590,13 @@ export default function LandingPage() {
                   </div>
                 )}
 
-                <div className={`p-6 ${plano.destaque ? "pt-10" : ""}`}>
-                  <div className="text-center mb-6">
+                <div className={`p-5 sm:p-6 ${plano.destaque ? "pt-10" : ""}`}>
+                  <div className="text-center mb-5">
                     <h3 className="text-lg font-bold text-gray-800">
                       {plano.nome}
                     </h3>
                     <div className="mt-3">
-                      <span className="text-4xl font-bold text-gray-900">
+                      <span className="text-3xl sm:text-4xl font-bold text-gray-900">
                         R$ {plano.preco}
                       </span>
                       <span className="text-gray-400 text-sm ml-1">
@@ -573,8 +605,8 @@ export default function LandingPage() {
                     </div>
                   </div>
 
-                  <ul className="space-y-3 mb-6">
-                    {plano.features.map((feat, i) => (
+                  <ul className="space-y-2.5 mb-5">
+                    {plano.features.slice(0, 4).map((feat, i) => (
                       <li
                         key={i}
                         className="flex items-start gap-2 text-sm text-gray-600"
@@ -689,7 +721,7 @@ export default function LandingPage() {
       </section>
 
       {/* ===== CTA FINAL ===== */}
-      <section className="py-16 md:py-24 bg-gradient-to-r from-blue-600 to-purple-600">
+      <section className="py-16 md:py-24 bg-linear-to-r from-blue-600 to-purple-600">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
             Pronto para começar?

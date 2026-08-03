@@ -163,6 +163,12 @@ function addToCart(productId) {
   const product = getProductById(productId);
   if (!product) return;
 
+  // Validação de estoque antes de adicionar
+  if (product.stock <= 0) {
+    showToast(`Produto "${product.name}" sem estoque!`, "error");
+    return;
+  }
+
   const existingItem = AppState.cart.find(
     (item) => item.productId === productId,
   );

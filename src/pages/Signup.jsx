@@ -9,6 +9,8 @@ import {
   criarEstabelecimento,
   alternarEstabelecimento,
 } from "../services/estabelecimentoManager";
+import { sanitizeInput } from "../utils/sanitize";
+import { sendEmailVerification } from "firebase/auth"; // <-- 1. Importe a função do Firebase Auth
 
 export default function Signup() {
   const [fullName, setFullName] = useState("");
@@ -34,15 +36,24 @@ export default function Signup() {
 
     try {
       const result = await signup(
-        email,
+        sanitizeInput(email),
         password,
-        fullName,
-        nomeEstabelecimento ||
+        sanitizeInput(fullName),
+        sanitizeInput(nomeEstabelecimento) ||
           RAMOS_NEGOCIO.find((r) => r.id === businessType)?.nome,
-        businessType,
+        sanitizeInput(businessType),
       );
 
       if (result.success) {
+        // 2. Envia o e-mail de verificação usando o objeto user retornado
+        if (result.user) {
+          try {
+            await sendEmailVerification(result.user);
+          } catch (emailErr) {
+            console.error("Erro ao enviar e-mail de verificação:", emailErr);
+          }
+        }
+
         // Após criar o usuário, inicializa seus dados no Firebase
         const tenantId = result.user.uid;
         const tenantInfo = {
@@ -69,7 +80,7 @@ export default function Signup() {
         }
 
         alert(
-          `✅ Conta criada com sucesso!\n\nBem-vindo, ${fullName}!\nSeus produtos já foram carregados automaticamente.`,
+          `✅ Conta criada com sucesso!\n\nBem-vindo, ${fullName}!\nEnviamos um link de confirmação para o seu e-mail. Por favor, verifique sua caixa de entrada.\n\nSeus produtos já foram carregados automaticamente.`,
         );
         navigate("/dashboard");
       } else {
@@ -83,7 +94,7 @@ export default function Signup() {
   };
 
   return (
-    <div className="relative flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div className="relative flex items-center justify-center min-h-screen bg-linear-to-br from-blue-50 to-indigo-100 p-4">
       <button
         type="button"
         onClick={() => navigate("/")}
@@ -242,8 +253,8 @@ export default function Signup() {
             Ao criar sua conta:
           </p>
           <ul className="list-disc list-inside space-y-0.5">
+            <li>Um e-mail de verificação será enviado para você</li>
             <li>Seus produtos serão carregados automaticamente</li>
-            <li>Você pode editar, adicionar ou remover produtos depois</li>
             <li>Seus dados ficam salvos na nuvem (Firebase)</li>
           </ul>
         </div>
