@@ -4,9 +4,23 @@
  * Cada usuário cadastrado é um tenant com seu próprio ramo de negócio,
  * produtos, vendas e configurações isoladas.
  */
-import { PRODUTOS_PADRAO, CATEGORIAS_PADRAO } from "../services/supabaseClient";
+import {
+  PRODUTOS_PADRAO,
+  CATEGORIAS_PADRAO,
+} from "../services/supabaseClient.js";
 
 export const TENANT_KEY = "pdv_tenant";
+
+export function normalizeEmail(email) {
+  if (typeof email !== "string") return "";
+  return email.trim().toLowerCase();
+}
+
+function getTenantEmailStorageKey(email) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return null;
+  return `${TENANT_KEY}_email_${btoa(normalizedEmail)}`;
+}
 
 /**
  * Obtém o tenant atual do localStorage
@@ -82,10 +96,48 @@ export function getInitialDataForRamo(ramoId) {
  * Obtém tenant específico de um usuário pelo email
  * Isso permite que cada usuário tenha seus dados isolados
  */
+export function resolveTenantForLogin(
+  email,
+  currentTenant = null,
+  tenantPorEmail = null,
+  estabelecimentoAtivoId = null,
+) {
+  const normalizedEmail = normalizeEmail(email);
+
+  const tenantFromEmail = tenantPorEmail || getTenantByEmail(normalizedEmail);
+  if (tenantFromEmail) {
+    return { ...tenantFromEmail, email: normalizedEmail };
+  }
+
+  const tenantPersistido = currentTenant || getTenant();
+  if (
+    tenantPersistido &&
+    normalizeEmail(tenantPersistido.email) === normalizedEmail
+  ) {
+    return { ...tenantPersistido, email: normalizedEmail };
+  }
+
+  if (estabelecimentoAtivoId) {
+    return {
+      id: estabelecimentoAtivoId,
+      uid: estabelecimentoAtivoId,
+      nome: normalizedEmail || "Usuário",
+      nomeEstabelecimento: "Meu Estabelecimento",
+      email: normalizedEmail,
+      ramo: "mercado",
+      criadoEm: new Date().toISOString(),
+      estabelecimentoAtivo: estabelecimentoAtivoId,
+    };
+  }
+
+  return null;
+}
+
 export function getTenantByEmail(email) {
-  if (!email) return null;
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return null;
   try {
-    const key = `${TENANT_KEY}_email_${btoa(email)}`;
+    const key = getTenantEmailStorageKey(normalizedEmail);
     const data = localStorage.getItem(key);
     if (data) {
       return JSON.parse(data);
@@ -101,12 +153,17 @@ export function getTenantByEmail(email) {
  * Também atualiza o tenant ativo
  */
 export function setTenantByEmail(email, tenantData) {
-  if (!email || !tenantData) return;
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail || !tenantData) return;
   try {
-    const key = `${TENANT_KEY}_email_${btoa(email)}`;
-    localStorage.setItem(key, JSON.stringify(tenantData));
+    const key = getTenantEmailStorageKey(normalizedEmail);
+    const tenantToStore = {
+      ...tenantData,
+      email: normalizedEmail,
+    };
+    localStorage.setItem(key, JSON.stringify(tenantToStore));
     // Também atualiza o tenant ativo
-    setTenant(tenantData);
+    setTenant(tenantToStore);
   } catch (e) {
     console.warn("Erro ao salvar tenant por email:", e);
   }
@@ -116,9 +173,10 @@ export function setTenantByEmail(email, tenantData) {
  * Remove tenant específico de um usuário pelo email
  */
 export function clearTenantByEmail(email) {
-  if (!email) return;
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return;
   try {
-    const key = `${TENANT_KEY}_email_${btoa(email)}`;
+    const key = getTenantEmailStorageKey(normalizedEmail);
     localStorage.removeItem(key);
   } catch (e) {
     console.warn("Erro ao limpar tenant por email:", e);

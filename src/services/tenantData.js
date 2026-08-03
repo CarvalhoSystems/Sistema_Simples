@@ -9,16 +9,16 @@
  * - pdv_categorias_{tenantId}
  * - pdv_vendas_{tenantId}
  */
-import { getTenantId, getTenantRamo, getTenant } from "../hooks/useTenant";
+import { getTenantId, getTenantRamo, getTenant } from "../hooks/useTenant.js";
 import {
   PRODUTOS_PADRAO,
   CATEGORIAS_PADRAO as CATEGORIAS_MOCK,
-} from "./supabaseClient";
+} from "./supabaseClient.js";
 import {
   carregarProdutosFirebase,
   salvarProdutosFirebase,
   salvarVendaFirebase,
-} from "./firebaseData";
+} from "./firebaseData.js";
 
 /**
  * Retorna a chave do localStorage para um dado do tenant
@@ -27,14 +27,52 @@ function tenantKey(tenantId, tipo) {
   return `pdv_${tipo}_${tenantId}`;
 }
 
+function normalizeRamo(ramo) {
+  if (typeof ramo !== "string" || !ramo.trim()) return "mercado";
+  const normalized = ramo.trim().toLowerCase();
+  return normalized in PRODUTOS_PADRAO ? normalized : "mercado";
+}
+
+export function getDefaultInventoryForRamo(ramo = "mercado") {
+  const ramoNormalizado = normalizeRamo(ramo);
+  const produtos = PRODUTOS_PADRAO[ramoNormalizado] || PRODUTOS_PADRAO.mercado;
+  const categorias =
+    CATEGORIAS_MOCK[ramoNormalizado] || CATEGORIAS_MOCK.mercado;
+
+  return {
+    produtos: produtos.map((produto) => ({ ...produto })),
+    categorias: [...categorias],
+  };
+}
+
 /**
  * Obtém os produtos do tenant atual
  */
 export async function getProdutos() {
   const tenantId = getTenantId();
   if (!tenantId) return [];
-  // Prioriza Firebase, com fallback para localStorage
-  return await carregarProdutosFirebase();
+
+  const produtosDoTenant = await carregarProdutosFirebase();
+  if (Array.isArray(produtosDoTenant) && produtosDoTenant.length > 0) {
+    return produtosDoTenant;
+  }
+
+  const fallback = getDefaultInventoryForRamo(getTenantRamo()).produtos;
+  const fallbackKey = tenantKey(tenantId, "produtos");
+
+  try {
+    const data = localStorage.getItem(fallbackKey);
+    if (data) {
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn("Erro ao carregar produtos do localStorage para fallback:", e);
+  }
+
+  return fallback;
 }
 
 /**
@@ -96,10 +134,20 @@ export async function getCategorias() {
   const tenantId = getTenantId();
   if (!tenantId) return [];
 
-  // Categorias são salvas junto com produtos no Firebase
   const produtos = await carregarProdutosFirebase();
-  // Se não houver produtos/categorias no Firebase, usa o fallback do localStorage.
-  return produtos.categorias || getCategoriasFromLocalStorage();
+  if (produtos && Array.isArray(produtos)) {
+    return getCategoriasFromLocalStorage();
+  }
+
+  if (
+    produtos &&
+    Array.isArray(produtos.categorias) &&
+    produtos.categorias.length > 0
+  ) {
+    return produtos.categorias;
+  }
+
+  return getCategoriasFromLocalStorage();
 }
 
 /**
@@ -112,16 +160,17 @@ function getCategoriasFromLocalStorage() {
   try {
     const data = localStorage.getItem(tenantKey(tenantId, "categorias"));
     if (data) {
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
     }
   } catch (e) {
     console.warn("Erro ao carregar categorias do localStorage:", e);
   }
 
-  // Fallback para categorias padrão do ramo
   const ramo = getTenantRamo();
-  // CATEGORIAS_MOCK é um alias para CATEGORIAS_PADRAO de supabaseClient.js
-  return CATEGORIAS_MOCK[ramo] || CATEGORIAS_MOCK.mercado;
+  return getDefaultInventoryForRamo(ramo).categorias;
 }
 
 /**

@@ -4,9 +4,8 @@ import { useNavigate, Link } from "react-router-dom";
 import {
   setTenant,
   getTenant,
-  clearTenant,
-  getTenantByEmail,
   setTenantByEmail,
+  resolveTenantForLogin,
 } from "../hooks/useTenant";
 import { validateLoginInput } from "../utils/operacoesSeguras";
 
@@ -88,30 +87,30 @@ export default function Login() {
         localStorage.removeItem("login_bloqueado_ate");
         setBloqueadoAte(null);
 
-        clearTenant();
+        const tenantAtual = getTenant();
+        const estabelecimentoAtivoId =
+          localStorage.getItem("pdv_estabelecimento_ativo") || null;
+        const tenantRestaurado = resolveTenantForLogin(
+          email,
+          tenantAtual,
+          null,
+          estabelecimentoAtivoId,
+        );
 
-        const tenantPorEmail = getTenantByEmail(email);
-
-        if (tenantPorEmail) {
-          setTenant(tenantPorEmail);
+        if (tenantRestaurado) {
+          setTenantByEmail(email, tenantRestaurado);
         } else {
-          const tenantExistente = getTenant();
+          const novoTenant = {
+            id: `demo_${Date.now()}`,
+            uid: `demo_user`,
+            nome: email || "Usuário",
+            nomeEstabelecimento: "Meu Estabelecimento",
+            email: email,
+            ramo: "mercado",
+            criadoEm: new Date().toISOString(),
+          };
 
-          if (tenantExistente && tenantExistente.email === email) {
-            setTenantByEmail(email, tenantExistente);
-          } else {
-            const novoTenant = {
-              id: `demo_${Date.now()}`,
-              uid: `demo_user`,
-              nome: email || "Usuário",
-              nomeEstabelecimento: "Meu Estabelecimento",
-              email: email,
-              ramo: "mercado",
-              criadoEm: new Date().toISOString(),
-            };
-
-            setTenantByEmail(email, novoTenant);
-          }
+          setTenantByEmail(email, novoTenant);
         }
 
         navigate("/dashboard");

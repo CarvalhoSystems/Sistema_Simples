@@ -14,7 +14,7 @@
  *
  */
 
-import { firebaseDisponivel, db } from "./firebaseClient";
+import { firebaseDisponivel, db } from "./firebaseClient.js";
 import {
   doc,
   setDoc,
@@ -28,8 +28,8 @@ import {
   getDocs,
   writeBatch,
 } from "firebase/firestore"; // Importa os dados mockados
-import { PRODUTOS_PADRAO, CATEGORIAS_PADRAO } from "./supabaseClient";
-import { getTenantId, getTenantRamo, getTenant } from "../hooks/useTenant";
+import { PRODUTOS_PADRAO, CATEGORIAS_PADRAO } from "./supabaseClient.js";
+import { getTenantId, getTenantRamo, getTenant } from "../hooks/useTenant.js";
 
 // ===== UTILITÁRIOS =====
 
