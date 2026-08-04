@@ -52,14 +52,21 @@ export default async function handler(request, response) {
     // Retorna a URL de pagamento para o frontend
     return response
       .status(200)
-      .json({ success: true, paymentUrl: result.init_point });
-  } catch (error) {
-    console.error("Erro ao criar preferência no Mercado Pago:", error);
-    return response
-      .status(500)
       .json({
-        success: false,
-        error: "Falha ao comunicar com o Mercado Pago.",
+        success: true,
+        paymentUrl: result.init_point,
+        preferenceId: result.id,
       });
+  } catch (error) {
+    console.error(
+      "Erro ao criar preferência no Mercado Pago:",
+      error.message,
+      error.cause,
+      { tenantId, planoId, valor, descricao },
+    );
+    return response.status(500).json({
+      success: false,
+      error: "Falha ao comunicar com o Mercado Pago.",
+    });
   }
 }
