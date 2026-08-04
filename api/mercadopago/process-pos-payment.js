@@ -1,6 +1,6 @@
 import { MercadoPagoConfig, Point } from "mercadopago";
 import { doc, getDoc } from "firebase/firestore";
-import { db } from "../../src/services/firebaseClient"; // Importa a instância do DB
+import { db } from "../../../src/services/firebaseClient"; // Importa a instância do DB
 
 export default async function handler(request, response) {
   if (request.method !== "POST") {
