@@ -13,7 +13,7 @@ export default async function handler(request, response) {
   // **IMPORTANTE**: Em um sistema real, você buscaria o Access Token do lojista
   // no seu banco de dados (Firebase) usando o tenantId.
   // Por enquanto, vamos usar a variável de ambiente principal.
-  const accessToken = process.env.VITE_MERCADOPAGO_ACCESS_TOKEN;
+  const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
 
   if (!accessToken) {
     return response

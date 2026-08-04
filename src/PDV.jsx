@@ -29,7 +29,6 @@ import PixQrCodeModal from "./components/PixQrCodeModal";
 import {
   gerarPayloadPix,
   getPixKeyFromTenant,
-  getPixCityFromTenant, // Adicionado para obter a cidade do PIX
   getPixHolderFromTenant,
   getMerchantCityFromTenant,
 } from "./services/pixService"; // Importa o serviço do PIX

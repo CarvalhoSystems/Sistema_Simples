@@ -18,7 +18,7 @@ export default async function handler(request, response) {
       accessToken = tenantDoc.data().info.mercadoPagoAccessToken;
     } else {
       // Fallback para a variável de ambiente principal se o lojista não configurou
-      accessToken = process.env.VITE_MERCADOPAGO_ACCESS_TOKEN;
+      accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
     }
   } catch (dbError) {
     console.error("Erro ao buscar token do tenant no Firebase:", dbError);
