@@ -124,6 +124,74 @@ export async function carregarProdutosFirebase() {
   return [];
 }
 
+// ===== CATEGORIAS =====
+
+/**
+ * Salva categorias no Firestore (e localStorage como backup)
+ */
+export async function salvarCategoriasFirebase(categorias) {
+  const tenantId = getTenantId();
+  if (!tenantId) return;
+
+  // Sempre salva no localStorage (fallback)
+  localStorage.setItem(`pdv_categorias_${tenantId}`, JSON.stringify(categorias));
+
+  // Tenta salvar no Firebase
+  if (isFirebaseReady()) {
+    try {
+      const docRef = getTenantDocRef(tenantId);
+      await setDoc(docRef, { categorias }, { merge: true });
+      console.log("✅ Categorias salvas no Firebase");
+    } catch (error) {
+      console.warn("⚠️ Erro ao salvar categorias no Firebase:", error.message);
+    }
+  }
+}
+
+/**
+ * Carrega categorias do Firebase (com fallback localStorage)
+ */
+export async function carregarCategoriasFirebase() {
+  const tenantId = getTenantId();
+  if (!tenantId) return [];
+
+  // Tenta carregar do Firebase primeiro
+  if (isFirebaseReady()) {
+    try {
+      const docRef = getTenantDocRef(tenantId);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists() && docSnap.data().categorias) {
+        const categorias = docSnap.data().categorias;
+        // Atualiza localStorage com dados do Firebase
+        localStorage.setItem(
+          `pdv_categorias_${tenantId}`,
+          JSON.stringify(categorias),
+        );
+        return categorias;
+      } else {
+        // Se o documento existe, mas não tem categorias, retorna array vazio
+        // para evitar fallback desnecessário para o localStorage.
+        if (docSnap.exists()) {
+          return [];
+        }
+      }
+    } catch (error) {
+      console.warn("⚠️ Erro ao carregar categorias do Firebase:", error.message);
+    }
+  }
+
+  // Fallback: carrega do localStorage
+  try {
+    const data = localStorage.getItem(`pdv_categorias_${tenantId}`);
+    if (data) return JSON.parse(data);
+  } catch (e) {
+    console.warn("Erro ao carregar categorias do localStorage:", e);
+  }
+
+  return [];
+}
+
 // ===== VENDAS =====
 
 /**
@@ -272,20 +340,20 @@ export async function inicializarDadosTenant(tenantId, ramo, info) {
     const ramoNegocio = ramo || getTenantRamo() || "mercado";
     console.log(`🚀 Inicializando dados para o novo tenant: ${tenantId}`);
     const docRef = getTenantDocRef(tenantId);
+    const docSnap = await getDoc(docRef); // Busca o documento do tenant
 
-    // Carrega os produtos e categorias padrão para o ramo de negócio
-    const produtosIniciais = PRODUTOS_PADRAO[ramoNegocio] || [];
-    const categoriasIniciais = CATEGORIAS_PADRAO[ramoNegocio] || [];
+    // Prepara os dados a serem definidos.
+    // Só inicializa produtos e categorias se eles ainda não existirem no Firestore.
+    const dataToSet = { info: info }; // Sempre salva as informações do tenant
 
-    await setDoc(
-      docRef,
-      {
-        produtos: produtosIniciais,
-        categorias: categoriasIniciais,
-        info: info, // Salva as informações do tenant
-      },
-      { merge: true },
-    );
+    if (!docSnap.exists() || !docSnap.data().produtos) {
+      dataToSet.produtos = PRODUTOS_PADRAO[ramoNegocio] || [];
+    }
+    if (!docSnap.exists() || !docSnap.data().categorias) {
+      dataToSet.categorias = CATEGORIAS_PADRAO[ramoNegocio] || [];
+    }
+
+    await setDoc(docRef, dataToSet, { merge: true });
 
     console.log("✅ Dados iniciais do tenant salvos no Firebase.");
     return true;

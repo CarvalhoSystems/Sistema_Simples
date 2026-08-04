@@ -171,9 +171,7 @@ export default function Login() {
             <i className="fas fa-user-circle text-3xl text-blue-600"></i>
           </div>
           <h1 className="text-2xl font-bold text-slate-800">Acessar Sistema</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Entre com sua conta do Firebase
-          </p>
+          <p className="text-sm text-slate-500 mt-1">Entre com sua conta</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">

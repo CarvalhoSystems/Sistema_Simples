@@ -18,6 +18,8 @@ import {
   carregarProdutosFirebase,
   salvarProdutosFirebase,
   salvarVendaFirebase,
+  carregarCategoriasFirebase, // Adicionado para carregar categorias do Firebase
+  salvarCategoriasFirebase, // Adicionado para salvar categorias no Firebase
 } from "./firebaseData.js";
 
 /**
@@ -52,27 +54,11 @@ export async function getProdutos() {
   const tenantId = getTenantId();
   if (!tenantId) return [];
 
+  // carregarProdutosFirebase já lida com o carregamento do Firebase e fallback para localStorage.
+  // Se ele retornar vazio, significa que não há produtos persistidos.
+  // Não deve haver fallback para PRODUTOS_PADRAO aqui, pois isso sobrescreveria o estoque real.
   const produtosDoTenant = await carregarProdutosFirebase();
-  if (Array.isArray(produtosDoTenant) && produtosDoTenant.length > 0) {
-    return produtosDoTenant;
-  }
-
-  const fallback = getDefaultInventoryForRamo(getTenantRamo()).produtos;
-  const fallbackKey = tenantKey(tenantId, "produtos");
-
-  try {
-    const data = localStorage.getItem(fallbackKey);
-    if (data) {
-      const parsed = JSON.parse(data);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.warn("Erro ao carregar produtos do localStorage para fallback:", e);
-  }
-
-  return fallback;
+  return produtosDoTenant;
 }
 
 /**
@@ -81,13 +67,6 @@ export async function getProdutos() {
 export async function setProdutos(produtos) {
   // Salva no Firebase e no localStorage (o firebaseData já faz o fallback)
   await salvarProdutosFirebase(produtos);
-
-  const tenantId = getTenantId();
-  if (!tenantId) return;
-  localStorage.setItem(
-    tenantKey(tenantId, "produtos"),
-    JSON.stringify(produtos),
-  );
 }
 
 /**
@@ -134,29 +113,15 @@ export async function getCategorias() {
   const tenantId = getTenantId();
   if (!tenantId) return [];
 
-  const produtos = await carregarProdutosFirebase();
-  if (produtos && Array.isArray(produtos)) {
-    return getCategoriasFromLocalStorage();
-  }
-
-  if (
-    produtos &&
-    Array.isArray(produtos.categorias) &&
-    produtos.categorias.length > 0
-  ) {
-    return produtos.categorias;
-  }
-
-  return getCategoriasFromLocalStorage();
+  // Carrega categorias do Firebase com fallback para localStorage
+  const categoriasDoTenant = await carregarCategoriasFirebase();
+  return categoriasDoTenant;
 }
 
 /**
  * Função de fallback para obter categorias do localStorage.
  */
-function getCategoriasFromLocalStorage() {
-  const tenantId = getTenantId();
-  if (!tenantId) return [];
-
+/* Removida, pois a lógica de fallback agora está em carregarCategoriasFirebase
   try {
     const data = localStorage.getItem(tenantKey(tenantId, "categorias"));
     if (data) {
@@ -168,21 +133,16 @@ function getCategoriasFromLocalStorage() {
   } catch (e) {
     console.warn("Erro ao carregar categorias do localStorage:", e);
   }
-
   const ramo = getTenantRamo();
   return getDefaultInventoryForRamo(ramo).categorias;
-}
+*/
 
 /**
  * Salva as categorias do tenant atual
  */
-export function setCategorias(categorias) {
-  const tenantId = getTenantId();
-  if (!tenantId) return;
-  localStorage.setItem(
-    tenantKey(tenantId, "categorias"),
-    JSON.stringify(categorias),
-  );
+export async function setCategorias(categorias) {
+  // Tornar assíncrona para usar salvarCategoriasFirebase
+  await salvarCategoriasFirebase(categorias);
 }
 
 /**

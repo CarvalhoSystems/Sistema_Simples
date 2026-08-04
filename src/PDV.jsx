@@ -31,8 +31,9 @@ import {
   getPixKeyFromTenant,
   getPixHolderFromTenant,
   getMerchantCityFromTenant,
-} from "./services/pixService";
-import { getTenantId } from "./hooks/useTenant";
+} from "./services/pixService"; // Importa o serviço do PIX
+import { getTenant } from "./hooks/useTenant"; // Importa a função para pegar os dados do tenant
+import logoFechado from "./assets/logo.png";
 
 const estadoInicial = {
   carrinho: [],
@@ -41,14 +42,26 @@ const estadoInicial = {
   itemSelecionado: null,
   subtotal: 0,
   desconto: 0,
+  percentualDesconto: 0,
   total: 0,
   pagamentoRecebido: 0,
 };
+
+function calcularTotais(carrinho, percentualDesconto = 0) {
+  const subtotal = carrinho.reduce(
+    (acc, item) => acc + item.vUnit * item.qtd,
+    0,
+  );
+  const desconto = (subtotal * percentualDesconto) / 100;
+  const total = subtotal - desconto;
+  return { subtotal, desconto, total };
+}
 
 function reducer(estado, acao) {
   switch (acao.type) {
     case "DIGITAR_CODIGO":
       return { ...estado, codigoInput: acao.payload };
+
     case "DEFINIR_QUANTIDADE":
       return { ...estado, quantidade: acao.payload };
     case "ATUALIZAR_TOTAIS":
@@ -56,14 +69,21 @@ function reducer(estado, acao) {
       return { ...estado, subtotal, desconto, total };
     case "LIMPAR_INPUT":
       return { ...estado, codigoInput: "", quantidade: 1 };
+
     case "LIMPAR_CARRINHO":
       return { ...estadoInicial };
+
     case "REMOVER_ITEM":
       const itemNumero = acao.payload;
       const carrinhoAtualizado = estado.carrinho.filter(
         (_, index) => index !== itemNumero - 1,
       );
-      return { ...estado, carrinho: carrinhoAtualizado };
+      const totaisAposRemocao = calcularTotais(
+        carrinhoAtualizado,
+        estado.percentualDesconto,
+      );
+      return { ...estado, carrinho: carrinhoAtualizado, ...totaisAposRemocao };
+
     case "ADICIONAR_PRODUTO":
       const { produto, quantidade } = acao.payload;
       const itemExistenteIndex = estado.carrinho.findIndex(
@@ -80,18 +100,30 @@ function reducer(estado, acao) {
           vUnit: produto.preco,
         });
       }
+      const totaisAposAdicao = calcularTotais(
+        novoCarrinho,
+        estado.percentualDesconto,
+      );
       return {
         ...estado,
         carrinho: novoCarrinho,
         codigoInput: "",
         quantidade: 1,
+        ...totaisAposAdicao,
       };
+
     case "APLICAR_DESCONTO":
-      return { ...estado, desconto: acao.payload };
+      const percentualDesconto = acao.payload;
+      const totaisComDesconto = calcularTotais(
+        estado.carrinho,
+        percentualDesconto,
+      );
+      return { ...estado, percentualDesconto, ...totaisComDesconto };
+
     case "DEFINIR_PAGAMENTO":
       return { ...estado, pagamentoRecebido: acao.payload };
     case "FINALIZAR_VENDA":
-      return { ...estado, carrinho: [], codigoInput: "", quantidade: 1 };
+      return { ...estadoInicial };
     default:
       return estado;
   }
@@ -102,8 +134,13 @@ export default function PDV() {
   const [termoBuscaF10, setTermoBuscaF10] = useState("");
   const [mostrarPixModal, setMostrarPixModal] = useState(false);
   const [pixPayload, setPixPayload] = useState("");
-  const [caixaFechado, setCaixaFechado] = useState(false);
-  const [dadosFechamento, setDadosFechamento] = useState(null);
+  const [caixaFechado, setCaixaFechado] = useState(
+    () => sessionStorage.getItem("caixaFechado") === "true",
+  );
+  const [dadosFechamento, setDadosFechamento] = useState(() => {
+    const dados = sessionStorage.getItem("dadosFechamento");
+    return dados ? JSON.parse(dados) : null;
+  });
   const vendasRealizadasRef = useRef([]);
   const [estado, dispatch] = useReducer(reducer, estadoInicial);
   const { carrinho, codigoInput, quantidade, subtotal, desconto, total } =
@@ -133,58 +170,45 @@ export default function PDV() {
     : produtosDoTenant;
 
   useEffect(() => {
-    const novoSubtotal = carrinho.reduce(
-      (acc, item) => acc + item.vUnit * item.qtd,
-      0,
-    );
-    const novoTotal = novoSubtotal - estado.desconto;
-
-    dispatch({
-      type: "ATUALIZAR_TOTAIS",
-      payload: {
-        subtotal: novoSubtotal,
-        desconto: estado.desconto,
-        total: novoTotal,
-      },
-    });
-  }, [carrinho, estado.desconto]);
-
-  useEffect(() => {
     const inputCodigoBarras = document.getElementById("codigo-barras-input");
     const manterFoco = () => {
       const isSwalOpen = document.body.classList.contains("swal2-shown");
-      const activeElement = document.activeElement;
-      const isInsideSwal = activeElement?.closest(".swal2-container");
-      const deveManterFoco = !caixaFechado && !mostrarF10 && !isSwalOpen;
-
-      if (!deveManterFoco) return;
-
-      if (!isInsideSwal && activeElement !== inputCodigoBarras) {
+      if (document.activeElement !== inputCodigoBarras && !isSwalOpen) {
         inputCodigoBarras?.focus();
       }
     };
 
-    manterFoco();
-
-    if (!caixaFechado) {
-      const observer = new MutationObserver(() => manterFoco());
-      observer.observe(document.body, {
-        attributes: true,
-        attributeFilter: ["class"],
-        childList: true,
-        subtree: true,
-      });
-      return () => observer.disconnect();
+    // Só ativa a lógica de manter o foco se o caixa estiver ABERTO e a busca F10 FECHADA.
+    if (!caixaFechado && !mostrarF10) {
+      manterFoco(); // Foca uma vez
+      // E observa para manter o foco
+      document.addEventListener("focusin", manterFoco);
+      return () => {
+        document.removeEventListener("focusin", manterFoco);
+      };
     }
-  }, [mostrarF10, caixaFechado]);
+  }, [mostrarF10, caixaFechado]); // Reavalia quando estes estados mudam
 
-  // Foca no email quando o caixa fecha
-  useEffect(() => {
-    if (caixaFechado) {
-      const inputEmail = document.getElementById("reabrir-email");
-      inputEmail?.focus();
-    }
-  }, [caixaFechado]);
+  // Componente auxiliar para focar nos inputs de login/senha
+  const FocusLoginInputs = ({ caixaFechado }) => {
+    useEffect(() => {
+      if (caixaFechado) {
+        // Use um pequeno timeout para garantir que os elementos estejam renderizados
+        // e interativos antes de tentar focar.
+        const timer = setTimeout(() => {
+          const inputEmail = document.getElementById("reabrir-email");
+          const inputSenha = document.getElementById("reabrir-senha");
+          if (inputEmail) {
+            inputEmail.focus();
+          } else if (inputSenha) {
+            inputSenha.focus();
+          }
+        }, 50); // Pequeno atraso para garantir que os elementos estejam prontos
+        return () => clearTimeout(timer);
+      }
+    }, [caixaFechado]);
+    return null; // Este componente não renderiza nada, apenas gerencia o foco
+  };
 
   const lidarComBipe = (codigoBipado) => {
     const produtoEncontrado = produtosDoTenant.find(
@@ -450,14 +474,37 @@ export default function PDV() {
 
     // Chama a função real do AuthContext
     const sucesso = await login(email, senha);
-    if (sucesso) {
+
+    // Pega os dados do tenant (dono do estabelecimento) atual
+    const tenant = getTenant();
+    const emailDonoEstabelecimento = tenant?.email;
+
+    // VERIFICAÇÃO DE SEGURANÇA:
+    // O login foi bem-sucedido E o e-mail digitado é o mesmo do dono do estabelecimento?
+    if (
+      sucesso &&
+      email.toLowerCase() === emailDonoEstabelecimento?.toLowerCase()
+    ) {
       setCaixaFechado(false);
       setDadosFechamento(null);
+      sessionStorage.removeItem("caixaFechado");
+      sessionStorage.removeItem("dadosFechamento");
       vendasRealizadasRef.current = [];
       Swal.fire("Sucesso!", "Caixa reaberto com sucesso.", "success");
     } else {
-      Swal.fire("Erro", "E-mail ou senha inválidos no Firebase!", "error");
+      // Se o login foi sucesso, mas o e-mail não é do dono do estabelecimento, mostra erro de permissão.
+      if (sucesso) {
+        Swal.fire(
+          "Acesso Negado",
+          "Este usuário não tem permissão para reabrir o caixa.",
+          "error",
+        );
+      } else {
+        // Se o login falhou (senha errada, etc.), mostra erro genérico.
+        Swal.fire("Erro", "E-mail ou senha inválidos!", "error");
+      }
     }
+
     setReabrindoCaixa(false);
   };
 
@@ -540,9 +587,14 @@ export default function PDV() {
         return new Date(v.data).toDateString() === new Date().toDateString();
       });
 
-      abrirFechamentoCaixa(vendasHoje, null, (dadosFechamento) => {
+      abrirFechamentoCaixa(vendasHoje, (dadosFechamento) => {
         setDadosFechamento(dadosFechamento);
         setCaixaFechado(true);
+        sessionStorage.setItem("caixaFechado", "true");
+        sessionStorage.setItem(
+          "dadosFechamento",
+          JSON.stringify(dadosFechamento),
+        );
         dispatch({ type: "LIMPAR_CARRINHO" });
       });
     },
@@ -568,6 +620,7 @@ export default function PDV() {
           subtotal={subtotal}
           desconto={desconto}
           total={total}
+          disabled={caixaFechado} // Desabilita o painel lateral quando o caixa está fechado
           aoBipar={lidarComBipe}
           quantidadeAtual={quantidade}
         />
@@ -575,13 +628,15 @@ export default function PDV() {
 
       <RodapeAtalhos />
 
+      {/* O componente FocusLoginInputs é renderizado condicionalmente para gerenciar o foco */}
+      {caixaFechado && <FocusLoginInputs caixaFechado={caixaFechado} />}
       {/* Overlay de Caixa Fechado com a SUA LOGO */}
       {caixaFechado && (
         <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center z-100 p-4">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
             <div className="bg-slate-900 text-white p-6 text-center flex flex-col items-center">
               <img
-                src="/favicon.svg"
+                src={logoFechado}
                 alt="Logo do Estabelecimento"
                 className="w-20 h-20 object-contain mb-3 rounded-full bg-white p-1 shadow"
               />

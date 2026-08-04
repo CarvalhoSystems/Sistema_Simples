@@ -772,6 +772,7 @@ function checkHeldSale() {
 // --- Lógica de Desconto ---
 
 function openDiscountModal() {
+  // Verifica se tem itens no carrinho (ajuste 'AppState' para o seu estado atual se necessário)
   if (AppState.cart.length === 0) {
     showToast(
       "Adicione produtos ao carrinho para aplicar um desconto.",
@@ -780,31 +781,49 @@ function openDiscountModal() {
     return;
   }
 
-  const { total } = getTotals();
+  const { subtotal } = getTotals(); // Pega o subtotal atual da compra
 
   Swal.fire({
-    title: "Aplicar Desconto",
-    text: "Digite o valor do desconto em Reais (R$):",
+    title: "Aplicar Desconto (%)",
+    text: "Digite a porcentagem do desconto (ex: 10 para 10%):",
     input: "number",
     inputAttributes: {
       min: 0,
-      step: "0.01",
+      max: 100,
+      step: "0.1",
     },
     showCancelButton: true,
     confirmButtonText: "Aplicar",
     inputValidator: (value) => {
-      const discountValue = parseFloat(value);
-      if (!value || discountValue < 0) {
-        return "Por favor, informe um valor de desconto válido.";
+      const percentValue = parseFloat(value);
+      if (!value || percentValue < 0) {
+        return "Por favor, informe uma porcentagem válida.";
       }
-      if (discountValue > total) {
-        return `O desconto não pode ser maior que o total da venda (${formatCurrency(total)}).`;
+      if (percentValue > 100) {
+        return "O desconto não pode ser maior que 100%.";
       }
       return null;
     },
   }).then((result) => {
     if (result.isConfirmed && result.value) {
-      applyDiscountToSale(parseFloat(result.value));
+      const percent = parseFloat(result.value);
+
+      // Calcula o valor em Reais baseado na porcentagem informada
+      const discountValue = (subtotal * percent) / 100;
+
+      // Envia o valor calculado em dinheiro para a sua action já existente
+      applyDiscountToSale(discountValue);
+
+      // Opcional: Se quiser mostrar um aviso da porcentagem aplicada
+      showToast(
+        `Desconto de ${percent}% aplicado (${formatCurrency(discountValue)})`,
+        "success",
+      );
+
+      return;
+    }
+    if (result.dismiss === Swal.DismissReason.cancel) {
+      showToast("Desconto cancelado.", "info");
     }
   });
 }
