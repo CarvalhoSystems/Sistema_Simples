@@ -1,12 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { useAuth } from "../components/AuthContext.jsx";
+import { useAuth } from "../components/AuthContext.jsx"; // Importa o hook de autenticação
 import { useNavigate, Link } from "react-router-dom";
-import {
-  setTenant,
-  getTenant,
-  setTenantByEmail,
-  resolveTenantForLogin,
-} from "../hooks/useTenant";
+import { setTenant } from "../hooks/useTenant"; // Importa a função para definir o tenant ativo
+import { carregarTenantFirebase } from "../services/firebaseData.js"; // Importa a nova função
 import { validateLoginInput } from "../utils/operacoesSeguras";
 
 export default function Login() {
@@ -78,42 +74,28 @@ export default function Login() {
     setCarregando(true);
 
     try {
-      // Chama a função de login do seu AuthContext (que valida no Firebase)
-      const success = await login(email, password);
+      // A função login agora retorna o objeto do usuário se for bem-sucedida
+      const user = await login(email, password);
 
-      if (success) {
+      if (user && user.uid) {
         // Se o login deu certo, limpa as penalidades de erro
         localStorage.removeItem("login_tentativas");
         localStorage.removeItem("login_bloqueado_ate");
         setBloqueadoAte(null);
 
-        const tenantAtual = getTenant();
-        const estabelecimentoAtivoId =
-          localStorage.getItem("pdv_estabelecimento_ativo") || null;
-        const tenantRestaurado = resolveTenantForLogin(
-          email,
-          tenantAtual,
-          null,
-          estabelecimentoAtivoId,
-        );
+        // **LÓGICA CORRIGIDA**: Busca os dados mais recentes do tenant no Firebase
+        const tenantDataFromFirebase = await carregarTenantFirebase(user.uid);
 
-        if (tenantRestaurado) {
-          setTenantByEmail(email, tenantRestaurado);
+        if (tenantDataFromFirebase && tenantDataFromFirebase.info) {
+          // Salva os dados frescos do Firebase como o tenant ativo
+          setTenant(tenantDataFromFirebase.info);
+          navigate("/dashboard");
         } else {
-          const novoTenant = {
-            id: `demo_${Date.now()}`,
-            uid: `demo_user`,
-            nome: email || "Usuário",
-            nomeEstabelecimento: "Meu Estabelecimento",
-            email: email,
-            ramo: "mercado",
-            criadoEm: new Date().toISOString(),
-          };
-
-          setTenantByEmail(email, novoTenant);
+          // Se não encontrar dados do tenant, é um erro inesperado.
+          setError(
+            "Login bem-sucedido, mas não foi possível carregar os dados do seu estabelecimento.",
+          );
         }
-
-        navigate("/dashboard");
       } else {
         // Se o login falhou, incrementa as tentativas
         const tentativasAtuais =

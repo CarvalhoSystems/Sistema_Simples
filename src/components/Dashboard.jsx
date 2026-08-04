@@ -128,7 +128,10 @@ export default function Dashboard() {
                 <p>Adicionar, editar e visualizar produtos</p>
               </div>
             </div>
-            <div className="action-card" onClick={() => navigate("/")}>
+            <div
+              className="action-card"
+              onClick={() => navigate("/inventario")}
+            >
               <div className="action-icon">
                 <i className="fas fa-cash-register"></i>
               </div>
@@ -137,10 +140,7 @@ export default function Dashboard() {
                 <p>Iniciar vendas e gerenciar caixa</p>
               </div>
             </div>
-            <div
-              className="action-card"
-              onClick={() => navigate("/relatorios")}
-            >
+            <div className="action-card" onClick={() => navigate("/caixa")}>
               <div className="action-icon">
                 <i className="fas fa-chart-line"></i>
               </div>

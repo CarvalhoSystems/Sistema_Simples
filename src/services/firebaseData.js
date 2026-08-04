@@ -409,3 +409,26 @@ export async function sincronizarComFirebase() {
     return false;
   }
 }
+
+/**
+ * Carrega os dados de um tenant (info, assinatura) diretamente do Firebase.
+ * @param {string} tenantId - O UID do usuário/tenant.
+ * @returns {Promise<object|null>} Os dados do tenant ou null se não encontrado.
+ */
+export async function carregarTenantFirebase(tenantId) {
+  if (!tenantId || !isFirebaseReady()) {
+    return null;
+  }
+
+  try {
+    const docRef = getTenantDocRef(tenantId);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      return docSnap.data(); // Retorna o documento completo { info, produtos, assinatura, etc. }
+    }
+  } catch (error) {
+    console.error("Erro ao carregar dados do tenant do Firebase:", error);
+  }
+  return null;
+}

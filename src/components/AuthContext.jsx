@@ -57,14 +57,14 @@ export function AuthProvider({ children }) {
           name: result.user.displayName || result.user.email,
         };
         setUser(userData);
-        return true;
+        return userData; // Retorna os dados do usuário em vez de true
       } catch (error) {
         console.warn("Erro no login Firebase:", error.code);
         // Se for erro de configuração, cai no fallback
         if (error.code === "auth/configuration-not-found") {
           return loginLocal(email, password);
         }
-        return false;
+        return null; // Retorna null em caso de falha
       }
     }
 
