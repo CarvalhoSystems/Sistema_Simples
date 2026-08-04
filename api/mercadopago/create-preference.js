@@ -37,28 +37,35 @@ export default async function handler(request, response) {
             id: planoId,
             title: descricao,
             quantity: 1,
-            unit_price: valor,
+            unit_price: Number(valor),
           },
         ],
-        // URLs para onde o cliente é redirecionado após o pagamento
+        // Libera explicitamente os métodos e tipos de pagamento
+        payment_methods: {
+          installments: 6,
+        },
+        // Dados genéricos iniciais do pagador para destravar o Pix no Checkout Pro
+        payer: {
+          name: "Cliente",
+          surname: "Sistema",
+          email: "cliente@atendimento.com",
+        },
         back_urls: {
           success: `${request.headers.origin}/planos?status=success`,
           failure: `${request.headers.origin}/planos?status=failure`,
           pending: `${request.headers.origin}/planos?status=pending`,
         },
-        auto_return: "approved", // Retorna automaticamente para a URL de sucesso
-        external_reference: tenantId, // Salva o ID do seu cliente na transação
+        auto_return: "approved",
+        external_reference: tenantId,
       },
     });
 
     // Retorna a URL de pagamento para o frontend
-    return response
-      .status(200)
-      .json({
-        success: true,
-        paymentUrl: result.init_point,
-        preferenceId: result.id,
-      });
+    return response.status(200).json({
+      success: true,
+      paymentUrl: result.init_point,
+      preferenceId: result.id,
+    });
   } catch (error) {
     console.error(
       "Erro ao criar preferência no Mercado Pago:",
