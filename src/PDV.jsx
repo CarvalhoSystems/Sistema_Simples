@@ -32,7 +32,7 @@ import {
   getPixHolderFromTenant,
   getMerchantCityFromTenant,
 } from "./services/pixService"; // Importa o serviço do PIX
-import { getTenant } from "./hooks/useTenant"; // Importa a função para pegar os dados do tenant
+import { getTenant } from "./hooks/useTenant"; // Importa a função para pegar os dados do tenant.
 import logoFechado from "./assets/logo.png";
 
 const estadoInicial = {
