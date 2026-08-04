@@ -4,13 +4,13 @@ export default function RodapeAtalhos() {
   const atalhos = [
     { tecla: "F2", acao: "Cancelar Item" },
     { tecla: "F3", acao: "Cancelar Cupom" },
+    { tecla: "F4", acao: "Dashboard" },
     { tecla: "F5", acao: "Quantidade" },
     { tecla: "F6", acao: "Desconto" },
     { tecla: "F7", acao: "Pix" },
     { tecla: "F8", acao: "Dinheiro" },
     { tecla: "F9", acao: "Cartao" },
     { tecla: "F10", acao: "Produtos" },
-    { tecla: "F11", acao: "Dashboard" },
     { tecla: "F12", acao: "Fechamento de Caixa" },
   ];
 

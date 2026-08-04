@@ -488,6 +488,10 @@ export default function PDV() {
         if (res.isConfirmed) dispatch({ type: "LIMPAR_CARRINHO" });
       });
     },
+    F4: () => {
+      navigate("/dashboard");
+    },
+
     F5: () => {
       Swal.fire({
         title: "Definir Quantidade",
@@ -530,9 +534,7 @@ export default function PDV() {
       setTermoBuscaF10("");
       setMostrarF10((prev) => !prev);
     },
-    "Alt+F11": () => {
-      navigate("/dashboard");
-    },
+
     F12: () => {
       const vendasHoje = vendasRealizadasRef.current.filter((v) => {
         return new Date(v.data).toDateString() === new Date().toDateString();
