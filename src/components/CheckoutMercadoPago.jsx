@@ -1,60 +1,60 @@
-import React from "react";
-import { initMercadoPago, Payment } from "@mercadopago/sdk-react";
+import React, { useState } from "react";
 import { formatCurrency } from "../utils/formatters";
-
-// Inicializa a SDK com a sua chave pública (fora do componente para carregar uma única vez)
-initMercadoPago("TEST-fb1430d0-9a04-4264-ac9f-38329a5f2b20", {
-  locale: "pt-BR",
-});
+import { criarPagamentoAssinatura } from "../services/pagamentoService";
+import { getTenant } from "../hooks/useTenant";
 
 export default function CheckoutMercadoPago({
   amount,
   planName,
+  planoId,
   onPaymentSuccess,
   onCancel,
 }) {
-  const initialization = {
-    amount: amount, // Valor total do produto/carrinho
-  };
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
 
-  const customization = {
-    paymentMethods: {
-      creditCard: "all",
-      bankTransfer: ["pix"], // Apenas Pix
-      ticket: "all", // Inclui todos os boletos disponíveis
-    },
-  };
+  const iniciarPagamento = async () => {
+    setLoading(true);
+    setMessage("");
 
-  const onSubmit = async ({ selectedPaymentMethod, formData }) => {
-    // Callback executado quando o usuário clica em pagar
-    return new Promise((resolve, reject) => {
-      // Em um cenário de produção, você enviaria o formData para seu backend
-      // para processar o pagamento de forma segura.
-      // Para este exemplo, vamos simular o sucesso e chamar o callback.
-      console.log("Dados do pagamento a serem enviados para o backend:", {
-        selectedPaymentMethod,
-        ...formData,
+    try {
+      const tenant = getTenant();
+      const result = await criarPagamentoAssinatura({
+        tenant,
+        planoId,
+        valor: amount,
+        descricao: `Plano ${planName}`,
       });
 
-      // Chama a função de sucesso passada pelo componente pai
-      if (onPaymentSuccess) {
-        onPaymentSuccess({ selectedPaymentMethod, ...formData });
+      if (!result?.success) {
+        // Exibe a mensagem de erro específica vinda do backend
+        setMessage(
+          `Erro: ${result?.error || "Não foi possível iniciar o pagamento."}`,
+        );
+        setLoading(false);
+        return;
       }
 
-      // Resolve a promessa para o SDK do Mercado Pago
-      resolve(); // Use reject(error) em caso de falha no backend
-    });
-  };
+      if (result?.paymentUrl) {
+        window.location.href = result.paymentUrl;
+        return;
+      }
 
-  const onError = async (error) => {
-    // Tratamento de erros de carregamento do componente
-    console.error("Erro no Payment Brick:", error);
-    alert("Ocorreu um erro ao carregar as opções de pagamento.");
-  };
-
-  const onReady = () => {
-    // O formulário terminou de carregar na tela
-    console.log("✅ Payment Brick está pronto!");
+      if (onPaymentSuccess) {
+        onPaymentSuccess({
+          paymentReference:
+            result.paymentReference || `${planoId}_${Date.now()}`,
+          amount,
+          planoId,
+          gateway: result.gateway || "mercado_pago",
+        });
+      }
+    } catch (error) {
+      console.error(error);
+      setMessage("Erro ao iniciar o pagamento. Tente novamente.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -74,14 +74,25 @@ export default function CheckoutMercadoPago({
         </p>
       </div>
 
-      <div className="p-6">
-        <Payment
-          initialization={initialization}
-          customization={customization}
-          onSubmit={onSubmit}
-          onReady={onReady}
-          onError={onError}
-        />
+      <div className="p-6 space-y-4">
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">
+          O pagamento será iniciado por um endpoint seguro do backend. Após a
+          confirmação, o sistema atualiza a assinatura automaticamente.
+        </div>
+
+        {message && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {message}
+          </div>
+        )}
+
+        <button
+          onClick={iniciarPagamento}
+          disabled={loading}
+          className="w-full rounded-lg bg-indigo-600 px-4 py-3 font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+        >
+          {loading ? "Iniciando pagamento..." : "Prosseguir para o pagamento"}
+        </button>
       </div>
 
       <div className="p-4 bg-gray-50 border-t border-gray-200 text-right">

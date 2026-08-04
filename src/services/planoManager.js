@@ -301,12 +301,11 @@ export function podeAdicionarProduto(qtdAtual) {
 /**
  * Registra um pagamento (simulado)
  */
-export async function registrarPagamento(planoId, valor) {
+export async function registrarPagamento(planoId, valor, metadata = {}) {
   let assinatura = await carregarAssinatura();
 
   const agora = new Date();
 
-  // Se não existir assinatura, cria uma nova
   if (!assinatura) {
     const tenantId = getTenantId();
     if (!tenantId) return null;
@@ -330,8 +329,8 @@ export async function registrarPagamento(planoId, valor) {
   assinatura.status = "ativa";
   assinatura.planoId = planoId;
   assinatura.ultimoPagamento = agora.toISOString();
-  assinatura.dataAtivacaoPlano = agora.toISOString(); // Registra a data de ativação do plano
-  assinatura.trialExpiracao = null; // Remove a data de expiração do trial
+  assinatura.dataAtivacaoPlano = agora.toISOString();
+  assinatura.trialExpiracao = null;
   assinatura.proximoVencimento = new Date(
     agora.getTime() + 30 * 24 * 60 * 60 * 1000,
   ).toISOString();
@@ -339,7 +338,8 @@ export async function registrarPagamento(planoId, valor) {
     data: agora.toISOString(),
     valor,
     planoId,
-    metodo: "simulado",
+    metodo: metadata.gateway || "gateway",
+    referencia: metadata.paymentReference || null,
   });
 
   salvarAssinatura(assinatura);

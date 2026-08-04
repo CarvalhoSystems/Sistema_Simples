@@ -29,6 +29,7 @@ import PixQrCodeModal from "./components/PixQrCodeModal";
 import {
   gerarPayloadPix,
   getPixKeyFromTenant,
+  getPixCityFromTenant, // Adicionado para obter a cidade do PIX
   getPixHolderFromTenant,
   getMerchantCityFromTenant,
 } from "./services/pixService"; // Importa o serviço do PIX
@@ -324,13 +325,64 @@ export default function PDV() {
       const troco = parseFloat(valorRecebido) - total;
       await Swal.fire("Troco", `O troco é de ${formatCurrency(troco)}`, "info");
     } else if (metodo === "Cartão") {
-      const { isConfirmed } = await Swal.fire({
-        title: "Pagamento com Cartão",
-        text: `Total: ${formatCurrency(total)}. Confirmar pagamento na maquininha?`,
-        icon: "question",
-        showCancelButton: true,
-      });
-      if (!isConfirmed) return;
+      // Integração com Mercado Pago Point
+      const tenant = getTenant();
+      const mercadoPagoAccessToken = tenant?.mercadoPagoAccessToken;
+      const mercadoPagoDeviceId = tenant?.mercadoPagoDeviceId;
+
+      if (!mercadoPagoAccessToken || !mercadoPagoDeviceId) {
+        Swal.fire({
+          icon: "warning",
+          title: "Mercado Pago não configurado",
+          text: "Configure seu Access Token e Device ID do Mercado Pago nas Configurações da Loja para aceitar pagamentos com cartão.",
+        });
+        return;
+      }
+
+      const { processarPagamentoCartaoPDV } =
+        await import("./services/pagamentoService");
+
+      let paymentResult;
+      try {
+        Swal.fire({
+          title: "Aguardando Pagamento no Cartão...",
+          html: `Total: <strong>${formatCurrency(total)}</strong><br>
+                 Por favor, insira ou passe o cartão na maquininha.`,
+          icon: "info",
+          showConfirmButton: false,
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          didOpen: () => {
+            Swal.showLoading();
+          },
+        });
+
+        paymentResult = await processarPagamentoCartaoPDV({
+          tenantId: tenant.id,
+          amount: total,
+          description: "Venda PDV",
+          deviceId: mercadoPagoDeviceId,
+        });
+
+        Swal.close();
+
+        if (!paymentResult.success) {
+          Swal.fire(
+            "Erro no Pagamento",
+            paymentResult.error ||
+              "Não foi possível processar o pagamento com cartão.",
+            "error",
+          );
+          return;
+        }
+      } catch (error) {
+        Swal.fire(
+          "Erro de Conexão",
+          "Não foi possível comunicar com o serviço de pagamento. Verifique sua conexão.",
+          "error",
+        );
+        return;
+      }
     }
 
     let notaEmitida = null;
