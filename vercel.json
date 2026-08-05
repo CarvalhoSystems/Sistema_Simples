@@ -34,7 +34,7 @@
       "destination": "/api/:path*"
     },
     {
-      "source": "/((?!api/|assets/|favicon.ico|site.webmanifest).*)",
+      "source": "/((?!api/|assets/|favicon/).*)",
       "destination": "/index.html"
     }
   ]
