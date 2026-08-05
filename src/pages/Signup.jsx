@@ -121,7 +121,7 @@ export default function Signup() {
         <div className="text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4 overflow-hidden shadow-inner">
             <img
-              src="./src/assets/logo.png" // Agora é a tag certa para imagem
+              src="/logo.png" // Agora é a tag certa para imagem
               alt="Logo do Sistema"
               className="w-full h-full object-contain" // Garante que o logo caiba no círculo
             />
