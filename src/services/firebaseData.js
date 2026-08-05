@@ -101,12 +101,6 @@ export async function carregarProdutosFirebase() {
           JSON.stringify(produtos),
         );
         return produtos;
-      } else {
-        // Se o documento existe, mas não tem produtos, retorna array vazio
-        // para evitar fallback desnecessário para o localStorage.
-        if (docSnap.exists()) {
-          return [];
-        }
       }
     } catch (error) {
       console.warn("⚠️ Erro ao carregar produtos do Firebase:", error.message);
@@ -116,7 +110,12 @@ export async function carregarProdutosFirebase() {
   // Fallback: carrega do localStorage
   try {
     const data = localStorage.getItem(`pdv_produtos_${tenantId}`);
-    if (data) return JSON.parse(data);
+    if (data) {
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    }
   } catch (e) {
     console.warn("Erro ao carregar produtos do localStorage:", e);
   }
@@ -134,7 +133,10 @@ export async function salvarCategoriasFirebase(categorias) {
   if (!tenantId) return;
 
   // Sempre salva no localStorage (fallback)
-  localStorage.setItem(`pdv_categorias_${tenantId}`, JSON.stringify(categorias));
+  localStorage.setItem(
+    `pdv_categorias_${tenantId}`,
+    JSON.stringify(categorias),
+  );
 
   // Tenta salvar no Firebase
   if (isFirebaseReady()) {
@@ -169,22 +171,24 @@ export async function carregarCategoriasFirebase() {
           JSON.stringify(categorias),
         );
         return categorias;
-      } else {
-        // Se o documento existe, mas não tem categorias, retorna array vazio
-        // para evitar fallback desnecessário para o localStorage.
-        if (docSnap.exists()) {
-          return [];
-        }
       }
     } catch (error) {
-      console.warn("⚠️ Erro ao carregar categorias do Firebase:", error.message);
+      console.warn(
+        "⚠️ Erro ao carregar categorias do Firebase:",
+        error.message,
+      );
     }
   }
 
   // Fallback: carrega do localStorage
   try {
     const data = localStorage.getItem(`pdv_categorias_${tenantId}`);
-    if (data) return JSON.parse(data);
+    if (data) {
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    }
   } catch (e) {
     console.warn("Erro ao carregar categorias do localStorage:", e);
   }
