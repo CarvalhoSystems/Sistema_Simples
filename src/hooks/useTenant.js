@@ -64,7 +64,9 @@ export function hasTenant() {
  */
 export function getTenantId() {
   const tenant = getTenant();
-  return tenant?.id || tenant?.uid || null;
+  const tenantId = tenant?.id || tenant?.uid || null;
+  console.log("🔑 getTenantId - tenant:", tenant, "ID:", tenantId);
+  return tenantId;
 }
 
 /**

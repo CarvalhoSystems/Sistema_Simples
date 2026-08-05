@@ -63,20 +63,38 @@ function getVendasCollectionRef(tenantId) {
  */
 export async function salvarProdutosFirebase(produtos) {
   const tenantId = getTenantId();
-  if (!tenantId) return;
+  console.log(
+    "💾 Salvando produtos - tenantId:",
+    tenantId,
+    "quantidade:",
+    produtos.length,
+  );
+
+  if (!tenantId) {
+    console.error("❌ tenantId não encontrado ao salvar produtos");
+    return;
+  }
 
   // Sempre salva no localStorage (fallback)
-  localStorage.setItem(`pdv_produtos_${tenantId}`, JSON.stringify(produtos));
+  try {
+    localStorage.setItem(`pdv_produtos_${tenantId}`, JSON.stringify(produtos));
+    console.log("✅ Produtos salvos no localStorage");
+  } catch (error) {
+    console.error("❌ Erro ao salvar no localStorage:", error);
+  }
 
   // Tenta salvar no Firebase
   if (isFirebaseReady()) {
     try {
       const docRef = getTenantDocRef(tenantId);
+      console.log("🔥 Salvando no Firebase - docRef:", docRef.path);
       await setDoc(docRef, { produtos }, { merge: true });
-      console.log("✅ Produtos salvos no Firebase");
+      console.log("✅ Produtos salvos no Firebase com sucesso");
     } catch (error) {
-      console.warn("⚠️ Erro ao salvar produtos no Firebase:", error.message);
+      console.error("❌ Erro ao salvar produtos no Firebase:", error);
     }
+  } else {
+    console.warn("⚠️ Firebase não disponível, usando apenas localStorage");
   }
 }
 
@@ -85,26 +103,44 @@ export async function salvarProdutosFirebase(produtos) {
  */
 export async function carregarProdutosFirebase() {
   const tenantId = getTenantId();
-  if (!tenantId) return [];
+  console.log("📂 Carregando produtos - tenantId:", tenantId);
+
+  if (!tenantId) {
+    console.error("❌ tenantId não encontrado ao carregar produtos");
+    return [];
+  }
 
   // Tenta carregar do Firebase primeiro
   if (isFirebaseReady()) {
     try {
       const docRef = getTenantDocRef(tenantId);
+      console.log("🔥 Carregando do Firebase - docRef:", docRef.path);
       const docSnap = await getDoc(docRef);
 
-      if (docSnap.exists() && docSnap.data().produtos) {
-        const produtos = docSnap.data().produtos;
-        // Atualiza localStorage com dados do Firebase
-        localStorage.setItem(
-          `pdv_produtos_${tenantId}`,
-          JSON.stringify(produtos),
-        );
-        return produtos;
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        console.log("📄 Documento Firebase existe:", data);
+
+        if (data && data.produtos) {
+          const produtos = data.produtos;
+          console.log("✅ Produtos encontrados no Firebase:", produtos.length);
+          // Atualiza localStorage com dados do Firebase
+          localStorage.setItem(
+            `pdv_produtos_${tenantId}`,
+            JSON.stringify(produtos),
+          );
+          return produtos;
+        } else {
+          console.warn("⚠️ Documento existe mas não tem campo 'produtos'");
+        }
+      } else {
+        console.warn("⚠️ Documento não existe no Firebase");
       }
     } catch (error) {
-      console.warn("⚠️ Erro ao carregar produtos do Firebase:", error.message);
+      console.error("❌ Erro ao carregar produtos do Firebase:", error);
     }
+  } else {
+    console.warn("⚠️ Firebase não disponível");
   }
 
   // Fallback: carrega do localStorage
@@ -112,14 +148,21 @@ export async function carregarProdutosFirebase() {
     const data = localStorage.getItem(`pdv_produtos_${tenantId}`);
     if (data) {
       const parsed = JSON.parse(data);
+      console.log("💾 Carregado do localStorage:", parsed.length, "produtos");
       if (Array.isArray(parsed)) {
         return parsed;
       }
+    } else {
+      console.warn(
+        "⚠️ Nenhum dado no localStorage para:",
+        `pdv_produtos_${tenantId}`,
+      );
     }
   } catch (e) {
-    console.warn("Erro ao carregar produtos do localStorage:", e);
+    console.error("❌ Erro ao carregar produtos do localStorage:", e);
   }
 
+  console.log("ℹ️ Retornando array vazio - nenhum produto encontrado");
   return [];
 }
 

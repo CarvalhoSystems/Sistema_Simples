@@ -85,18 +85,29 @@ export default function Login() {
         setBloqueadoAte(null);
 
         // **LÓGICA CORRIGIDA**: Busca os dados mais recentes do tenant no Firebase
+        console.log("🔍 Buscando dados do tenant no Firebase para:", user.uid);
         const tenantDataFromFirebase = await carregarTenantFirebase(user.uid);
+        console.log("📦 Dados do tenant encontrados:", tenantDataFromFirebase);
 
-        if (tenantDataFromFirebase && tenantDataFromFirebase.info) {
-          // Salva os dados frescos do Firebase como o tenant ativo
-          setTenant(tenantDataFromFirebase.info);
-          navigate("/dashboard");
-        } else {
-          // Se não encontrar dados do tenant, é um erro inesperado.
-          setError(
-            "Login bem-sucedido, mas não foi possível carregar os dados do seu estabelecimento.",
-          );
-        }
+        // O Firebase retorna o documento completo, precisamos garantir que o ID está presente
+        const tenantInfo =
+          tenantDataFromFirebase?.info || tenantDataFromFirebase || {};
+        const tenantData = {
+          ...tenantInfo,
+          id: user.uid,
+          uid: user.uid,
+          email: user.email,
+          nome: tenantInfo.nome || user.name || user.email,
+          nomeEstabelecimento:
+            tenantInfo.nomeEstabelecimento || user.name || user.email,
+          ramo: tenantInfo.ramo || "mercado",
+          criadoEm: tenantInfo.criadoEm || new Date().toISOString(),
+        };
+
+        console.log("✅ Definindo tenant com ID:", tenantData.id);
+        setTenant(tenantData);
+        console.log("✅ Tenant definido, navegando para dashboard...");
+        navigate("/dashboard");
       } else {
         // Se o login falhou, incrementa as tentativas
         const tentativasAtuais =

@@ -57,6 +57,19 @@ export function AuthProvider({ children }) {
           name: result.user.displayName || result.user.email,
         };
         setUser(userData);
+
+        // Define o tenant automaticamente após login
+        const tenantData = {
+          id: result.user.uid,
+          uid: result.user.uid,
+          nome: result.user.displayName || result.user.email,
+          nomeEstabelecimento: result.user.displayName || result.user.email,
+          email: result.user.email,
+          ramo: "mercado",
+          criadoEm: new Date().toISOString(),
+        };
+        setTenant(tenantData);
+
         return userData; // Retorna os dados do usuário em vez de true
       } catch (error) {
         console.warn("Erro no login Firebase:", error.code);
