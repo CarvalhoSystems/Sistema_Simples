@@ -472,12 +472,16 @@ export default function PDV() {
   };
 
   const abrirPixQrCode = () => {
+    console.log("Abrindo PIX QRCode...");
+
     if (carrinho.length === 0) {
       Swal.fire("Atenção", "O cupom está vazio!", "warning");
       return;
     }
 
     const pixKey = getPixKeyFromTenant();
+    console.log("PIX Key:", pixKey);
+
     if (!pixKey) {
       Swal.fire({
         icon: "warning",
@@ -492,6 +496,14 @@ export default function PDV() {
       const city = getMerchantCityFromTenant();
       const txId = String(Date.now()).slice(-8);
 
+      console.log("Gerando payload PIX com:", {
+        pixKey,
+        amount: total,
+        holderName,
+        city,
+        txId,
+      });
+
       const payload = gerarPayloadPix({
         pixKey,
         amount: total,
@@ -501,9 +513,12 @@ export default function PDV() {
         txId,
       });
 
+      console.log("Payload PIX gerado:", payload);
       setPixPayload(payload);
       setMostrarPixModal(true);
+      console.log("Modal PIX aberto");
     } catch (error) {
+      console.error("Erro ao gerar PIX:", error);
       Swal.fire("Erro", error.message, "error");
     }
   };
@@ -760,7 +775,7 @@ export default function PDV() {
         </div>
       )}
 
-      {mostrarPixModal && pixPayload && (
+      {mostrarPixModal && pixPayload ? (
         <PixQrCodeModal
           payloadPix={pixPayload}
           valor={total}
@@ -773,7 +788,27 @@ export default function PDV() {
             setPixPayload("");
           }}
         />
-      )}
+      ) : mostrarPixModal ? (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 p-6">
+            <h2 className="text-xl font-bold text-red-600 mb-4">
+              Erro ao carregar QR Code
+            </h2>
+            <p className="text-slate-600 mb-4">
+              Payload PIX não foi gerado corretamente.
+            </p>
+            <button
+              onClick={() => {
+                setMostrarPixModal(false);
+                setPixPayload("");
+              }}
+              className="w-full px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {mostrarF10 && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 select-text">

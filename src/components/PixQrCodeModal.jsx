@@ -14,6 +14,8 @@ export default function PixQrCodeModal({
 }) {
   const [copiado, setCopiado] = useState(false);
 
+  console.log("PixQrCodeModal renderizado com payload:", payloadPix);
+
   // Copia o código PIX para a área de transferência
   const copiarCodigo = async () => {
     try {
