@@ -5,6 +5,7 @@ import { setTenant } from "../hooks/useTenant"; // Importa a função para defin
 import { carregarTenantFirebase } from "../services/firebaseData.js"; // Importa a nova função
 import { validateLoginInput } from "../utils/operacoesSeguras";
 
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -149,8 +150,12 @@ export default function Login() {
 
       <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-lg border border-slate-100">
         <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
-            <i className="fas fa-user-circle text-3xl text-blue-600"></i>
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4 overflow-hidden shadow-inner">
+            <img
+              src="./src/assets/logo.png" // Agora é a tag certa para imagem
+              alt="Logo do Sistema"
+              className="w-full h-full object-contain" // Garante que o logo caiba no círculo
+            />
           </div>
           <h1 className="text-2xl font-bold text-slate-800">Acessar Sistema</h1>
           <p className="text-sm text-slate-500 mt-1">Entre com sua conta</p>

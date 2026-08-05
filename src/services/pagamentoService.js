@@ -11,21 +11,22 @@
 const API_BASE_URL = "/api/mercadopago";
 
 export async function criarPagamentoAssinatura({
-  tenant,
-  planoId,
-  valor,
-  descricao,
+  tenantId,
+  emailUsuario,
+  planoNome,
+  valorMensal,
 }) {
   try {
-    const response = await fetch(`${API_BASE_URL}/create-preference`, {
+    const response = await fetch(`${API_BASE_URL}/create-preapproval`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ tenantId: tenant.id, planoId, valor, descricao }),
+      // Corrigido para enviar os dados corretos para a API de assinatura
+      body: JSON.stringify({ tenantId, emailUsuario, planoNome, valorMensal }),
     });
 
-    const data = await response.json();
+    const data = await response.json(); // A resposta agora terá init_point
     return data;
   } catch (error) {
     console.error("Erro ao criar pagamento de assinatura:", error);

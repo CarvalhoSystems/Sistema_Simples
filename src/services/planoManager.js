@@ -474,26 +474,29 @@ function gerarRelatorioAdminLocalStorageFallback() {
 /**
  * Simula a geração de um link de pagamento do Mercado Pago.
  * Em um ambiente real, esta função faria uma chamada a um backend
- * que, por sua vez, se comunicaria com a API do Mercado Pago.
+ * que, por sua vez, se comunicaria com a API do Mercado Pago para criar uma PreApproval.
  */
-export function gerarLinkPagamentoMercadoPago(planoId, tenantId, valor) {
-  // URL de exemplo do Mercado Pago para checkout de um produto/serviço
-  // Em produção, você usaria a API do Mercado Pago para criar uma preferência de pagamento
-  // e obter um link real.
-  const baseUrl = "https://www.mercadopago.com.br/checkout/v1/redirect";
-  const params = new URLSearchParams({
-    preference_id: `mock_pref_${planoId}_${tenantId}_${Date.now()}`, // ID de preferência simulado
-    external_reference: `${tenantId}_${planoId}`, // Referência externa para identificar a transação
-    amount: valor.toFixed(2), // Valor do plano
-    description: `Assinatura Plano ${PLANOS[planoId].nome} - Sistema PDV`,
-    // Em um cenário real, você teria URLs de sucesso, pendente e falha
-    // back_urls: JSON.stringify({
-    //   success: `${window.location.origin}/pagamento/sucesso?tenantId=${tenantId}&planoId=${planoId}`,
-    //   pending: `${window.location.origin}/pagamento/pendente?tenantId=${tenantId}&planoId=${planoId}`,
-    //   failure: `${window.location.origin}/pagamento/falha?tenantId=${tenantId}&planoId=${planoId}`,
-    // }),
-  });
-  return `${baseUrl}?${params.toString()}`;
+import { criarPagamentoAssinatura } from "./pagamentoService";
+
+export async function gerarLinkPagamentoMercadoPago(planoId, tenantId, emailUsuario, valorMensal) {
+  try {
+    const plano = PLANOS[planoId];
+    if (!plano) {
+      throw new Error("Plano não encontrado.");
+    }
+
+    const result = await criarPagamentoAssinatura({
+      tenantId,
+      emailUsuario,
+      planoNome: plano.nome,
+      valorMensal: valorMensal,
+    });
+
+    return result.init_point; // Retorna o link de inicialização da assinatura
+  } catch (error) {
+    console.error("Erro ao gerar link de pagamento do Mercado Pago:", error);
+    return null;
+  }
 }
 
 /**

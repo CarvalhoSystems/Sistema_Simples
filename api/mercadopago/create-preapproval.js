@@ -1,4 +1,4 @@
-import { MercadoPagoConfig, Preference } from "mercadopago";
+import { MercadoPagoConfig, PreApproval } from "mercadopago";
 
 // Esta função é o seu "backend" que roda na Vercel
 export default async function handler(request, response) {
@@ -8,7 +8,7 @@ export default async function handler(request, response) {
   }
 
   // Pega os dados enviados pelo seu frontend (CheckoutMercadoPago.jsx)
-  const { tenantId, planoId, valor, descricao } = request.body;
+  const { tenantId, emailUsuario, planoNome, valorMensal } = request.body;
 
   // **IMPORTANTE**: Em um sistema real, você buscaria o Access Token do lojista
   // no seu banco de dados (Firebase) usando o tenantId.
@@ -18,12 +18,10 @@ export default async function handler(request, response) {
     process.env.VITE_MERCADOPAGO_ACCESS_TOKEN;
 
   if (!accessToken) {
-    return response
-      .status(500)
-      .json({
-        success: false,
-        error: "Access Token do Mercado Pago não configurado no servidor.",
-      });
+    return response.status(500).json({
+      success: false,
+      error: "Access Token do Mercado Pago não configurado no servidor.",
+    });
   }
 
   const client = new MercadoPagoConfig({ accessToken });
