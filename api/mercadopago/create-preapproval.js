@@ -25,39 +25,20 @@ export default async function handler(request, response) {
   }
 
   const client = new MercadoPagoConfig({ accessToken });
-  const preference = new Preference(client);
+  const preApproval = new PreApproval(client);
 
   try {
-    const result = await preference.create({
+    const result = await preApproval.create({
       body: {
-        items: [
-          {
-            id: planoId,
-            title: descricao,
-            quantity: 1,
-            unit_price: Number(valor),
-          },
-        ],
-        // Libera explicitamente os métodos e tipos de pagamento
-        payment_methods: {
-          installments: 6,
+        reason: planoNome || "Plano de Assinatura",
+        auto_recurring: {
+          transaction_amount: Number(valorMensal),
+          frequency: 1,
+          frequency_type: "months",
+          billing_day: 5,
         },
-        // Dados genéricos iniciais do pagador para destravar o Pix no Checkout Pro
-        payer: {
-          name: "Cliente",
-          surname: "Sistema",
-          email: "cliente@atendimento.com",
-          identification: {
-            type: "CPF",
-            number: "19119119100", // CPF genérico apenas para habilitar o PIX
-          },
-        },
-        back_urls: {
-          success: `${request.headers.origin}/planos?status=success`,
-          failure: `${request.headers.origin}/planos?status=failure`,
-          pending: `${request.headers.origin}/planos?status=pending`,
-        },
-        auto_return: "approved",
+        payer_email: emailUsuario || "cliente@atendimento.com",
+        back_url: `${request.headers.origin}/planos`,
         external_reference: tenantId,
       },
     });
@@ -73,7 +54,7 @@ export default async function handler(request, response) {
       "Erro ao criar preferência no Mercado Pago:",
       error.message,
       error.cause,
-      { tenantId, planoId, valor, descricao },
+      { tenantId, planoNome, valorMensal, emailUsuario },
     );
     return response.status(500).json({
       success: false,
