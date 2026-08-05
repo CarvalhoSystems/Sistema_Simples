@@ -26,7 +26,16 @@ export async function criarPagamentoAssinatura({
       body: JSON.stringify({ tenantId, emailUsuario, planoNome, valorMensal }),
     });
 
-    const data = await response.json(); // A resposta agora terá init_point
+    const contentType = response.headers.get("content-type");
+    if (!response.ok || !contentType?.includes("application/json")) {
+      const text = await response.text();
+      console.error("Resposta não-JSON do servidor:", text);
+      return {
+        success: false,
+        error: "Erro no servidor. Tente novamente.",
+      };
+    }
+    const data = await response.json();
     return data;
   } catch (error) {
     console.error("Erro ao criar pagamento de assinatura:", error);
