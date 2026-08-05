@@ -13,6 +13,7 @@ import {
   getCategorias,
   addProduto,
   updateProduto,
+  removeProduto,
 } from "../services/tenantData";
 
 export default function Inventario() {
@@ -78,40 +79,68 @@ export default function Inventario() {
   };
 
   const handleSaveProduct = async (productData) => {
-    // Lógica para salvar (adicionar novo ou editar existente)
-    if (editingProduct) {
-      // Editar
-      await updateProduto(editingProduct.codigo, productData);
-      Swal.fire("Sucesso!", "Produto atualizado com sucesso.", "success");
-    } else {
-      // Adicionar novo
-      await addProduto(productData);
-      Swal.fire("Sucesso!", "Produto adicionado com sucesso.", "success");
+    console.log("💾 Salvando produto:", productData);
+
+    try {
+      // Lógica para salvar (adicionar novo ou editar existente)
+      if (editingProduct) {
+        console.log("Atualizando produto existente:", editingProduct.codigo);
+        await updateProduto(editingProduct.codigo, productData);
+        Swal.fire("Sucesso!", "Produto atualizado com sucesso.", "success");
+      } else {
+        console.log("Adicionando novo produto");
+        await addProduto(productData);
+        Swal.fire("Sucesso!", "Produto adicionado com sucesso.", "success");
+      }
+
+      // Recarrega os produtos para refletir a mudança
+      console.log("Recarregando produtos...");
+      const produtosData = await getProdutos();
+      console.log("Produtos carregados:", produtosData);
+      setProducts(produtosData);
+
+      handleCloseModal();
+    } catch (error) {
+      console.error("❌ Erro ao salvar produto:", error);
+      Swal.fire(
+        "Erro",
+        `Não foi possível salvar o produto: ${error.message}`,
+        "error",
+      );
     }
-
-    // Recarrega os produtos para refletir a mudança
-    const produtosData = await getProdutos();
-    setProducts(produtosData);
-
-    handleCloseModal();
   };
 
-  const handleDeleteProduct = (productCode) => {
-    Swal.fire({
-      title: "Tem certeza?",
-      text: "Você não poderá reverter isso!",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#3085d6",
-      cancelButtonColor: "#d33",
-      confirmButtonText: "Sim, deletar!",
-      cancelButtonText: "Cancelar",
-    }).then((result) => {
+  const handleDeleteProduct = async (productCode) => {
+    try {
+      const result = await Swal.fire({
+        title: "Tem certeza?",
+        text: "Você não poderá reverter isso!",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#3085d6",
+        cancelButtonColor: "#d33",
+        confirmButtonText: "Sim, deletar!",
+        cancelButtonText: "Cancelar",
+      });
+
       if (result.isConfirmed) {
-        setProducts(products.filter((p) => p.codigo !== productCode));
+        console.log("🗑️ Deletando produto:", productCode);
+        await removeProduto(productCode);
+
+        // Recarrega os produtos para refletir a mudança
+        const produtosData = await getProdutos();
+        setProducts(produtosData);
+
         Swal.fire("Deletado!", "O produto foi removido.", "success");
       }
-    });
+    } catch (error) {
+      console.error("❌ Erro ao deletar produto:", error);
+      Swal.fire(
+        "Erro",
+        `Não foi possível deletar o produto: ${error.message}`,
+        "error",
+      );
+    }
   };
 
   return (

@@ -175,8 +175,8 @@ export async function addVenda(dadosVenda) {
 /**
  * Busca um produto pelo código
  */
-export function buscarProdutoPorCodigo(codigo) {
-  const produtos = getProdutos();
+export async function buscarProdutoPorCodigo(codigo) {
+  const produtos = await getProdutos();
   return produtos.find((p) => p.codigo === codigo) || null;
 }
 
