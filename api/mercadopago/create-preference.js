@@ -49,6 +49,10 @@ export default async function handler(request, response) {
           name: "Cliente",
           surname: "Sistema",
           email: "cliente@atendimento.com",
+          identification: {
+            type: "CPF",
+            number: "19119119100", // CPF genérico apenas para habilitar o PIX
+          },
         },
         back_urls: {
           success: `${request.headers.origin}/planos?status=success`,
