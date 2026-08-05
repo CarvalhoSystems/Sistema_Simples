@@ -11,10 +11,10 @@
 const API_BASE_URL = "/api/mercadopago";
 
 export async function criarPagamentoAssinatura({
-  tenantId,
-  emailUsuario,
-  planoNome,
-  valorMensal,
+  tenant,
+  valor,
+  descricao,
+  planoId,
 }) {
   try {
     const response = await fetch(`${API_BASE_URL}/create-preapproval`, {
@@ -22,8 +22,8 @@ export async function criarPagamentoAssinatura({
       headers: {
         "Content-Type": "application/json",
       },
-      // Corrigido para enviar os dados corretos para a API de assinatura
-      body: JSON.stringify({ tenantId, emailUsuario, planoNome, valorMensal }),
+      // Envia os dados conforme recebidos do frontend
+      body: JSON.stringify({ tenant, valor, descricao, planoId }),
     });
 
     const contentType = response.headers.get("content-type");

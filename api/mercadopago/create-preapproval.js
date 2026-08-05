@@ -32,7 +32,13 @@ export default async function handler(request, response) {
     }
 
     // Pega os dados enviados pelo seu frontend (CheckoutMercadoPago.jsx)
-    const { tenantId, emailUsuario, planoNome, valorMensal } = body;
+    // O frontend envia: tenant (objeto), valor, descricao
+    // Precisamos extrair tenantId e mapear valor -> valorMensal, descricao -> planoNome
+    const { tenant, valor, descricao } = body;
+    const tenantId = tenant?.id || tenant || "";
+    const valorMensal = valor;
+    const planoNome = descricao || "Plano de Assinatura";
+    const emailUsuario = tenant?.email || "";
 
     // **IMPORTANTE**: Em um sistema real, você buscaria o Access Token do lojista
     // no seu banco de dados (Firebase) usando o tenantId.
