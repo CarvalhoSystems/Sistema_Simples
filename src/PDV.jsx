@@ -324,46 +324,85 @@ export default function PDV() {
       const troco = parseFloat(valorRecebido) - total;
       await Swal.fire("Troco", `O troco é de ${formatCurrency(troco)}`, "info");
     } else if (metodo === "Cartão") {
-      // Integração com Mercado Pago Point
       const tenant = getTenant();
-      const mercadoPagoAccessToken = tenant?.mercadoPagoAccessToken;
-      const mercadoPagoDeviceId = tenant?.mercadoPagoDeviceId;
+      const cartaoProvedor = tenant?.cartaoProvedor || "manual_pos";
 
-      if (!mercadoPagoAccessToken || !mercadoPagoDeviceId) {
-        Swal.fire({
-          icon: "warning",
-          title: "Mercado Pago não configurado",
-          text: "Configure seu Access Token e Device ID do Mercado Pago nas Configurações da Loja para aceitar pagamentos com cartão.",
-        });
-        return;
-      }
-
-      const { processarPagamentoCartaoPDV } =
+      const { processarPagamento } =
         await import("./services/pagamentoService");
 
       let paymentResult;
       try {
-        Swal.fire({
-          title: "Aguardando Pagamento no Cartão...",
-          html: `Total: <strong>${formatCurrency(total)}</strong><br>
-                 Por favor, insira ou passe o cartão na maquininha.`,
-          icon: "info",
-          showConfirmButton: false,
-          allowOutsideClick: false,
-          allowEscapeKey: false,
-          didOpen: () => {
-            Swal.showLoading();
-          },
-        });
+        if (cartaoProvedor === "mercadopago") {
+          // Integração automática com Mercado Pago Point
+          const mercadoPagoAccessToken = tenant?.mercadoPagoAccessToken;
+          const mercadoPagoDeviceId = tenant?.mercadoPagoDeviceId;
 
-        paymentResult = await processarPagamentoCartaoPDV({
-          tenantId: tenant.id,
-          amount: total,
-          description: "Venda PDV",
-          deviceId: mercadoPagoDeviceId,
-        });
+          if (!mercadoPagoAccessToken || !mercadoPagoDeviceId) {
+            Swal.fire({
+              icon: "warning",
+              title: "Mercado Pago não configurado",
+              text: "Configure seu Access Token e Device ID do Mercado Pago nas Configurações da Loja para aceitar pagamentos com cartão.",
+            });
+            return;
+          }
 
-        Swal.close();
+          Swal.fire({
+            title: "Aguardando Pagamento no Cartão...",
+            html: `Total: <strong>${formatCurrency(total)}</strong><br>
+                   Por favor, insira ou passe o cartão na maquininha.`,
+            icon: "info",
+            showConfirmButton: false,
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            didOpen: () => {
+              Swal.showLoading();
+            },
+          });
+
+          paymentResult = await processarPagamento({
+            venda: {
+              tenantId: tenant.id,
+              amount: total,
+              description: "Venda PDV",
+            },
+            formaPagamento: {
+              provedor: "mercadopago",
+              token: mercadoPagoAccessToken,
+              deviceId: mercadoPagoDeviceId,
+            },
+          });
+
+          Swal.close();
+        } else {
+          // Maquininha física manual (qualquer marca) - apenas registra a venda
+          const { value: confirmarPagamento } = await Swal.fire({
+            title: "Pagamento na Maquininha",
+            html: `Total: <strong>${formatCurrency(total)}</strong><br><br>
+                   Passe o cartão na maquininha física.<br>
+                   Após a aprovação, confirme para finalizar a venda.`,
+            icon: "question",
+            showCancelButton: true,
+            confirmButtonText: "Pagamento Aprovado",
+            cancelButtonText: "Cancelar",
+            confirmButtonColor: "#16a34a",
+            cancelButtonColor: "#dc2626",
+          });
+
+          if (!confirmarPagamento) {
+            return;
+          }
+
+          paymentResult = await processarPagamento({
+            venda: {
+              tenantId: tenant.id,
+              amount: total,
+              description: "Venda PDV",
+            },
+            formaPagamento: {
+              provedor: cartaoProvedor,
+            },
+          });
+        }
 
         if (!paymentResult.success) {
           Swal.fire(

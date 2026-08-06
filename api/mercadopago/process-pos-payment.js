@@ -7,27 +7,35 @@ export default async function handler(request, response) {
     return response.status(405).json({ error: "Method Not Allowed" });
   }
 
-  const { tenantId, amount, description, deviceId } = request.body;
+  const {
+    tenantId,
+    amount,
+    description,
+    deviceId,
+    accessToken: accessTokenFromBody,
+  } = request.body;
 
-  // 1. Busca o Access Token específico do lojista no Firebase
-  let accessToken;
-  try {
-    const tenantDocRef = doc(db, "tenants", tenantId);
-    const tenantDoc = await getDoc(tenantDocRef);
-    if (tenantDoc.exists() && tenantDoc.data().info?.mercadoPagoAccessToken) {
-      accessToken = tenantDoc.data().info.mercadoPagoAccessToken;
-    } else {
-      // Fallback para a variável de ambiente principal se o lojista não configurou
-      accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
-    }
-  } catch (dbError) {
-    console.error("Erro ao buscar token do tenant no Firebase:", dbError);
-    return response
-      .status(500)
-      .json({
+  // 1. Prioriza o Access Token enviado pelo frontend (configurado nas Configurações da Loja)
+  let accessToken = accessTokenFromBody;
+
+  // 2. Se não veio do frontend, busca o Access Token específico do lojista no Firebase
+  if (!accessToken) {
+    try {
+      const tenantDocRef = doc(db, "tenants", tenantId);
+      const tenantDoc = await getDoc(tenantDocRef);
+      if (tenantDoc.exists() && tenantDoc.data().info?.mercadoPagoAccessToken) {
+        accessToken = tenantDoc.data().info.mercadoPagoAccessToken;
+      } else {
+        // Fallback para a variável de ambiente principal se o lojista não configurou
+        accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+      }
+    } catch (dbError) {
+      console.error("Erro ao buscar token do tenant no Firebase:", dbError);
+      return response.status(500).json({
         success: false,
         error: "Falha ao carregar configuração do lojista.",
       });
+    }
   }
 
   if (!accessToken) {
