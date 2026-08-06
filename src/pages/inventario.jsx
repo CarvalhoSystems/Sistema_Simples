@@ -152,8 +152,6 @@ export default function Inventario() {
           <Toolbar
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
-            categoryFilter={categoryFilter}
-            setCategoryFilter={setCategoryFilter}
             statusFilter={statusFilter}
             setStatusFilter={setStatusFilter}
             categories={categories}

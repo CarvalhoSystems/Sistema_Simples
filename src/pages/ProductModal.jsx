@@ -8,6 +8,7 @@ export default function ProductModal({ product, categories, onClose, onSave }) {
     estoque: 0,
     estoqueMinimo: 0,
     preco: 0,
+    codigo: "",
   });
 
   useEffect(() => {
@@ -18,12 +19,15 @@ export default function ProductModal({ product, categories, onClose, onSave }) {
         estoque: product.estoque || 0,
         estoqueMinimo: product.estoqueMinimo || 0,
         preco: product.preco || 0,
+        codigo: product.codigo || "",
       });
     } else {
       // Se for um novo produto, seleciona a primeira categoria por padrão
+      // e deixa o código vazio para o usuário preencher ou gerar automático
       setFormData((prev) => ({
         ...prev,
         categoriaId: categories[0]?.id || "",
+        codigo: "",
       }));
     }
   }, [product, categories]);
@@ -32,7 +36,12 @@ export default function ProductModal({ product, categories, onClose, onSave }) {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: e.target.type === "number" ? parseFloat(value) || 0 : value,
+      [name]:
+        e.target.type === "number"
+          ? value === ""
+            ? ""
+            : parseFloat(value)
+          : value,
     }));
   };
 
@@ -81,6 +90,28 @@ export default function ProductModal({ product, categories, onClose, onSave }) {
 
             <div>
               <label
+                htmlFor="codigo"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Código do Produto
+              </label>
+              <input
+                type="text"
+                name="codigo"
+                id="codigo"
+                value={formData.codigo}
+                onChange={handleChange}
+                placeholder="Deixe vazio para gerar automático (1, 2, 3...)"
+                className="w-full p-2 border border-gray-300 rounded-md"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Digite um código manual ou deixe vazio para gerar
+                automaticamente
+              </p>
+            </div>
+
+            <div>
+              <label
                 htmlFor="categoriaId"
                 className="block text-sm font-medium text-gray-700 mb-1"
               >
@@ -94,7 +125,7 @@ export default function ProductModal({ product, categories, onClose, onSave }) {
                 required
                 className="w-full p-2 border border-gray-300 rounded-md bg-white"
               >
-                <option key="" value="">
+                <option key="none" value="">
                   Selecione uma categoria
                 </option>
                 {categories.map((cat) => (
