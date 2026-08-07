@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useEffect } from "react";
 import {
   firebaseDisponivel,
   auth as firebaseAuth,
+  db,
 } from "../services/firebaseClient";
 import {
   signInWithEmailAndPassword,
@@ -9,7 +10,13 @@ import {
   signOut,
   onAuthStateChanged,
 } from "firebase/auth";
-import { clearTenant, setTenant, setTenantByEmail } from "../hooks/useTenant";
+import { doc, getDoc } from "firebase/firestore";
+import {
+  clearTenant,
+  setTenant,
+  setTenantByEmail,
+  getTenantId,
+} from "../hooks/useTenant";
 
 const AuthContext = createContext(null);
 
@@ -70,6 +77,30 @@ export function AuthProvider({ children }) {
         };
         setTenant(tenantData);
 
+        // Verifica se o cliente está bloqueado (busca direta do Firebase)
+        const tenantId = getTenantId();
+        if (tenantId && db) {
+          try {
+            const docRef = doc(db, "tenants", tenantId);
+            const docSnap = await getDoc(docRef);
+            if (
+              docSnap.exists() &&
+              docSnap.data().assinatura &&
+              docSnap.data().assinatura.bloqueado
+            ) {
+              // Cliente bloqueado - faz logout e retorna erro
+              await logout();
+              return {
+                bloqueado: true,
+                mensagem:
+                  "Sua conta foi bloqueada. Entre em contato com o suporte.",
+              };
+            }
+          } catch (error) {
+            console.warn("Erro ao verificar bloqueio no Firebase:", error);
+          }
+        }
+
         return userData; // Retorna os dados do usuário em vez de true
       } catch (error) {
         console.warn("Erro no login Firebase:", error.code);
@@ -85,7 +116,57 @@ export function AuthProvider({ children }) {
     return loginLocal(email, password);
   };
 
+  // Login local (demo sem Firebase)
+  const loginLocal = async (email, password) => {
+    const tenantData = getTenantByEmail(email);
 
+    if (!tenantData) {
+      // Tenta buscar o tenant ativo
+      const tenantAtivo = getTenant();
+      if (
+        tenantAtivo &&
+        normalizeEmail(tenantAtivo.email) === normalizeEmail(email)
+      ) {
+        // Verifica bloqueio
+        const tenantId = tenantAtivo.id || tenantAtivo.uid;
+        if (tenantId) {
+          const assinatura = await carregarAssinatura(true);
+          if (assinatura && assinatura.bloqueado) {
+            return {
+              bloqueado: true,
+              mensagem:
+                "Sua conta foi bloqueada. Entre em contato com o suporte.",
+            };
+          }
+        }
+      }
+      return null;
+    }
+
+    // Verifica se o cliente está bloqueado
+    const tenantId = tenantData.id || tenantData.uid;
+    if (tenantId) {
+      const assinatura = await carregarAssinatura(true);
+      if (assinatura && assinatura.bloqueado) {
+        return {
+          bloqueado: true,
+          mensagem: "Sua conta foi bloqueada. Entre em contato com o suporte.",
+        };
+      }
+    }
+
+    const userData = {
+      uid: tenantData.id || tenantData.uid,
+      email: tenantData.email,
+      name: tenantData.nome || tenantData.email,
+    };
+
+    setUser(userData);
+    sessionStorage.setItem("pdv_session_user", JSON.stringify(userData));
+    setTenant(tenantData);
+
+    return userData;
+  };
 
   // Cadastro com Firebase (fallback para localStorage)
   const signup = async (email, password, nome, estabelecimento, ramo) => {

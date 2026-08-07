@@ -89,7 +89,7 @@ export function getInitialDataForRamo(ramoId) {
       razaoSocial: "",
       cnpj: "",
       ie: "",
-      ambiente: "homologacao",
+      ambiente: "producao",
     },
   };
 }

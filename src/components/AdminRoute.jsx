@@ -1,6 +1,8 @@
 import React from "react";
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "./AuthContext";
+import { getTenantId } from "../hooks/useTenant";
+import { verificarStatusAssinatura } from "../services/planoManager";
 
 // Email do administrador (você pode mudar depois)
 const ADMIN_EMAIL = "carvalho_borges@icloud.com";

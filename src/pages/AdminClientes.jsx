@@ -5,6 +5,7 @@ import {
   alterarPlanoManual,
   renovarTrialManual,
   alterarStatusManual,
+  bloquearClienteManual,
 } from "../services/planoManager";
 import { RAMOS_NEGOCIO } from "../services/supabaseClient";
 
@@ -52,28 +53,36 @@ export default function AdminClientes() {
 
   async function handleAlterarPlano(cliente, novoPlano) {
     setCarregando(true);
-    const result = alterarPlanoManual(cliente.id, cliente, novoPlano);
+    const result = await alterarPlanoManual(cliente.id, cliente, novoPlano);
     setMensagem(result);
     setModalAberto(null); // Fecha o modal
-    carregarClientes();
+    await carregarClientes();
     setCarregando(false);
   }
 
   async function handleRenovarTrial(cliente, dias = 7) {
     setCarregando(true);
-    const result = renovarTrialManual(cliente.id, dias);
+    const result = await renovarTrialManual(cliente.id, dias);
     setMensagem(result); // Exibe mensagem de sucesso/erro
     setModalAberto(null);
-    carregarClientes();
+    await carregarClientes();
     setCarregando(false);
   }
 
   async function handleAlterarStatus(cliente, novoStatus) {
     setCarregando(true);
-    const result = alterarStatusManual(cliente.id, novoStatus); // Altera o status
+    const result = await alterarStatusManual(cliente.id, novoStatus); // Altera o status
     setMensagem(result);
     setModalAberto(null);
-    carregarClientes();
+    await carregarClientes();
+    setCarregando(false);
+  }
+
+  async function handleBloquearCliente(cliente, bloquear) {
+    setCarregando(true);
+    const result = await bloquearClienteManual(cliente.id, bloquear);
+    setMensagem(result);
+    await carregarClientes();
     setCarregando(false);
   }
 
@@ -276,6 +285,32 @@ export default function AdminClientes() {
                             title="Alterar Status"
                           >
                             <i className="fas fa-toggle-on"></i>
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleBloquearCliente(
+                                cliente,
+                                !cliente.assinatura?.bloqueado,
+                              )
+                            }
+                            className={`px-2 py-1 text-xs rounded transition-colors ${
+                              cliente.assinatura?.bloqueado
+                                ? "bg-red-50 text-red-600 hover:bg-red-100"
+                                : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                            }`}
+                            title={
+                              cliente.assinatura?.bloqueado
+                                ? "Desbloquear Cliente"
+                                : "Bloquear Cliente"
+                            }
+                          >
+                            <i
+                              className={`fas ${
+                                cliente.assinatura?.bloqueado
+                                  ? "fa-lock"
+                                  : "fa-unlock"
+                              }`}
+                            ></i>
                           </button>
                         </div>
                       </td>
