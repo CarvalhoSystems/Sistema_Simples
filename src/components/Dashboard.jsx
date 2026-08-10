@@ -5,6 +5,7 @@ import { useAuth } from "./AuthContext.jsx";
 import { getProdutos, getVendas } from "../services/tenantData.js";
 import { getTenant } from "../hooks/useTenant.js";
 import { formatCurrency } from "../utils/formatters.js";
+import ProdutosEmFalta from "./ProdutosEmFalta.jsx";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -128,10 +129,7 @@ export default function Dashboard() {
                 <p>Adicionar, editar e visualizar produtos</p>
               </div>
             </div>
-            <div
-              className="action-card"
-              onClick={() => navigate("/inventario")}
-            >
+            <div className="action-card" onClick={() => navigate("/caixa")}>
               <div className="action-icon">
                 <i className="fas fa-cash-register"></i>
               </div>
@@ -140,7 +138,10 @@ export default function Dashboard() {
                 <p>Iniciar vendas e gerenciar caixa</p>
               </div>
             </div>
-            <div className="action-card" onClick={() => navigate("/caixa")}>
+            <div
+              className="action-card"
+              onClick={() => navigate("/relatorios")}
+            >
               <div className="action-icon">
                 <i className="fas fa-chart-line"></i>
               </div>
@@ -151,12 +152,9 @@ export default function Dashboard() {
             </div>
             <div
               className="action-card warning"
-              onClick={() =>
-                alert(
-                  "Função para mostrar produtos em falta ainda não implementada.",
-                )
-              }
+              onClick={() => navigate("/ProdutosEmFalta")}
             >
+              <ProdutosEmFalta />
               <div className="action-icon">
                 <i className="fas fa-exclamation-triangle"></i>
               </div>
