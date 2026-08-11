@@ -4,17 +4,43 @@ import { gerarRelatorioAdmin, PLANOS } from "../services/planoManager";
 export default function AdminDashboard() {
   const [clientes, setClientes] = useState([]);
   const [carregando, setCarregando] = useState(true);
+  const [atualizacaoPendente, setAtualizacaoPendente] = useState(false);
 
   useEffect(() => {
-    carregarDados(); // A função carregarDados agora é assíncrona
+    carregarDados();
   }, []);
 
   async function carregarDados() {
     setCarregando(true);
-    const dados = await gerarRelatorioAdmin();
-    setClientes(dados || []); // Garante que seja sempre um array
-    setCarregando(false);
+    setAtualizacaoPendente(false);
+    try {
+      const dados = await gerarRelatorioAdmin();
+      setClientes(dados || []);
+    } catch (error) {
+      console.error("Erro ao carregar dados do dashboard:", error);
+    } finally {
+      setCarregando(false);
+    }
   }
+
+  // Atualiza quando a página volta a ficar visível
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        setAtualizacaoPendente(true);
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
+
+  useEffect(() => {
+    if (atualizacaoPendente) {
+      carregarDados();
+    }
+  }, [atualizacaoPendente]);
 
   const totalClientes = clientes.length; // Já é um array
   const emTrial = clientes.filter(
@@ -64,10 +90,15 @@ export default function AdminDashboard() {
         </div>
         <button
           onClick={carregarDados}
-          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 text-sm"
+          disabled={carregando}
+          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <i className="fas fa-sync-alt"></i>
-          Atualizar
+          {carregando ? (
+            <i className="fas fa-spinner fa-spin"></i>
+          ) : (
+            <i className="fas fa-sync-alt"></i>
+          )}
+          {carregando ? "Atualizando..." : "Atualizar"}
         </button>
       </div>
 

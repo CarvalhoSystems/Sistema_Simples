@@ -27,6 +27,8 @@ import AdminPlanos from "./pages/AdminPlanos.jsx";
 import Contato from "./pages/contato.jsx";
 import FechamentoDeCaixa from "./components/fechamentoDeCaixa.jsx";
 import NotFoundPage from "./pages/NotFoundPage.jsx";
+import MostrarProdutoFalta from "./components/MostrarProductFalta.jsx";
+
 
 
 export default function App() {

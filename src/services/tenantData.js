@@ -71,14 +71,39 @@ export async function setProdutos(produtos) {
 }
 
 /**
+ * Gera o próximo código sequencial baseado nos produtos existentes
+ */
+function gerarProximoCodigo(produtos) {
+  // Filtra apenas códigos que são números puros
+  const codigosNumericos = produtos
+    .map((p) => parseInt(p.codigo, 10))
+    .filter((num) => !isNaN(num) && num > 0);
+
+  if (codigosNumericos.length === 0) {
+    return "1";
+  }
+
+  // Pega o maior código e adiciona 1
+  const ultimoCodigo = Math.max(...codigosNumericos);
+  const proximoCodigo = ultimoCodigo + 1;
+
+  return String(proximoCodigo);
+}
+
+/**
  * Adiciona um produto ao tenant atual
  */
 export async function addProduto(produto) {
   const produtos = await getProdutos();
+  
+  // Se não fornecer código, gera um sequencial
+  const codigo = produto.codigo || gerarProximoCodigo(produtos);
+  
   const novoProduto = {
     ...produto,
-    codigo: produto.codigo || String(Date.now()).slice(-6),
+    codigo: codigo,
   };
+  
   produtos.push(novoProduto);
   await setProdutos(produtos);
   return novoProduto;

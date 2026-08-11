@@ -7,6 +7,7 @@ export default function ProductModal({ product, categories, onClose, onSave }) {
     estoque: 0,
     estoqueMinimo: 0,
     preco: 0,
+    codigo: "",
   });
 
   useEffect(() => {
@@ -17,12 +18,15 @@ export default function ProductModal({ product, categories, onClose, onSave }) {
         estoque: product.estoque || 0,
         estoqueMinimo: product.estoqueMinimo || 0,
         preco: product.preco || 0,
+        codigo: product.codigo || "",
       });
     } else {
       // Se for um novo produto, seleciona a primeira categoria por padrão
+      // e gera um código sequencial
       setFormData((prev) => ({
         ...prev,
         categoriaId: categories[0]?.id || "",
+        codigo: "",
       }));
     }
   }, [product, categories]);
@@ -77,25 +81,21 @@ export default function ProductModal({ product, categories, onClose, onSave }) {
 
             <div>
               <label
-                htmlFor="categoriaId"
+                htmlFor="codigo"
                 className="block text-sm font-medium text-gray-700 mb-1"
               >
-                Categoria
+                Código do Produto
               </label>
-              <select
-                name="categoriaId"
-                id="categoriaId"
-                value={formData.categoriaId}
-                onChange={handleChange}
+              <input
+                type="text"
+                id="codigo"
+                name="codigo"
+                value={formData.codigo} // Ou o nome da sua variável de estado
+                onChange={handleChange} // Função que atualiza o estado
+                placeholder="Ex: camisa-001"
                 required
-                className="w-full p-2 border border-gray-300 rounded-md bg-white"
-              >
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

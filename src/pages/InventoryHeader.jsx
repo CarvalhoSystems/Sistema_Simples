@@ -39,11 +39,6 @@ export default function InventoryHeader({ products }) {
             colorClass="text-red-600"
           />
         </div>
-        {/* Informações do Usuário */}
-        <div className="flex items-center gap-3">
-          <i className="fas fa-user-circle text-2xl text-indigo-600"></i>
-          <span className="font-semibold text-gray-700">Administrador</span>
-        </div>
       </div>
     </header>
   );

@@ -113,7 +113,7 @@ export function criarAssinatura(planoId, periodoTeste = true) {
     planoId: plano.id,
     status: periodoTeste ? "trial" : "ativa",
     iniciadoEm: agora.toISOString(),
-    dataAtivacaoPlano: periodoTeste ? null : agora.toISOString(), // Nova data de ativação do plano
+    dataAtivacaoPlano: periodoTeste ? null : agora.toISOString(),
     trialExpiracao: periodoTeste
       ? new Date(agora.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
       : null,
@@ -134,7 +134,7 @@ export function criarAssinatura(planoId, periodoTeste = true) {
  * @param {Object} assinatura - Dados da assinatura
  * @param {string} [tenantIdOverride] - ID do tenant (opcional, para uso do admin ao alterar assinatura de outro cliente)
  */
-export function salvarAssinatura(assinatura, tenantIdOverride) {
+export async function salvarAssinatura(assinatura, tenantIdOverride) {
   const tenantId = tenantIdOverride || getTenantId();
   if (tenantId)
     localStorage.setItem(
@@ -142,22 +142,29 @@ export function salvarAssinatura(assinatura, tenantIdOverride) {
       JSON.stringify(assinatura),
     );
 
-  // Tenta salvar no Firebase
+  // Tenta salvar no Firebase e aguarda confirmação
   if (firebaseDisponivel && db) {
     if (tenantId) {
       const docRef = doc(db, "tenants", tenantId);
-      setDoc(docRef, { assinatura }, { merge: true }).catch((err) =>
-        console.warn("Erro ao salvar assinatura no Firebase:", err),
-      );
+      try {
+        await setDoc(docRef, { assinatura }, { merge: true });
+      } catch (err) {
+        console.warn("Erro ao salvar assinatura no Firebase:", err);
+      }
     }
   }
 }
 
 /**
  * Carrega a assinatura do tenant
+ * @param {boolean} forceRefresh - Se true, força busca no Firebase
+ * @param {string} [tenantIdOverride] - ID do tenant (opcional, para admin alterar outro cliente)
  */
-export async function carregarAssinatura(forceRefresh = false) {
-  const tenantId = getTenantId();
+export async function carregarAssinatura(
+  forceRefresh = false,
+  tenantIdOverride,
+) {
+  const tenantId = tenantIdOverride || getTenantId();
   if (!tenantId) return null;
 
   // Tenta carregar do Firebase primeiro, especialmente se forçado
@@ -178,13 +185,11 @@ export async function carregarAssinatura(forceRefresh = false) {
     }
   }
 
-  // Fallback para localStorage (mesmo com forceRefresh, se o Firebase falhou ou não tem dados)
+  // Fallback para localStorage
   try {
     const data = localStorage.getItem(getAssinaturaKey(tenantId));
     if (data) {
       const assinaturaLocal = JSON.parse(data);
-      // Se forceRefresh e temos dados do Firebase que são diferentes, preferimos os do Firebase
-      // Mas se o Firebase não tinha assinatura, usamos o localStorage
       return assinaturaLocal;
     }
   } catch (e) {
@@ -197,8 +202,6 @@ export async function carregarAssinatura(forceRefresh = false) {
  * Verifica o status atual da assinatura
  */
 export async function verificarStatusAssinatura(forceRefresh = false) {
-  // Se forceRefresh for verdadeiro, ignora o cache do localStorage
-  // e busca diretamente do Firebase.
   const assinatura = await carregarAssinatura(forceRefresh);
 
   if (!assinatura) {
@@ -221,14 +224,16 @@ export async function verificarStatusAssinatura(forceRefresh = false) {
   if (assinatura.status === "trial") {
     const trialFim = new Date(assinatura.trialExpiracao);
     if (agora > trialFim) {
-      assinatura.status = "expirado";
+      assinatura.status = "trial_expirado";
+      assinatura.bloqueado = true;
+      assinatura.dataBloqueio = agora.toISOString();
       salvarAssinatura(assinatura);
       return {
         ativo: false,
         status: "trial_expirado",
         plano: PLANOS[assinatura.planoId] || PLANOS.free,
         diasRestantes: 0,
-        mensagem: "Período de teste expirou. Escolha um plano!",
+        mensagem: "Período de teste expirou. Acesso bloqueado!",
       };
     }
     return {
@@ -244,13 +249,15 @@ export async function verificarStatusAssinatura(forceRefresh = false) {
   if (assinatura.status === "ativa") {
     if (diasRestantes <= 0) {
       assinatura.status = "vencida";
+      assinatura.bloqueado = true;
+      assinatura.dataBloqueio = agora.toISOString();
       salvarAssinatura(assinatura);
       return {
         ativo: false,
         status: "vencida",
         plano: PLANOS[assinatura.planoId] || PLANOS.free,
         diasRestantes: 0,
-        mensagem: "Assinatura vencida. Renove para continuar!",
+        mensagem: "Assinatura vencida. Acesso bloqueado!",
       };
     }
     return {
@@ -377,7 +384,6 @@ export async function gerarRelatorioAdmin() {
     console.warn(
       "Firebase não disponível. Não é possível gerar relatório admin.",
     );
-    // Fallback para localStorage se Firebase não estiver disponível
     return gerarRelatorioAdminLocalStorageFallback();
   }
 
@@ -396,14 +402,14 @@ export async function gerarRelatorioAdmin() {
           email: tenantInfo.email,
           ramo: tenantInfo.ramo,
           criadoEm: tenantInfo.criadoEm,
-          // totalVendas e valorTotalVendas removidos para evitar consultas caras
           assinatura: assinatura
             ? {
                 plano: assinatura.planoId,
                 status: assinatura.status,
                 trialExpiracao: assinatura.trialExpiracao,
                 proximoVencimento: assinatura.proximoVencimento,
-                dataAtivacaoPlano: assinatura.dataAtivacaoPlano, // Inclui a nova data
+                dataAtivacaoPlano: assinatura.dataAtivacaoPlano,
+                bloqueado: assinatura.bloqueado || false,
               }
             : null,
         });
@@ -411,30 +417,23 @@ export async function gerarRelatorioAdmin() {
     });
   } catch (error) {
     console.error("Erro ao carregar relatório admin do Firebase:", error);
-    // Em caso de erro no Firebase, tenta o fallback do localStorage
     return gerarRelatorioAdminLocalStorageFallback();
   }
 
   return tenants.sort((a, b) => new Date(b.criadoEm) - new Date(a.criadoEm));
 }
 
-// Fallback para localStorage (apenas para desenvolvimento/demo sem Firebase)
+// Fallback para localStorage
 function gerarRelatorioAdminLocalStorageFallback() {
-  // ... (código existente para ler do localStorage)
-  // Este código não será alterado aqui, mas deve ser o que já existia antes
-  // e que você pode manter como um fallback ou remover se o Firebase for obrigatório.
-  // Para este diff, vou manter a estrutura original do fallback, mas em um sistema real
-  // você precisaria garantir que ele também leria os dados de assinatura corretamente.
   const tenants = [];
   const keys = Object.keys(localStorage);
 
   for (const key of keys) {
     if (key.startsWith("pdv_tenant_")) {
-      // Corrigido para buscar tenants específicos
       try {
         const tenant = JSON.parse(localStorage.getItem(key));
         const tenantId = tenant.id;
-        const assinaturaKey = `pdv_assinatura_${tenantId}`; // Assinatura agora é por tenant
+        const assinaturaKey = `pdv_assinatura_${tenantId}`;
         const assinatura = JSON.parse(
           localStorage.getItem(assinaturaKey) || "null",
         );
@@ -457,6 +456,7 @@ function gerarRelatorioAdminLocalStorageFallback() {
                 trialExpiracao: assinatura.trialExpiracao,
                 proximoVencimento: assinatura.proximoVencimento,
                 dataAtivacaoPlano: assinatura.dataAtivacaoPlano,
+                bloqueado: assinatura.bloqueado || false,
               }
             : null,
         });
@@ -473,12 +473,15 @@ function gerarRelatorioAdminLocalStorageFallback() {
 
 /**
  * Simula a geração de um link de pagamento do Mercado Pago.
- * Em um ambiente real, esta função faria uma chamada a um backend
- * que, por sua vez, se comunicaria com a API do Mercado Pago para criar uma PreApproval.
  */
 import { criarPagamentoAssinatura } from "./pagamentoService";
 
-export async function gerarLinkPagamentoMercadoPago(planoId, tenantId, emailUsuario, valorMensal) {
+export async function gerarLinkPagamentoMercadoPago(
+  planoId,
+  tenantId,
+  emailUsuario,
+  valorMensal,
+) {
   try {
     const plano = PLANOS[planoId];
     if (!plano) {
@@ -492,7 +495,7 @@ export async function gerarLinkPagamentoMercadoPago(planoId, tenantId, emailUsua
       valorMensal: valorMensal,
     });
 
-    return result.init_point; // Retorna o link de inicialização da assinatura
+    return result.init_point;
   } catch (error) {
     console.error("Erro ao gerar link de pagamento do Mercado Pago:", error);
     return null;
@@ -520,22 +523,22 @@ export async function getDadosTenant() {
 /**
  * Altera o plano de um tenant manualmente
  */
-export function alterarPlanoManual(tenantId, novoTenant, novoPlanoId) {
+export async function alterarPlanoManual(tenantId, novoTenant, novoPlanoId) {
   try {
-    // O tenant já vem como parâmetro (novoTenant), não precisa buscar do localStorage
     const tenant = novoTenant || {};
     tenant.assinatura = tenant.assinatura || {};
     tenant.assinatura.plano = novoPlanoId;
 
-    // Atualiza a assinatura usando a chave específica do tenant
-    const assinatura = JSON.parse(
-      localStorage.getItem(getAssinaturaKey(tenantId)) || "{}",
-    );
+    // Busca a assinatura do CLIENTE (não do admin) usando o tenantId passado
+    const assinatura = await carregarAssinatura(true, tenantId);
+    if (!assinatura || !assinatura.tenantId) {
+      return { success: false, error: "Nenhuma assinatura encontrada" };
+    }
+
     assinatura.planoId = novoPlanoId;
     assinatura.tenantId = tenantId;
     assinatura.status = assinatura.status || "trial";
-    // Passa o tenantId do cliente para salvar na chave correta
-    salvarAssinatura(assinatura, tenantId);
+    await salvarAssinatura(assinatura, tenantId);
 
     return {
       success: true,
@@ -549,12 +552,11 @@ export function alterarPlanoManual(tenantId, novoTenant, novoPlanoId) {
 /**
  * Renova trial do tenant por mais 7 dias
  */
-export function renovarTrialManual(tenantId, dias = 7) {
+export async function renovarTrialManual(tenantId, dias = 7) {
   try {
-    const assinatura = JSON.parse(
-      localStorage.getItem(getAssinaturaKey(tenantId)) || "{}",
-    );
-    if (!assinatura.tenantId)
+    // Busca a assinatura do CLIENTE (não do admin) usando o tenantId passado
+    const assinatura = await carregarAssinatura(true, tenantId);
+    if (!assinatura || !assinatura.tenantId)
       return { success: false, error: "Nenhuma assinatura encontrada" };
 
     const agora = new Date();
@@ -566,8 +568,9 @@ export function renovarTrialManual(tenantId, dias = 7) {
     assinatura.proximoVencimento = new Date(
       agora.getTime() + dias * 24 * 60 * 60 * 1000,
     ).toISOString();
-    // Passa o tenantId do cliente para salvar na chave correta
-    salvarAssinatura(assinatura, tenantId);
+    assinatura.bloqueado = false;
+    assinatura.dataBloqueio = null;
+    await salvarAssinatura(assinatura, tenantId);
 
     return { success: true, mensagem: `Trial renovado por mais ${dias} dias` };
   } catch (e) {
@@ -578,24 +581,23 @@ export function renovarTrialManual(tenantId, dias = 7) {
 /**
  * Ativa ou desativa a assinatura manualmente
  */
-export function alterarStatusManual(tenantId, novoStatus) {
+export async function alterarStatusManual(tenantId, novoStatus) {
   try {
-    const assinatura = JSON.parse(
-      localStorage.getItem(getAssinaturaKey(tenantId)) || "{}",
-    );
-    if (!assinatura.tenantId)
+    // Busca a assinatura do CLIENTE (não do admin) usando o tenantId passado
+    const assinatura = await carregarAssinatura(true, tenantId);
+    if (!assinatura || !assinatura.tenantId)
       return { success: false, error: "Nenhuma assinatura encontrada" };
 
     assinatura.status = novoStatus;
     if (novoStatus === "ativa") {
-      // Se for ativar, renova por 30 dias
       const agora = new Date();
       assinatura.proximoVencimento = new Date(
         agora.getTime() + 30 * 24 * 60 * 60 * 1000,
       ).toISOString();
+      assinatura.bloqueado = false;
+      assinatura.dataBloqueio = null;
     }
-    // Passa o tenantId do cliente para salvar na chave correta
-    salvarAssinatura(assinatura, tenantId);
+    await salvarAssinatura(assinatura, tenantId);
 
     const nomesStatus = {
       ativa: "Ativada",
@@ -603,11 +605,47 @@ export function alterarStatusManual(tenantId, novoStatus) {
       vencida: "Vencida",
       trial: "Teste Grátis",
       trial_expirado: "Trial Expirado",
+      bloqueada: "Bloqueada",
     };
 
     return {
       success: true,
       mensagem: `Assinatura ${nomesStatus[novoStatus] || novoStatus} com sucesso`,
+    };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Bloqueia ou desbloqueia um tenant manualmente
+ */
+export async function bloquearClienteManual(tenantId, bloquear) {
+  try {
+    // Busca a assinatura do CLIENTE (não do admin) usando o tenantId passado
+    const assinatura = await carregarAssinatura(true, tenantId);
+    if (!assinatura || !assinatura.tenantId)
+      return { success: false, error: "Nenhuma assinatura encontrada" };
+
+    assinatura.bloqueado = bloquear;
+    assinatura.dataBloqueio = bloquear ? new Date().toISOString() : null;
+
+    // Se estiver desbloqueando, redefine o status para ativo
+    if (!bloquear) {
+      const agora = new Date();
+      assinatura.status = "ativa";
+      assinatura.proximoVencimento = new Date(
+        agora.getTime() + 30 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+    }
+
+    await salvarAssinatura(assinatura, tenantId);
+
+    return {
+      success: true,
+      mensagem: bloquear
+        ? "Cliente bloqueado com sucesso"
+        : "Cliente desbloqueado com sucesso. Acesso liberado!",
     };
   } catch (e) {
     return { success: false, error: e.message };
@@ -633,4 +671,14 @@ export function listarTodosTenants() {
   }
 
   return tenants;
+}
+
+/**
+ * Verifica se um tenant está bloqueado
+ */
+export function verificarBloqueio(tenantId) {
+  const assinatura = JSON.parse(
+    localStorage.getItem(getAssinaturaKey(tenantId)) || "{}",
+  );
+  return assinatura.bloqueado === true;
 }

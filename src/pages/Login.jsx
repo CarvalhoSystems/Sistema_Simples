@@ -79,17 +79,29 @@ export default function Login() {
 
     try {
       // A função login agora retorna o objeto do usuário se for bem-sucedida
-      const user = await login(email, password);
+      const result = await login(email, password);
 
-      if (user && user.uid) {
+      // Verifica se a conta está bloqueada
+      if (result && result.bloqueado) {
+        setError(
+          result.mensagem ||
+            "Sua conta foi bloqueada. Entre em contato com o suporte.",
+        );
+        return;
+      }
+
+      if (result && result.uid) {
         // Se o login deu certo, limpa as penalidades de erro
         localStorage.removeItem("login_tentativas");
         localStorage.removeItem("login_bloqueado_ate");
         setBloqueadoAte(null);
 
         // **LÓGICA CORRIGIDA**: Busca os dados mais recentes do tenant no Firebase
-        console.log("🔍 Buscando dados do tenant no Firebase para:", user.uid);
-        const tenantDataFromFirebase = await carregarTenantFirebase(user.uid);
+        console.log(
+          "🔍 Buscando dados do tenant no Firebase para:",
+          result.uid,
+        );
+        const tenantDataFromFirebase = await carregarTenantFirebase(result.uid);
         console.log("📦 Dados do tenant encontrados:", tenantDataFromFirebase);
 
         // O Firebase retorna o documento completo, precisamos garantir que o ID está presente
@@ -97,12 +109,12 @@ export default function Login() {
           tenantDataFromFirebase?.info || tenantDataFromFirebase || {};
         let tenantData = {
           ...tenantInfo,
-          id: user.uid,
-          uid: user.uid,
-          email: user.email,
-          nome: tenantInfo.nome || user.name || user.email,
+          id: result.uid,
+          uid: result.uid,
+          email: result.email,
+          nome: tenantInfo.nome || result.name || result.email,
           nomeEstabelecimento:
-            tenantInfo.nomeEstabelecimento || user.name || user.email,
+            tenantInfo.nomeEstabelecimento || result.name || result.email,
           ramo: tenantInfo.ramo || "mercado",
           criadoEm: tenantInfo.criadoEm || new Date().toISOString(),
         };
