@@ -323,6 +323,150 @@ export async function carregarVendasFirebase() {
   return [];
 }
 
+// ===== ESTABELECIMENTOS =====
+
+/**
+ * Obtém o UID do usuário principal (dono da conta).
+ * IMPORTANTE: getTenantId() pode retornar o ID do estabelecimento ativo (ex: estab_xxx),
+ * mas para a lista de estabelecimentos devemos sempre usar o UID do usuário dono.
+ */
+function getUserId() {
+  const tenant = getTenant() || {};
+  return tenant.uid || tenant.id || null;
+}
+
+/**
+ * Salva a lista de estabelecimentos do usuário no Firestore
+ * no documento do usuário principal (tenants/{userId}/estabelecimentos)
+ */
+export async function salvarEstabelecimentosFirebase(estabelecimentos) {
+  const userId = getUserId();
+  if (!userId) return;
+
+  // Salva no localStorage como fallback
+  localStorage.setItem(
+    `pdv_estabelecimentos_${userId}`,
+    JSON.stringify(estabelecimentos),
+  );
+
+  if (!isFirebaseReady()) return;
+
+  try {
+    // Usa o user UID (dono da conta) para guardar a lista
+    const userDocRef = doc(db, "tenants", userId);
+    await setDoc(
+      userDocRef,
+      {
+        estabelecimentos,
+        ultimaSincronizacao: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+    console.log(
+      "✅ Estabelecimentos salvos no Firebase:",
+      estabelecimentos.length,
+    );
+  } catch (error) {
+    console.error("❌ Erro ao salvar estabelecimentos no Firebase:", error);
+  }
+}
+
+/**
+ * Carrega a lista de estabelecimentos do usuário do Firebase
+ * (com fallback para localStorage)
+ */
+export async function carregarEstabelecimentosFirebase() {
+  const userId = getUserId();
+  if (!userId) return [];
+
+  if (isFirebaseReady()) {
+    try {
+      const userDocRef = doc(db, "tenants", userId);
+      const docSnap = await getDoc(userDocRef);
+
+      if (docSnap.exists() && Array.isArray(docSnap.data().estabelecimentos)) {
+        const estabelecimentos = docSnap.data().estabelecimentos;
+        // Atualiza localStorage com dados do Firebase
+        localStorage.setItem(
+          `pdv_estabelecimentos_${userId}`,
+          JSON.stringify(estabelecimentos),
+        );
+        return estabelecimentos;
+      }
+    } catch (error) {
+      console.warn("⚠️ Erro ao carregar estabelecimentos do Firebase:", error);
+    }
+  }
+
+  // Fallback: localStorage
+  try {
+    const data = localStorage.getItem(`pdv_estabelecimentos_${userId}`);
+    if (data) return JSON.parse(data);
+  } catch (e) {
+    console.warn("Erro ao carregar estabelecimentos do localStorage:", e);
+  }
+
+  return [];
+}
+
+/**
+ * Salva o ID do estabelecimento ativo no Firestore
+ */
+export async function salvarEstabelecimentoAtivoFirebase(estabId) {
+  const userId = getUserId();
+  if (!userId) return;
+
+  localStorage.setItem("pdv_estabelecimento_ativo", estabId || "");
+
+  if (!isFirebaseReady() || !estabId) return;
+
+  try {
+    const userDocRef = doc(db, "tenants", userId);
+    await setDoc(
+      userDocRef,
+      {
+        estabelecimentoAtivoId: estabId,
+        ultimaSincronizacao: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+  } catch (error) {
+    console.warn(
+      "⚠️ Erro ao salvar estabelecimento ativo no Firebase:",
+      error.message,
+    );
+  }
+}
+
+/**
+ * Carrega o ID do estabelecimento ativo do Firebase
+ * (com fallback para localStorage)
+ */
+export async function carregarEstabelecimentoAtivoFirebase() {
+  const userId = getUserId();
+  if (!userId) return null;
+
+  if (isFirebaseReady()) {
+    try {
+      const userDocRef = doc(db, "tenants", userId);
+      const docSnap = await getDoc(userDocRef);
+
+      if (docSnap.exists() && docSnap.data().estabelecimentoAtivoId) {
+        const estabId = docSnap.data().estabelecimentoAtivoId;
+        localStorage.setItem("pdv_estabelecimento_ativo", estabId);
+        return estabId;
+      }
+    } catch (error) {
+      console.warn(
+        "⚠️ Erro ao carregar estabelecimento ativo do Firebase:",
+        error.message,
+      );
+    }
+  }
+
+  return localStorage.getItem("pdv_estabelecimento_ativo");
+}
+
 // ===== BACKUP E EXPORTAÇÃO =====
 
 /**
@@ -366,6 +510,34 @@ export function exportarDadosTenant() {
   } catch (error) {
     console.error("Erro ao exportar dados:", error);
     alert("Erro ao exportar dados. Tente novamente.");
+  }
+}
+
+// ===== INFORMAÇÕES DO TENANT =====
+
+/**
+ * Salva as informações de configuração do tenant no Firestore
+ * (nomeFantasia, cnpj, endereco, telefone, pixKey, etc.)
+ * Isso garante que as configurações da loja sejam as mesmas
+ * em qualquer dispositivo.
+ */
+export async function salvarInfoTenantFirebase(info) {
+  const tenantId = getTenantId();
+  if (!tenantId) return;
+
+  // Salva no localStorage como fallback
+  const tenant = getTenant() || {};
+  const updatedTenant = { ...tenant, ...info };
+  localStorage.setItem("pdv_tenant", JSON.stringify(updatedTenant));
+
+  if (!isFirebaseReady()) return;
+
+  try {
+    const docRef = getTenantDocRef(tenantId);
+    await setDoc(docRef, { info }, { merge: true });
+    console.log("✅ Info do tenant salva no Firebase");
+  } catch (error) {
+    console.error("❌ Erro ao salvar info do tenant no Firebase:", error);
   }
 }
 

@@ -11,6 +11,7 @@ import {
   buscarProdutos,
   addVenda,
   setProdutos,
+  getVendas,
 } from "./services/tenantData";
 import { formatCurrency } from "./utils/formatters";
 import {
@@ -135,10 +136,10 @@ export default function PDV() {
   const [mostrarPixModal, setMostrarPixModal] = useState(false);
   const [pixPayload, setPixPayload] = useState("");
   const [caixaFechado, setCaixaFechado] = useState(
-    () => sessionStorage.getItem("caixaFechado") === "true",
+    () => localStorage.getItem("caixaFechado") === "true",
   );
   const [dadosFechamento, setDadosFechamento] = useState(() => {
-    const dados = sessionStorage.getItem("dadosFechamento");
+    const dados = localStorage.getItem("dadosFechamento");
     return dados ? JSON.parse(dados) : null;
   });
   const vendasRealizadasRef = useRef([]);
@@ -592,8 +593,8 @@ export default function PDV() {
     ) {
       setCaixaFechado(false);
       setDadosFechamento(null);
-      sessionStorage.removeItem("caixaFechado");
-      sessionStorage.removeItem("dadosFechamento");
+      localStorage.removeItem("caixaFechado");
+      localStorage.removeItem("dadosFechamento");
       vendasRealizadasRef.current = [];
       Swal.fire("Sucesso!", "Caixa reaberto com sucesso.", "success");
     } else {
@@ -687,16 +688,41 @@ export default function PDV() {
       setMostrarF10((prev) => !prev);
     },
 
-    F12: () => {
-      const vendasHoje = vendasRealizadasRef.current.filter((v) => {
+    F12: async () => {
+      // Carrega TODAS as vendas do dia do Firebase (sincronizadas entre dispositivos)
+      // e combina com as vendas da sessão atual
+      let vendasDoDia = [];
+
+      try {
+        const todasVendas = await getVendas();
+        vendasDoDia = todasVendas.filter((v) => {
+          return new Date(v.data).toDateString() === new Date().toDateString();
+        });
+      } catch (error) {
+        console.warn("Erro ao carregar vendas do dia:", error);
+      }
+
+      // Combina com as vendas da sessão atual (evita duplicatas)
+      const vendasSessao = vendasRealizadasRef.current.filter((v) => {
         return new Date(v.data).toDateString() === new Date().toDateString();
       });
 
-      abrirFechamentoCaixa(vendasHoje, (dadosFechamento) => {
+      const vendasCombinadas = [...vendasDoDia];
+      for (const vendaSessao of vendasSessao) {
+        const jaExiste = vendasCombinadas.some(
+          (v) =>
+            v.id === vendaSessao.id || v.timestamp === vendaSessao.timestamp,
+        );
+        if (!jaExiste) {
+          vendasCombinadas.push(vendaSessao);
+        }
+      }
+
+      abrirFechamentoCaixa(vendasCombinadas, (dadosFechamento) => {
         setDadosFechamento(dadosFechamento);
         setCaixaFechado(true);
-        sessionStorage.setItem("caixaFechado", "true");
-        sessionStorage.setItem(
+        localStorage.setItem("caixaFechado", "true");
+        localStorage.setItem(
           "dadosFechamento",
           JSON.stringify(dadosFechamento),
         );

@@ -74,9 +74,9 @@ export default function Signup() {
         const nomeEstab =
           nomeEstabelecimento ||
           RAMOS_NEGOCIO.find((r) => r.id === businessType)?.nome;
-        const resultEstab = criarEstabelecimento(nomeEstab, businessType);
+        const resultEstab = await criarEstabelecimento(nomeEstab, businessType);
         if (resultEstab.success) {
-          alternarEstabelecimento(resultEstab.estabelecimento.id);
+          await alternarEstabelecimento(resultEstab.estabelecimento.id);
         }
 
         alert(

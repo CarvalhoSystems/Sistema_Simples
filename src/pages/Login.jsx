@@ -4,7 +4,10 @@ import { useNavigate, Link } from "react-router-dom";
 import { setTenant } from "../hooks/useTenant"; // Importa a função para definir o tenant ativo
 import { carregarTenantFirebase } from "../services/firebaseData.js"; // Importa a nova função
 import { validateLoginInput } from "../utils/operacoesSeguras";
-
+import {
+  getEstabelecimentoAtivoId,
+  getEstabelecimentoAtivo,
+} from "../services/estabelecimentoManager";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -92,7 +95,7 @@ export default function Login() {
         // O Firebase retorna o documento completo, precisamos garantir que o ID está presente
         const tenantInfo =
           tenantDataFromFirebase?.info || tenantDataFromFirebase || {};
-        const tenantData = {
+        let tenantData = {
           ...tenantInfo,
           id: user.uid,
           uid: user.uid,
@@ -103,6 +106,21 @@ export default function Login() {
           ramo: tenantInfo.ramo || "mercado",
           criadoEm: tenantInfo.criadoEm || new Date().toISOString(),
         };
+
+        // **RESTAURA O ESTABELECIMENTO ATIVO** se houver um salvo
+        // Busca do Firebase primeiro (sincronizado entre dispositivos)
+        const estabAtivoId = await getEstabelecimentoAtivoId();
+        const estabAtivo = await getEstabelecimentoAtivo();
+        if (estabAtivoId && estabAtivo) {
+          console.log("🏪 Restaurando estabelecimento ativo:", estabAtivo.nome);
+          tenantData = {
+            ...tenantData,
+            id: estabAtivoId,
+            nomeEstabelecimento: estabAtivo.nome,
+            ramo: estabAtivo.ramo || tenantData.ramo,
+            estabelecimentoAtivo: estabAtivoId,
+          };
+        }
 
         console.log("✅ Definindo tenant com ID:", tenantData.id);
         setTenant(tenantData);

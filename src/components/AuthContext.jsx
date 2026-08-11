@@ -10,6 +10,11 @@ import {
   onAuthStateChanged,
 } from "firebase/auth";
 import { clearTenant, setTenant, setTenantByEmail } from "../hooks/useTenant";
+import { carregarTenantFirebase } from "../services/firebaseData";
+import {
+  getEstabelecimentoAtivoId,
+  getEstabelecimentoAtivo,
+} from "../services/estabelecimentoManager";
 
 const AuthContext = createContext(null);
 
@@ -20,16 +25,64 @@ export function AuthProvider({ children }) {
   // Escuta mudanças no estado de autenticação do Firebase
   useEffect(() => {
     if (firebaseDisponivel && firebaseAuth) {
-      const unsubscribe = onAuthStateChanged(firebaseAuth, (firebaseUser) => {
-        if (firebaseUser) {
-          setUser({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            name: firebaseUser.displayName || firebaseUser.email,
-          });
-        }
-        setCarregando(false);
-      });
+      const unsubscribe = onAuthStateChanged(
+        firebaseAuth,
+        async (firebaseUser) => {
+          if (firebaseUser) {
+            setUser({
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              name: firebaseUser.displayName || firebaseUser.email,
+            });
+
+            // **RESTAURA O TENANT** ao recarregar a página
+            // Isso garante que o usuário volte para o mesmo estabelecimento
+            // mesmo após atualizar a página ou abrir em outro dispositivo
+            try {
+              const tenantDataFromFirebase = await carregarTenantFirebase(
+                firebaseUser.uid,
+              );
+              const tenantInfo =
+                tenantDataFromFirebase?.info || tenantDataFromFirebase || {};
+
+              let tenantData = {
+                ...tenantInfo,
+                id: firebaseUser.uid,
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                nome:
+                  tenantInfo.nome ||
+                  firebaseUser.displayName ||
+                  firebaseUser.email,
+                nomeEstabelecimento:
+                  tenantInfo.nomeEstabelecimento ||
+                  firebaseUser.displayName ||
+                  firebaseUser.email,
+                ramo: tenantInfo.ramo || "mercado",
+                criadoEm: tenantInfo.criadoEm || new Date().toISOString(),
+              };
+
+              // Restaura o estabelecimento ativo (sincronizado entre dispositivos)
+              const estabAtivoId = await getEstabelecimentoAtivoId();
+              const estabAtivo = await getEstabelecimentoAtivo();
+              if (estabAtivoId && estabAtivo) {
+                tenantData = {
+                  ...tenantData,
+                  id: estabAtivoId,
+                  nomeEstabelecimento: estabAtivo.nome,
+                  ramo: estabAtivo.ramo || tenantData.ramo,
+                  estabelecimentoAtivo: estabAtivoId,
+                };
+              }
+
+              setTenant(tenantData);
+            } catch (error) {
+              console.warn("Erro ao restaurar tenant:", error);
+            }
+          }
+          setCarregando(false);
+        },
+      );
       return () => unsubscribe();
     } else {
       // Sem Firebase: verifica se tem usuário no sessionStorage
@@ -84,8 +137,6 @@ export function AuthProvider({ children }) {
     // Fallback: login local (demo)
     return loginLocal(email, password);
   };
-
-
 
   // Cadastro com Firebase (fallback para localStorage)
   const signup = async (email, password, nome, estabelecimento, ramo) => {

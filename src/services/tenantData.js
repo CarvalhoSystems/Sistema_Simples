@@ -20,6 +20,7 @@ import {
   salvarVendaFirebase,
   carregarCategoriasFirebase, // Adicionado para carregar categorias do Firebase
   salvarCategoriasFirebase, // Adicionado para salvar categorias no Firebase
+  carregarVendasFirebase, // Adicionado para carregar vendas do Firebase
 } from "./firebaseData.js";
 
 /**
@@ -147,11 +148,20 @@ export async function setCategorias(categorias) {
 
 /**
  * Obtém as vendas do tenant atual
+ * Busca do Firebase primeiro (dados sincronizados entre dispositivos),
+ * com fallback para localStorage.
  */
-export function getVendas() {
+export async function getVendas() {
   const tenantId = getTenantId();
   if (!tenantId) return [];
 
+  // Busca do Firebase primeiro para garantir dados sincronizados entre dispositivos
+  const vendasDoFirebase = await carregarVendasFirebase();
+  if (vendasDoFirebase && vendasDoFirebase.length > 0) {
+    return vendasDoFirebase;
+  }
+
+  // Fallback: carrega do localStorage
   try {
     const data = localStorage.getItem(tenantKey(tenantId, "vendas"));
     if (data) {

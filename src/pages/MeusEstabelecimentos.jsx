@@ -29,10 +29,15 @@ export default function MeusEstabelecimentos() {
     carregarDados();
   }, []);
 
-  function carregarDados() {
-    setEstabelecimentos(listarEstabelecimentos());
-    setEstabelecimentoAtivoId(getEstabelecimentoAtivoId());
-    verificarStatusAssinatura().then(setStatusAssinatura);
+  async function carregarDados() {
+    setEstabelecimentos(await listarEstabelecimentos());
+    setEstabelecimentoAtivoId(await getEstabelecimentoAtivoId());
+    try {
+      const status = await verificarStatusAssinatura();
+      setStatusAssinatura(status);
+    } catch (e) {
+      console.warn("Erro ao verificar assinatura:", e);
+    }
   }
 
   const handleCriar = async () => {
@@ -41,7 +46,7 @@ export default function MeusEstabelecimentos() {
       return;
     }
 
-    const result = criarEstabelecimento(
+    const result = await criarEstabelecimento(
       sanitizeInput(novoNome.trim()),
       novoRamo,
     );
@@ -54,14 +59,14 @@ export default function MeusEstabelecimentos() {
       setShowModal(false);
       setNovoNome("");
       setNovoRamo("mercado");
-      carregarDados();
+      await carregarDados();
     } else {
       Swal.fire("Erro", result.error, "error");
     }
   };
 
   const handleAlternar = async (estabId) => {
-    const result = alternarEstabelecimento(estabId);
+    const result = await alternarEstabelecimento(estabId);
     if (result.success) {
       Swal.fire(
         "Alternado!",
@@ -70,7 +75,7 @@ export default function MeusEstabelecimentos() {
       ).then(() => {
         navigate("/dashboard");
       });
-      carregarDados();
+      await carregarDados();
     } else {
       Swal.fire("Erro", result.error, "error");
     }
@@ -88,14 +93,14 @@ export default function MeusEstabelecimentos() {
     });
 
     if (confirm.isConfirmed) {
-      const result = removerEstabelecimento(estabId);
+      const result = await removerEstabelecimento(estabId);
       if (result.success) {
         Swal.fire(
           "Removido!",
           "Estabelecimento removido com sucesso.",
           "success",
         );
-        carregarDados();
+        await carregarDados();
       } else {
         Swal.fire("Erro", result.error, "error");
       }
@@ -107,13 +112,13 @@ export default function MeusEstabelecimentos() {
       Swal.fire("Atenção", "Digite um nome válido.", "warning");
       return;
     }
-    const result = renomearEstabelecimento(
+    const result = await renomearEstabelecimento(
       estabId,
       sanitizeInput(editandoNome.trim()),
     );
     if (result.success) {
       setEditandoId(null);
-      carregarDados();
+      await carregarDados();
     } else {
       Swal.fire("Erro", result.error, "error");
     }

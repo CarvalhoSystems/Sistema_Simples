@@ -14,6 +14,9 @@
  *   pdv_vendas_{estabId}
  *   pdv_categorias_{estabId}
  *   pdv_assinatura_{estabId}
+ *
+ * Os dados são sincronizados com o Firebase para que o mesmo
+ * usuário veja os mesmos estabelecimentos em qualquer dispositivo.
  */
 
 import {
@@ -23,6 +26,12 @@ import {
   setTenantByEmail,
 } from "../hooks/useTenant";
 import { podeAdicionarEstabelecimento } from "./planoManager";
+import {
+  salvarEstabelecimentosFirebase,
+  carregarEstabelecimentosFirebase,
+  salvarEstabelecimentoAtivoFirebase,
+  carregarEstabelecimentoAtivoFirebase,
+} from "./firebaseData";
 
 const ESTABELECIMENTOS_KEY = "pdv_estabelecimentos";
 const ESTABELECIMENTO_ATIVO_KEY = "pdv_estabelecimento_ativo";
@@ -35,12 +44,30 @@ function getEstabelecimentosKey(userId) {
 }
 
 /**
- * Lista todos os estabelecimentos do usuário logado
+ * Obtém o UID do usuário principal (dono da conta).
+ * IMPORTANTE: getTenantId() pode retornar o ID do estabelecimento ativo (ex: estab_xxx),
+ * mas para a lista de estabelecimentos devemos sempre usar o UID do usuário dono.
  */
-export function listarEstabelecimentos() {
-  const userId = getTenantId();
+function getUserId() {
+  const tenant = getTenant() || {};
+  return tenant.uid || tenant.id || null;
+}
+
+/**
+ * Lista todos os estabelecimentos do usuário logado
+ * Busca do Firebase primeiro (sincronizado entre dispositivos)
+ */
+export async function listarEstabelecimentos() {
+  const userId = getUserId();
   if (!userId) return [];
 
+  // Busca do Firebase primeiro para garantir dados sincronizados
+  const estabelecimentosFirebase = await carregarEstabelecimentosFirebase();
+  if (estabelecimentosFirebase && estabelecimentosFirebase.length > 0) {
+    return estabelecimentosFirebase;
+  }
+
+  // Fallback: localStorage
   try {
     const data = localStorage.getItem(getEstabelecimentosKey(userId));
     return data ? JSON.parse(data) : [];
@@ -51,19 +78,28 @@ export function listarEstabelecimentos() {
 }
 
 /**
- * Salva a lista de estabelecimentos
+ * Salva a lista de estabelecimentos (local + Firebase)
  */
-function salvarEstabelecimentos(userId, estabelecimentos) {
+async function salvarEstabelecimentos(userId, estabelecimentos) {
   localStorage.setItem(
     getEstabelecimentosKey(userId),
     JSON.stringify(estabelecimentos),
   );
+  // Sincroniza com Firebase
+  await salvarEstabelecimentosFirebase(estabelecimentos);
 }
 
 /**
  * Obtém o ID do estabelecimento ativo no momento
+ * Busca do Firebase primeiro (sincronizado entre dispositivos)
  */
-export function getEstabelecimentoAtivoId() {
+export async function getEstabelecimentoAtivoId() {
+  // Busca do Firebase primeiro
+  const estabIdFirebase = await carregarEstabelecimentoAtivoFirebase();
+  if (estabIdFirebase) {
+    return estabIdFirebase;
+  }
+
   try {
     return localStorage.getItem(ESTABELECIMENTO_ATIVO_KEY);
   } catch (e) {
@@ -74,11 +110,11 @@ export function getEstabelecimentoAtivoId() {
 /**
  * Obtém os dados completos do estabelecimento ativo
  */
-export function getEstabelecimentoAtivo() {
-  const id = getEstabelecimentoAtivoId();
+export async function getEstabelecimentoAtivo() {
+  const id = await getEstabelecimentoAtivoId();
   if (!id) return null;
 
-  const estabelecimentos = listarEstabelecimentos();
+  const estabelecimentos = await listarEstabelecimentos();
   return estabelecimentos.find((e) => e.id === id) || null;
 }
 
@@ -86,11 +122,11 @@ export function getEstabelecimentoAtivo() {
  * Cria um novo estabelecimento para o usuário
  */
 export async function criarEstabelecimento(nome, ramo = "") {
-  const userId = getTenantId();
+  const userId = getUserId();
   if (!userId) return { success: false, error: "Usuário não encontrado" };
 
   // Verifica limite do plano
-  const estabelecimentos = listarEstabelecimentos();
+  const estabelecimentos = await listarEstabelecimentos();
   const podeAdicionar = await podeAdicionarEstabelecimento(
     estabelecimentos.length,
   );
@@ -102,8 +138,12 @@ export async function criarEstabelecimento(nome, ramo = "") {
     };
   }
 
+  // IMPORTANTE: O primeiro estabelecimento usa o UID do usuário como ID.
+  // Isso garante que os dados iniciais (produtos, categorias) salvos em
+  // tenants/{uid} sejam usados pelo estabelecimento principal.
+  // Estabelecimentos adicionais usam IDs gerados (estab_xxx).
   const novoEstabelecimento = {
-    id: `estab_${Date.now()}`,
+    id: estabelecimentos.length === 0 ? userId : `estab_${Date.now()}`,
     nome: nome,
     ramo: ramo,
     criadoEm: new Date().toISOString(),
@@ -111,10 +151,15 @@ export async function criarEstabelecimento(nome, ramo = "") {
   };
 
   estabelecimentos.push(novoEstabelecimento);
-  salvarEstabelecimentos(userId, estabelecimentos);
+  await salvarEstabelecimentos(userId, estabelecimentos);
 
   // Inicializa dados padrão para o novo estabelecimento
-  inicializarDadosEstabelecimento(novoEstabelecimento.id, ramo);
+  // IMPORTANTE: Não sobrescreve os dados do primeiro estabelecimento (userId)
+  // pois os produtos/categorias iniciais já foram salvos no Firebase
+  // durante o cadastro (inicializarDadosTenant).
+  if (novoEstabelecimento.id !== userId) {
+    inicializarDadosEstabelecimento(novoEstabelecimento.id, ramo);
+  }
 
   return { success: true, estabelecimento: novoEstabelecimento };
 }
@@ -132,17 +177,17 @@ function inicializarDadosEstabelecimento(estabId, ramo) {
 /**
  * Alterna para um estabelecimento (define como ativo)
  */
-export function alternarEstabelecimento(estabId) {
-  const userId = getTenantId();
+export async function alternarEstabelecimento(estabId) {
+  const userId = getUserId();
   if (!userId) return { success: false, error: "Usuário não encontrado" };
 
-  const estabelecimentos = listarEstabelecimentos();
+  const estabelecimentos = await listarEstabelecimentos();
   const estab = estabelecimentos.find((e) => e.id === estabId);
   if (!estab)
     return { success: false, error: "Estabelecimento não encontrado" };
 
-  // Salva o ID do estabelecimento ativo
-  localStorage.setItem(ESTABELECIMENTO_ATIVO_KEY, estabId);
+  // Salva o ID do estabelecimento ativo (local + Firebase)
+  await salvarEstabelecimentoAtivoFirebase(estabId);
 
   // Atualiza o tenant no localStorage para refletir o estabelecimento ativo
   const tenant = getTenant();
@@ -168,11 +213,11 @@ export function alternarEstabelecimento(estabId) {
 /**
  * Remove um estabelecimento
  */
-export function removerEstabelecimento(estabId) {
-  const userId = getTenantId();
+export async function removerEstabelecimento(estabId) {
+  const userId = getUserId();
   if (!userId) return { success: false, error: "Usuário não encontrado" };
 
-  let estabelecimentos = listarEstabelecimentos();
+  let estabelecimentos = await listarEstabelecimentos();
   const index = estabelecimentos.findIndex((e) => e.id === estabId);
   if (index === -1)
     return { success: false, error: "Estabelecimento não encontrado" };
@@ -186,12 +231,12 @@ export function removerEstabelecimento(estabId) {
   }
 
   estabelecimentos.splice(index, 1);
-  salvarEstabelecimentos(userId, estabelecimentos);
+  await salvarEstabelecimentos(userId, estabelecimentos);
 
   // Se o estabelecimento removido era o ativo, alterna para o primeiro
-  const ativoId = getEstabelecimentoAtivoId();
+  const ativoId = await getEstabelecimentoAtivoId();
   if (ativoId === estabId && estabelecimentos.length > 0) {
-    alternarEstabelecimento(estabelecimentos[0].id);
+    await alternarEstabelecimento(estabelecimentos[0].id);
   }
 
   // Limpa dados do estabelecimento removido
@@ -205,20 +250,20 @@ export function removerEstabelecimento(estabId) {
 /**
  * Renomeia um estabelecimento
  */
-export function renomearEstabelecimento(estabId, novoNome) {
-  const userId = getTenantId();
+export async function renomearEstabelecimento(estabId, novoNome) {
+  const userId = getUserId();
   if (!userId) return { success: false, error: "Usuário não encontrado" };
 
-  const estabelecimentos = listarEstabelecimentos();
+  const estabelecimentos = await listarEstabelecimentos();
   const estab = estabelecimentos.find((e) => e.id === estabId);
   if (!estab)
     return { success: false, error: "Estabelecimento não encontrado" };
 
   estab.nome = novoNome;
-  salvarEstabelecimentos(userId, estabelecimentos);
+  await salvarEstabelecimentos(userId, estabelecimentos);
 
   // Se for o ativo, atualiza o tenant também
-  const ativoId = getEstabelecimentoAtivoId();
+  const ativoId = await getEstabelecimentoAtivoId();
   if (ativoId === estabId) {
     const tenant = getTenant();
     if (tenant) {
@@ -237,6 +282,7 @@ export function renomearEstabelecimento(estabId, novoNome) {
 /**
  * Obtém a contagem de estabelecimentos do usuário
  */
-export function contarEstabelecimentos() {
-  return listarEstabelecimentos().length;
+export async function contarEstabelecimentos() {
+  const estabelecimentos = await listarEstabelecimentos();
+  return estabelecimentos.length;
 }

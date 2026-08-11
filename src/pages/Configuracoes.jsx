@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getTenant, setTenant } from "../hooks/useTenant";
+import { salvarInfoTenantFirebase } from "../services/firebaseData";
 import Swal from "sweetalert2";
-
 
 export default function Configuracoes() {
   const navigate = useNavigate();
@@ -78,6 +78,23 @@ export default function Configuracoes() {
       };
 
       setTenant(updatedTenant);
+
+      // Salva as configurações no Firebase para sincronizar entre dispositivos
+      await salvarInfoTenantFirebase({
+        nomeFantasia: formData.nomeFantasia,
+        nomeEstabelecimento:
+          formData.nomeFantasia || tenant.nomeEstabelecimento,
+        cnpj: formData.cnpj,
+        endereco: formData.endereco,
+        telefone: formData.telefone,
+        pixKey: formData.pixKey,
+        pixHolder: formData.pixHolder,
+        receiptMessage: formData.receiptMessage,
+        cartaoProvedor: formData.cartaoProvedor,
+        mercadoPagoAccessToken: formData.mercadoPagoAccessToken,
+        mercadoPagoDeviceId: formData.mercadoPagoDeviceId,
+        mercadoPagoCommercialAddress: formData.mercadoPagoCommercialAddress,
+      });
 
       Swal.fire(
         "Salvo!",

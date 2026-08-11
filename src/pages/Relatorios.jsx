@@ -107,8 +107,11 @@ export default function Relatorios() {
 
   // Carrega vendas do tenant
   useEffect(() => {
-    const todasVendas = getVendas();
-    setVendas(todasVendas);
+    const carregarVendas = async () => {
+      const todasVendas = await getVendas();
+      setVendas(todasVendas);
+    };
+    carregarVendas();
   }, []);
 
   // Calcula estatísticas quando vendas, mês ou ano mudam
