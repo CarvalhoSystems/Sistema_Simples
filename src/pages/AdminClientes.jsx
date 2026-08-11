@@ -184,12 +184,6 @@ export default function AdminClientes() {
                   Status
                 </th>
                 <th className="text-center p-3 font-medium text-gray-600">
-                  Vendas
-                </th>
-                <th className="text-right p-3 font-medium text-gray-600">
-                  Faturamento
-                </th>
-                <th className="text-center p-3 font-medium text-gray-600">
                   Expira
                 </th>
                 <th className="text-center p-3 font-medium text-gray-600">
@@ -200,7 +194,7 @@ export default function AdminClientes() {
             <tbody>
               {clientesFiltrados.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="text-center p-8 text-gray-400">
+                  <td colSpan="7" className="text-center p-8 text-gray-400">
                     <i className="fas fa-inbox text-3xl mb-2 block"></i>
                     Nenhum cliente encontrado
                   </td>
@@ -247,12 +241,6 @@ export default function AdminClientes() {
                         >
                           {statusInfo.texto}
                         </span>
-                      </td>
-                      <td className="p-3 text-center font-medium">
-                        {cliente.totalVendas || 0}
-                      </td>
-                      <td className="p-3 text-right font-medium">
-                        R$ {(cliente.valorTotalVendas || 0).toFixed(2)}
                       </td>
                       <td className="p-3 text-center text-xs text-gray-500">
                         {formatarData(cliente.assinatura?.proximoVencimento)}
@@ -532,10 +520,21 @@ export default function AdminClientes() {
           <p className="text-2xl font-bold text-purple-600">
             R${" "}
             {clientes
-              .reduce((acc, c) => acc + (c.valorTotalVendas || 0), 0)
+              .reduce((acc, c) => {
+                const planoId = c.assinatura?.planoId || c.assinatura?.plano;
+                if (
+                  c.assinatura?.status === "ativa" &&
+                  planoId &&
+                  planoId !== "free" &&
+                  PLANOS[planoId]
+                ) {
+                  return acc + PLANOS[planoId].preco;
+                }
+                return acc;
+              }, 0)
               .toFixed(2)}
           </p>
-          <p className="text-xs text-gray-500">Faturamento Total</p>
+          <p className="text-xs text-gray-500">Receita Mensal (Assinaturas)</p>
         </div>
       </div>
     </div>

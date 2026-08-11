@@ -54,19 +54,20 @@ export default function AdminDashboard() {
       c.assinatura?.status === "vencida" ||
       c.assinatura?.status === "trial_expirado",
   ).length; // Filtra pelo status correto
-  const faturamentoTotal = clientes.reduce(
-    // Estes campos não estarão mais disponíveis diretamente
-    (acc, c) =>
-      acc +
-      (c.assinatura?.plano !== "free"
-        ? PLANOS[c.assinatura?.plano]?.preco || 0
-        : 0), // Simula faturamento mensal dos planos ativos
-    0,
-  );
-  const totalVendas = clientes.reduce(
-    (acc, c) => acc + (c.totalVendas || 0),
-    0,
-  );
+  // Faturamento do SISTEMA (recorrência de assinaturas dos clientes)
+  // Calcula o valor mensal que o admin recebe dos clientes com plano ativo
+  const faturamentoTotal = clientes.reduce((acc, c) => {
+    const planoId = c.assinatura?.planoId || c.assinatura?.plano;
+    if (
+      c.assinatura?.status === "ativa" &&
+      planoId &&
+      planoId !== "free" &&
+      PLANOS[planoId]
+    ) {
+      return acc + PLANOS[planoId].preco;
+    }
+    return acc;
+  }, 0);
 
   // Contagem por plano
   const planosCount = {};
@@ -234,25 +235,16 @@ export default function AdminDashboard() {
             <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-gray-700">
-                  Resumo Financeiro
+                  Resumo de Receita (Sistema)
                 </h3>
                 <i className="fas fa-dollar-sign text-gray-400"></i>
               </div>
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center gap-2">
-                    <i className="fas fa-shopping-cart text-blue-500"></i>
-                    <span className="text-sm text-gray-600">
-                      Total de Vendas
-                    </span>
-                  </div>
-                  <span className="font-bold text-gray-800">{totalVendas}</span>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-2">
                     <i className="fas fa-money-bill-wave text-green-500"></i>
                     <span className="text-sm text-gray-600">
-                      Faturamento Total
+                      Receita Mensal (Assinaturas)
                     </span>
                   </div>
                   <span className="font-bold text-green-600">
@@ -261,17 +253,22 @@ export default function AdminDashboard() {
                 </div>
                 <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center gap-2">
+                    <i className="fas fa-users text-blue-500"></i>
+                    <span className="text-sm text-gray-600">
+                      Clientes Pagantes
+                    </span>
+                  </div>
+                  <span className="font-bold text-blue-600">{ativos}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-2">
                     <i className="fas fa-store text-purple-500"></i>
                     <span className="text-sm text-gray-600">
-                      Média por Cliente
+                      Receita Média por Cliente
                     </span>
                   </div>
                   <span className="font-bold text-purple-600">
-                    R${" "}
-                    {(totalClientes > 0
-                      ? faturamentoTotal / totalClientes
-                      : 0
-                    ).toFixed(2)}
+                    R$ {(ativos > 0 ? faturamentoTotal / ativos : 0).toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -356,16 +353,13 @@ export default function AdminDashboard() {
                       Email
                     </th>
                     <th className="text-center p-3 font-medium text-gray-600">
-                      Plano
-                    </th>
-                    <th className="text-center p-3 font-medium text-gray-600">
                       Status
                     </th>
                     <th className="text-center p-3 font-medium text-gray-600">
-                      Vendas
+                      Plano
                     </th>
                     <th className="text-right p-3 font-medium text-gray-600">
-                      Faturamento
+                      Vencimento
                     </th>
                   </tr>
                 </thead>
@@ -405,6 +399,13 @@ export default function AdminDashboard() {
                           {cliente.email || "-"}
                         </td>
                         <td className="p-3 text-center">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${info.cor}`}
+                          >
+                            {info.texto}
+                          </span>
+                        </td>
+                        <td className="p-3 text-center">
                           <span className="font-medium text-gray-700">
                             {cliente.assinatura?.plano
                               ? PLANOS[cliente.assinatura.plano]?.nome ||
@@ -412,25 +413,19 @@ export default function AdminDashboard() {
                               : "Free"}
                           </span>
                         </td>
-                        <td className="p-3 text-center">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${info.cor}`}
-                          >
-                            {info.texto}
-                          </span>
-                        </td>
-                        <td className="p-3 text-center font-medium">
-                          {cliente.totalVendas || 0}
-                        </td>
-                        <td className="p-3 text-right font-medium">
-                          R$ {(cliente.valorTotalVendas || 0).toFixed(2)}
+                        <td className="p-3 text-right text-xs text-gray-500">
+                          {cliente.assinatura?.proximoVencimento
+                            ? new Date(
+                                cliente.assinatura.proximoVencimento,
+                              ).toLocaleDateString("pt-BR")
+                            : "-"}
                         </td>
                       </tr>
                     );
                   })}
                   {clientes.length === 0 && (
                     <tr>
-                      <td colSpan="6" className="text-center p-8 text-gray-400">
+                      <td colSpan="5" className="text-center p-8 text-gray-400">
                         <i className="fas fa-inbox text-3xl mb-2 block"></i>
                         Nenhum cliente cadastrado ainda
                       </td>
