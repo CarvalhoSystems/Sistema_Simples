@@ -18,6 +18,7 @@ export default function Signup() {
   const [businessType, setBusinessType] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [carregando, setCarregando] = useState(false);
   const { signup } = useAuth();
@@ -29,6 +30,11 @@ export default function Signup() {
 
     if (!businessType) {
       setError("Selecione um ramo de negócio.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("As senhas não conferem.");
       return;
     }
 
@@ -224,7 +230,20 @@ export default function Signup() {
               required
             />
           </div>
-
+          <div>
+            <label className="block text-sm font-medium text-slate-700">
+              Confirme a Senha
+            </label>
+            <input // Alterado para usar o estado e a função de atualização de confirmPassword
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-3.5 py-2.5 mt-1 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-800"
+              placeholder="Mínimo 6 caracteres"
+              minLength={6}
+              required
+            />
+          </div>
           {error && (
             <p className="text-sm text-red-600 font-medium flex items-center gap-1">
               <i className="fas fa-exclamation-circle"></i>
