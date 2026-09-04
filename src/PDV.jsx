@@ -25,7 +25,9 @@ import {
 } from "./services/notaFiscalPaulista";
 import { abrirFechamentoCaixa } from "./components/fechamentoDeCaixa";
 import { imprimirCupom } from "./services/impressaoService";
+import { setOperadorAtual } from "./services/operadorSession";
 import { useAuth } from "./components/AuthContext";
+import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
 import PixQrCodeModal from "./components/PixQrCodeModal";
 import {
   gerarPayloadPix,
