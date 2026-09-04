@@ -68,7 +68,7 @@ export default function BarraSuperior() {
   };
 
   // Opcional: Permitir pressionar a tecla ESC para acionar a saída protegida
-  useEffect(() => {
+  /*useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === "Escape") {
         e.preventDefault();
@@ -77,7 +77,7 @@ export default function BarraSuperior() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, []);*/
 
   return (
     <div className="bg-[#1e3a8a] text-white px-4 py-2 flex justify-between items-center text-sm font-bold shadow-md border-b-2 border-[#172554]">
