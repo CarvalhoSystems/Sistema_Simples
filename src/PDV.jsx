@@ -153,8 +153,12 @@ export default function PDV() {
   const [produtosDoTenant, setProdutosDoTenant] = useState([]);
 
   useEffect(() => {
-    if (mostrarF10 && inputBuscaF10Ref.current) {
-      setTimeout(() => inputBuscaF10Ref.current.focus(), 100);
+    if (mostrarF10) {
+      // Usa requestAnimationFrame para garantir que o modal renderizou e o input está pronto
+      requestAnimationFrame(() => {
+        inputBuscaF10Ref.current?.focus();
+        inputBuscaF10Ref.current?.select(); // Opcional: já seleciona o texto se houver
+      });
     }
   }, [mostrarF10]);
 
@@ -174,6 +178,8 @@ export default function PDV() {
     const inputCodigoBarras = document.getElementById("codigo-barras-input");
     const manterFoco = () => {
       const isSwalOpen = document.body.classList.contains("swal2-shown");
+      // Adcionado se o F10 estiver aberto
+      if (mostrarF10) return;
       if (document.activeElement !== inputCodigoBarras && !isSwalOpen) {
         inputCodigoBarras?.focus();
       }
@@ -911,7 +917,8 @@ export default function PDV() {
 
       {mostrarF10 && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 select-text">
-          <div className="bg-white w-full max-w-2xl rounded shadow-2xl border-2 border-[#1e3a8a] overflow-hidden flex flex-col max-h-[80vh]">
+          {/* ADICIONE A CLASSE AQUI */}
+          <div className="f10-modal-container bg-white w-full max-w-2xl rounded shadow-2xl border-2 border-[#1e3a8a] overflow-hidden flex flex-col max-h-[80vh]">
             <div className="bg-[#1e3a8a] text-white p-3 font-mono font-bold flex justify-between items-center">
               <span>[F10] CONSULTA DE PRODUTOS</span>
               <button
