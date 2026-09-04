@@ -21,6 +21,8 @@ import {
   carregarCategoriasFirebase, // Adicionado para carregar categorias do Firebase
   salvarCategoriasFirebase, // Adicionado para salvar categorias no Firebase
   carregarVendasFirebase, // Adicionado para carregar vendas do Firebase
+  carregarFuncionariosFirebase, // Adcionado a função de novos funcionarios
+  salvarFuncionariosFirebase, // Salva os
 } from "./firebaseData.js";
 
 /**
@@ -95,15 +97,15 @@ function gerarProximoCodigo(produtos) {
  */
 export async function addProduto(produto) {
   const produtos = await getProdutos();
-  
+
   // Se não fornecer código, gera um sequencial
   const codigo = produto.codigo || gerarProximoCodigo(produtos);
-  
+
   const novoProduto = {
     ...produto,
     codigo: codigo,
   };
-  
+
   produtos.push(novoProduto);
   await setProdutos(produtos);
   return novoProduto;
@@ -239,4 +241,80 @@ export function getEstabelecimentoInfo() {
     ramoInfo: tenant.ramoInfo || null,
     email: tenant.email || "",
   };
+
+  // **
+}
+
+/**
+ * Obtém os funcionários/caixas cadastrados do tenant atual
+ */
+export async function getFuncionarios() {
+  const tenantId = getTenantId();
+  if (!tenantId) return [];
+
+  // carregar do Firebase
+  const funcionariosDoTenant = await carregarFuncionariosFirebase();
+  return funcionariosDoTenant;
+}
+
+/**
+ * Salva a lista de funcionários do tenant
+ */
+export async function setFuncionarios(funcionarios) {
+  const tenantId = getTenantId();
+  await salvarFuncionariosFirebase(funcionarios);
+}
+
+/**
+ * Excluir Funcionarios do Firebase
+ */
+
+/**
+ * Cadastra um novo funcionário com código curto (PIN) e senha
+ */
+export async function addFuncionario(dadosFuncionario) {
+  const funcionarios = await getFuncionarios();
+
+  // Valida se já existe um funcionário com o mesmo código curto neste tenant
+  const existe = funcionarios.some((f) => f.codigo === dadosFuncionario.codigo);
+  if (existe) {
+    throw new Error(
+      "Este código de acesso (PIN) já está em uso por outro funcionário.",
+    );
+  }
+
+  const novoFuncionario = {
+    id: Date.now().toString(),
+    codigo: dadosFuncionario.codigo,
+    nome: dadosFuncionario.nome,
+    senha: dadosFuncionario.senha,
+    cargo: dadosFuncionario.cargo || "caixa", // "caixa" ou "admin"
+    ativo: true,
+    criadoEm: new Date().toISOString(),
+  };
+
+  funcionarios.push(novoFuncionario);
+  await setFuncionarios(funcionarios);
+  return novoFuncionario;
+}
+
+/**
+ * Autentica um caixa pelo código curto e senha dentro do tenant
+ */
+export async function autenticarFuncionarioPorCodigo(codigo, senha) {
+  const funcionarios = await getFuncionarios();
+
+  const funcionario = funcionarios.find(
+    (f) => f.codigo === String(codigo) && f.ativo === true,
+  );
+
+  if (!funcionario) {
+    throw new Error("Funcionário não encontrado ou inativo.");
+  }
+
+  if (funcionario.senha !== String(senha)) {
+    throw new Error("Senha incorreta.");
+  }
+
+  return funcionario; // Retorna os dados do funcionário (incluindo o cargo)
 }

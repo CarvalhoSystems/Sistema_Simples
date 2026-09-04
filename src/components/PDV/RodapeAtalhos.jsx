@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useEffect } from "react";
 
-export default function RodapeAtalhos() {
+export default function RodapeAtalhos({ onSolicitarSenhaAdmin }) {
   const atalhos = [
     { tecla: "F2", acao: "Cancelar Item" },
     { tecla: "F3", acao: "Cancelar Cupom" },
@@ -13,6 +13,21 @@ export default function RodapeAtalhos() {
     { tecla: "F10", acao: "Produtos" },
     { tecla: "F12", acao: "Fechamento de Caixa" },
   ];
+
+  // Adiciona o listener global para capturar a tecla F4 e proteger a saída
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "F4") {
+        e.preventDefault(); // Evita o comportamento padrão do navegador
+        if (onSolicitarSenhaAdmin) {
+          onSolicitarSenhaAdmin();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onSolicitarSenhaAdmin]);
 
   return (
     <div className="bg-[#1e293b] border-t border-slate-700 text-[11px] font-bold p-2 grid grid-cols-5 gap-y-1 gap-x-4 text-slate-300 shadow-inner font-mono">

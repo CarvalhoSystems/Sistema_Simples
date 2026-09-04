@@ -641,8 +641,42 @@ export default function PDV() {
         if (res.isConfirmed) dispatch({ type: "LIMPAR_CARRINHO" });
       });
     },
-    F4: () => {
-      navigate("/dashboard");
+    F4: async () => {
+      const { value: senhaAdmin } = await Swal.fire({
+        title: "Área Restrita",
+        text: "Digite a senha do Administrador para voltar ao Dashboard:",
+        input: "password",
+        inputPlaceholder: "Senha do Admin",
+        showCancelButton: true,
+        confirmButtonText: "Confirmar",
+        cancelButtonText: "Cancelar",
+        confirmButtonColor: "#1e3a8a",
+      });
+
+      if (senhaAdmin) {
+        try {
+          const auth = getAuth();
+          const user = auth.currentUser;
+
+          if (user && user.email) {
+            // Reautentica o admin no Firebase com a senha digitada
+            await signInWithEmailAndPassword(auth, user.email, senhaAdmin);
+
+            // Se a senha estiver correta, limpa o operador e vai para o dashboard
+            setOperadorAtual(null);
+            navigate("/dashboard");
+          } else {
+            throw new Error("Sessão do administrador não encontrada.");
+          }
+        } catch (error) {
+          console.error("Erro ao validar senha:", error);
+          Swal.fire(
+            "Senha Incorreta",
+            "A senha do Administrador está incorreta.",
+            "error",
+          );
+        }
+      }
     },
 
     F5: () => {

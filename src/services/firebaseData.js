@@ -194,6 +194,75 @@ export async function salvarCategoriasFirebase(categorias) {
 }
 
 /**
+ * Salva a lista de funcionários no Firebase (dentro do documento do tenant)
+ */
+export async function salvarFuncionariosFirebase(funcionarios) {
+  const tenantId = getTenantId();
+  if (!tenantId) return;
+
+  // Sempre salva no localStorage (fallback)
+  try {
+    localStorage.setItem(`pdv_funcionarios_${tenantId}`, JSON.stringify(funcionarios));
+  } catch (error) {
+    console.error("❌ Erro ao salvar funcionários no localStorage:", error);
+  }
+
+  // Tenta salvar no Firebase
+  if (isFirebaseReady()) {
+    try {
+      const docRef = getTenantDocRef(tenantId);
+      await setDoc(docRef, { funcionarios }, { merge: true });
+      console.log("✅ Funcionários salvos no Firebase com sucesso");
+    } catch (error) {
+      console.error("❌ Erro ao salvar funcionários no Firebase:", error);
+    }
+  }
+}
+
+/**
+ * Carrega a lista de funcionários do Firebase (com fallback para localStorage)
+ */
+export async function carregarFuncionariosFirebase() {
+  const tenantId = getTenantId();
+  if (!tenantId) return [];
+
+  // Tenta carregar do Firebase primeiro
+  if (isFirebaseReady()) {
+    try {
+      const docRef = getTenantDocRef(tenantId);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data && Array.isArray(data.funcionarios)) {
+          const funcionarios = data.funcionarios;
+          // Atualiza o localStorage com os dados do Firebase
+          localStorage.setItem(`pdv_funcionarios_${tenantId}`, JSON.stringify(funcionarios));
+          return funcionarios;
+        }
+      }
+    } catch (error) {
+      console.warn("⚠️ Erro ao carregar funcionários do Firebase:", error.message);
+    }
+  }
+
+  // Fallback: carrega do localStorage
+  try {
+    const data = localStorage.getItem(`pdv_funcionarios_${tenantId}`);
+    if (data) {
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn("Erro ao carregar funcionários do localStorage:", e);
+  }
+
+  return [];
+}
+
+/**
  * Carrega categorias do Firebase (com fallback localStorage)
  */
 export async function carregarCategoriasFirebase() {

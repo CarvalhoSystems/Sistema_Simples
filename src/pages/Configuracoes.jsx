@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { getTenant, setTenant } from "../hooks/useTenant";
 import { salvarInfoTenantFirebase } from "../services/firebaseData";
 import Swal from "sweetalert2";
+import GerenciarFuncionarios from "../components/GerenciarFuncionarios";
 
 export default function Configuracoes() {
   const navigate = useNavigate();
@@ -102,6 +103,7 @@ export default function Configuracoes() {
         "success",
       );
     } catch (error) {
+      console.error("Erro ao Salvar as Configurações", error);
       Swal.fire("Erro", "Ocorreu um erro ao salvar as configurações.", "error");
     } finally {
       setSalvando(false);
@@ -146,28 +148,14 @@ export default function Configuracoes() {
             Gerencie os dados que aparecem nos comprovantes e notas
           </p>
         </div>
-
-        <div
-          className="header-actions"
-          style={{ display: "flex", gap: "0.75rem" }}
-        >
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={salvando}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 font-medium"
-          >
-            <i className="fas fa-save"></i>
-            {salvando ? "Salvando..." : "Salvar Alterações"}
-          </button>
-        </div>
       </header>
 
-      <section
-        className="settings-grid"
-        style={{ display: "grid", gap: "1.5rem" }}
-      >
-        <form id="settingsForm" onSubmit={handleSave}>
+      {/* Formulário principal contendo apenas as configurações da empresa/sistema */}
+      <form id="settingsForm" onSubmit={handleSave}>
+        <section
+          className="settings-grid"
+          style={{ display: "grid", gap: "1.5rem" }}
+        >
           {/* Dados da Empresa */}
           <div
             className="settings-card"
@@ -260,6 +248,7 @@ export default function Configuracoes() {
                 />
               </div>
             </div>
+
             <div className="form-group" style={{ marginBottom: "1rem" }}>
               <label
                 htmlFor="endereco"
@@ -288,6 +277,7 @@ export default function Configuracoes() {
                 }}
               />
             </div>
+
             <div className="form-group" style={{ marginBottom: "1rem" }}>
               <label
                 htmlFor="telefone"
@@ -301,21 +291,21 @@ export default function Configuracoes() {
               >
                 Telefone
               </label>
+              <input
+                type="text"
+                id="telefone"
+                value={formData.telefone}
+                onChange={handleChange}
+                placeholder="(00) 00000-0000"
+                style={{
+                  width: "100%",
+                  padding: "0.6rem 0.75rem",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: "0.375rem",
+                  fontSize: "0.9rem",
+                }}
+              />
             </div>
-            <input
-              type="text"
-              id="telefone"
-              value={formData.telefone}
-              onChange={handleChange}
-              placeholder="(00) 00000-0000"
-              style={{
-                width: "100%",
-                padding: "0.6rem 0.75rem",
-                border: "1px solid #cbd5e1",
-                borderRadius: "0.375rem",
-                fontSize: "0.9rem",
-              }}
-            />
           </div>
 
           {/* Recebimentos PIX */}
@@ -554,35 +544,10 @@ export default function Configuracoes() {
                 </option>
                 <option value="outros">Outros / Não sei</option>
               </select>
-              <p
-                className="helper-text"
-                style={{
-                  fontSize: "0.8rem",
-                  color: "#64748b",
-                  marginTop: "0.5rem",
-                }}
-              >
-                <i className="fas fa-info-circle"></i> Se você usa uma
-                maquininha física de qualquer marca (Cielo, Rede, Stone,
-                PagSeguro, etc.), selecione "Maquininha Física (Manual)". O
-                sistema apenas registrará a venda após você confirmar o
-                pagamento na maquininha.
-              </p>
             </div>
 
             {formData.cartaoProvedor === "mercadopago" && (
               <>
-                <p
-                  className="helper-text"
-                  style={{
-                    fontSize: "0.8rem",
-                    color: "#64748b",
-                    marginBottom: "15px",
-                  }}
-                >
-                  Configure sua maquininha Point Smart 2 para receber pagamentos
-                  automáticos no cartão.
-                </p>
                 <div
                   className="form-group-grid"
                   style={{
@@ -648,51 +613,11 @@ export default function Configuracoes() {
                     />
                   </div>
                 </div>
-                <div className="form-group" style={{ marginBottom: "1rem" }}>
-                  <label
-                    htmlFor="mercadoPagoCommercialAddress"
-                    style={{
-                      display: "block",
-                      fontSize: "0.875rem",
-                      fontWeight: 500,
-                      color: "#475569",
-                      marginBottom: "0.25rem",
-                    }}
-                  >
-                    Endereço Comercial (Opcional)
-                  </label>
-                  <input
-                    type="text"
-                    id="mercadoPagoCommercialAddress"
-                    value={formData.mercadoPagoCommercialAddress}
-                    onChange={handleChange}
-                    placeholder="Endereço onde a maquininha está localizada"
-                    style={{
-                      width: "100%",
-                      padding: "0.6rem 0.75rem",
-                      border: "1px solid #cbd5e1",
-                      borderRadius: "0.375rem",
-                      fontSize: "0.9rem",
-                    }}
-                  />
-                </div>
-                <p
-                  className="helper-text"
-                  style={{
-                    fontSize: "0.8rem",
-                    color: "#64748b",
-                    marginTop: "0.5rem",
-                  }}
-                >
-                  <i className="fas fa-info-circle"></i> O Access Token e Device
-                  ID são obtidos no painel do Mercado Pago Developers. Cada loja
-                  pode ter sua própria configuração.
-                </p>
               </>
             )}
           </div>
 
-          {/* Botão Salvar no final do formulário */}
+          {/* Botão Salvar dentro do form */}
           <div style={{ textAlign: "right", marginTop: "1rem" }}>
             <button
               type="submit"
@@ -703,8 +628,13 @@ export default function Configuracoes() {
               {salvando ? "Salvando..." : "Salvar Alterações"}
             </button>
           </div>
-        </form>
-      </section>
+        </section>
+      </form>
+
+      {/* SEÇÃO DE GERENCIAMENTO DE FUNCIONÁRIOS (Fora do form principal) */}
+      <div style={{ marginTop: "2rem" }}>
+        <GerenciarFuncionarios />
+      </div>
     </main>
   );
 }
