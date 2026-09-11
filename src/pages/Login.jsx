@@ -9,6 +9,7 @@ import {
   getEstabelecimentoAtivo,
 } from "../services/estabelecimentoManager";
 
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -136,8 +137,8 @@ export default function Login() {
 
         console.log("✅ Definindo tenant com ID:", tenantData.id);
         setTenant(tenantData);
-        console.log("✅ Tenant definido, navegando para dashboard...");
-        navigate("/dashboard");
+        console.log("✅ Tenant definido, navegando para escolha...");
+        navigate("/escolha");
       } else {
         // Se o login falhou, incrementa as tentativas
         const tentativasAtuais =

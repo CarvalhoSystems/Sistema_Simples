@@ -26,6 +26,7 @@ import {
   getEstabelecimentoAtivoId,
   getEstabelecimentoAtivo,
 } from "../services/estabelecimentoManager";
+import SelecaoObjetivo from "../pages/SelecaoObjetivo";
 
 const AuthContext = createContext(null);
 

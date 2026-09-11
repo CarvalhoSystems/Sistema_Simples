@@ -1,5 +1,7 @@
 import React from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom"; // <-- Certifique-se de importar o BrowserRouter
+import { Routes, Route } from "react-router-dom";
+
+// Importação das Páginas
 import LandingPage from "./pages/LandingPage.jsx";
 import PDV from "./PDV";
 import Dashboard from "./components/Dashboard.jsx";
@@ -13,6 +15,11 @@ import Suporte from "./pages/Suporte.jsx";
 import NotaFiscalPaulista from "./pages/NotaFiscalPaulista.jsx";
 import Signup from "./pages/Signup.jsx";
 import ForgotPassword from "./pages/ForgotPassword.jsx";
+import Contato from "./pages/contato.jsx";
+import NotFoundPage from "./pages/NotFoundPage.jsx";
+import SelecaoObjetivo from "./pages/SelecaoObjetivo.jsx";
+
+// Importação de Layouts e Rotas Protegidas
 import PdvLayout from "./components/Layout.jsx";
 import DashboardLayout from "./components/DashboardLayout.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
@@ -24,13 +31,6 @@ import AdminDashboard from "./pages/AdminDashboard.jsx";
 import AdminClientes from "./pages/AdminClientes.jsx";
 import AdminFinanceiro from "./pages/AdminFinanceiro.jsx";
 import AdminPlanos from "./pages/AdminPlanos.jsx";
-import Contato from "./pages/contato.jsx";
-import FechamentoDeCaixa from "./components/fechamentoDeCaixa.jsx";
-import NotFoundPage from "./pages/NotFoundPage.jsx";
-import MostrarProdutoFalta from "./components/MostrarProductFalta.jsx";
-import ".//components/GerenciarFuncionarios.jsx";
-
-
 
 export default function App() {
   return (
@@ -42,14 +42,14 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/contato" element={<Contato />} />
 
-      {/* PDV (Caixa) - Rota separada e protegida */}
-      <Route path="/caixa" element={<PdvLayout />}>
-        <Route index element={<PDV />} />
-      </Route>
-
-      {/* Dashboard do Cliente (protegido - apenas clientes) */}
+      {/* ÁREA PROTEGIDA DO CLIENTE (Requer Login) */}
       <Route element={<ProtectedRoute />}>
+        {/* Tela de Seleção de Objetivo (Caixa ou Dashboard) */}
+        <Route path="/escolha" element={<SelecaoObjetivo />} />
+
+        {/* Páginas do Dashboard com o Layout Padrão */}
         <Route element={<DashboardLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/inventario" element={<Inventario />} />
@@ -60,12 +60,15 @@ export default function App() {
           <Route path="/suporte" element={<Suporte />} />
           <Route path="/nfp" element={<NotaFiscalPaulista />} />
         </Route>
+
+        {/* PDV (Caixa) - Protegido também */}
+        <Route path="/caixa" element={<PdvLayout />}>
+          <Route index element={<PDV />} />
+        </Route>
       </Route>
 
-      {/* ADMIN - Setup (criar admin pela primeira vez) */}
+      {/* ADMIN - Setup e Painel Exclusivo */}
       <Route path="/admin/setup" element={<AdminSetup />} />
-
-      {/* ADMIN - Painel exclusivo (acesso apenas com email admin) */}
       <Route path="/admin/login" element={<AdminLogin />} />
       <Route element={<AdminRoute />}>
         <Route element={<AdminLayout />}>
@@ -76,10 +79,7 @@ export default function App() {
         </Route>
       </Route>
 
-      {/* Contato */}
-      <Route path="/contato" element={<Contato />} />
-
-      {/*ROTAS 404*/}
+      {/* ROTAS 404 */}
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
