@@ -6,6 +6,9 @@ import {
 } from "../services/tenantData";
 import Swal from "sweetalert2";
 
+
+
+
 export default function GerenciarFuncionarios() {
   const [funcionarios, setFuncionariosList] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -28,7 +31,7 @@ export default function GerenciarFuncionarios() {
     try {
       setCarregando(true);
       const lista = await getFuncionarios();
-      setFuncionariosList(lista);
+      setFuncionariosList(lista || []);
     } catch (error) {
       console.error("Erro ao carregar funcionários:", error);
       Swal.fire("Erro", "Não foi possível carregar os funcionários.", "error");
@@ -54,6 +57,19 @@ export default function GerenciarFuncionarios() {
     ) {
       Swal.fire("Atenção", "Preencha o nome, código (PIN) e senha.", "warning");
       return;
+    }
+
+    // TRAVA DE SEGURANÇA: Se tentar cadastrar alguém como "admin", exige confirmação extra
+    if (formFuncionario.cargo?.toLowerCase() === "admin") {
+      const { value: confirmacao } = await Swal.fire({
+        title: "Atenção Crítica",
+        text: "Você está criando/editando um usuário com privilérios de ADMIN. Deseja prosseguir?",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Sim, autorizar",
+        cancelButtonText: "Cancelar",
+      });
+      if (!confirmacao) return;
     }
 
     setSalvando(true);

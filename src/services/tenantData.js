@@ -24,6 +24,7 @@ import {
   carregarFuncionariosFirebase, // Adcionado a função de novos funcionarios
   salvarFuncionariosFirebase, // Salva os
 } from "./firebaseData.js";
+import Swal from "sweetalert2";
 
 /**
  * Retorna a chave do localStorage para um dado do tenant
@@ -256,6 +257,53 @@ export async function getFuncionarios() {
   const funcionariosDoTenant = await carregarFuncionariosFirebase();
   return funcionariosDoTenant;
 }
+
+/**
+ * Senha Admin Dashboard
+ */
+
+export const verificarPinAdmin = async () => {
+  // O PIN Mestre é o código do funcionário com cargo administrativo.
+  const { value: pinDigitado } = await Swal.fire({
+    title: "Acesso Restrito ao Administrador",
+    text: "Digite o PIN Mestre de 4 dígitos do Administrador:",
+    input: "password", // ou "text" com máscara numérica se preferir
+    inputAttributes: {
+      maxlength: "6",
+      autocapitalize: "off",
+      autocorrect: "off",
+    },
+    showCancelButton: true,
+    confirmButtonText: "Confirmar",
+    cancelButtonText: "Cancelar",
+    confirmButtonColor: "#4f46e5",
+  });
+
+  if (!pinDigitado) return false;
+
+  const funcionarios = await getFuncionarios();
+  const autorizado = funcionarios.some((funcionario) => {
+    const cargo = String(funcionario.cargo || "")
+      .trim()
+      .toLowerCase();
+    return (
+      funcionario.ativo !== false &&
+      (cargo === "admin" || cargo === "gerente") &&
+      String(funcionario.codigo) === String(pinDigitado)
+    );
+  });
+
+  if (autorizado) return true;
+
+  {
+    Swal.fire({
+      icon: "error",
+      title: "PIN Incorreto",
+      text: "O PIN informado não pertence ao Administrador.",
+    });
+    return false;
+  }
+};
 
 /**
  * Salva a lista de funcionários do tenant

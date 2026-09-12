@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext.jsx";
-// Importa o serviço para carregar dados do tenant (usuário logado)
 import { getProdutos, getVendas } from "../services/tenantData.js";
 import { getTenant } from "../hooks/useTenant.js";
+import { getOperadorAtual } from "../services/operadorSession.js";
 import { formatCurrency } from "../utils/formatters.js";
 import ProdutosEmFalta from "./ProdutosEmFalta.jsx";
+import Swal from "sweetalert2";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -18,29 +19,71 @@ export default function Dashboard() {
   });
   const [nomeEstabelecimento, setNomeEstabelecimento] = useState("");
 
-  // Carrega os dados e calcula as estatísticas
+  // Proteção de Rota Definitiva baseada no Operador (PIN)
   useEffect(() => {
+    // 1. Verifica se tem um operador logado via PIN no caixa
+    const operador = getOperadorAtual();
+
+    if (operador && operador.cargo) {
+      const cargoLower = operador.cargo.toLowerCase();
+
+      // Se o cargo for de caixa ou atendente, BARRA na hora, não importa quem esteja no Firebase
+      if (cargoLower.includes("caixa") || cargoLower.includes("atendente")) {
+        Swal.fire({
+          icon: "warning",
+          title: "Acesso Negado",
+          text: "Operadores de caixa não têm permissão para acessar o Dashboard gerencial.",
+          confirmButtonText: "Voltar ao Caixa",
+        });
+        navigate("/caixa");
+        return;
+      }
+    }
+
+    // 2. Se NÃO TEM operador por PIN, aí sim exigimos o login do Administrador (Firebase)
+    if (!user && !operador) {
+      Swal.fire({
+        icon: "warning",
+        title: "Acesso Restrito",
+        text: "Faça login para acessar o Dashboard.",
+        confirmButtonText: "Voltar",
+      });
+      navigate("/selecao-objetivo");
+      return;
+    }
+
+    // 3. Carrega os dados normais do estabelecimento
     const tenant = getTenant();
     if (tenant) {
       setNomeEstabelecimento(
         tenant.nomeEstabelecimento || tenant.nome || "seu negócio",
       );
     }
+
     const carregarEstatisticas = async () => {
-      const vendas = await getVendas();
-      const produtos = await getProdutos();
+      try {
+        const vendas = await getVendas();
+        const produtos = await getProdutos();
 
-      const totalRevenue = vendas.reduce((acc, venda) => acc + venda.total, 0);
-      const totalProducts = produtos.length;
-      const todaySales = vendas.filter((venda) =>
-        venda.data.startsWith(new Date().toISOString().split("T")[0]),
-      ).length;
+        const totalRevenue = vendas.reduce(
+          (acc, venda) => acc + venda.total,
+          0,
+        );
+        const totalProducts = produtos.length;
+        const todaySales = vendas.filter((venda) =>
+          venda.data.startsWith(new Date().toISOString().split("T")[0]),
+        ).length;
 
-      setStats({ totalRevenue, totalProducts, todaySales });
+        setStats({ totalRevenue, totalProducts, todaySales });
+      } catch (error) {
+        console.error("Erro ao carregar estatísticas do dashboard:", error);
+      }
     };
-    carregarEstatisticas();
-  }, []);
 
+    carregarEstatisticas();
+  }, [user, navigate]);
+
+  // 2. FORMATAÇÃO DA DATA ATUAL
   useEffect(() => {
     const date = new Date();
     setCurrentDate(
@@ -59,10 +102,6 @@ export default function Dashboard() {
           <h2>Dashboard</h2>
         </div>
         <div className="header-right">
-          {/*<div className="user-info" id="userInfo">
-            <i className="fas fa-user-circle"></i>
-            <span>{user?.name || "Administrador"}</span>
-          </div>*/}
           <div className="date-info">
             <i className="fas fa-calendar"></i>
             <span id="currentDate">{currentDate}</span>
@@ -169,4 +208,3 @@ export default function Dashboard() {
     </main>
   );
 }
-// Fim do dashboard

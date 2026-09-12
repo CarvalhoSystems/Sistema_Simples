@@ -1,29 +1,50 @@
 import React, { useState } from "react";
-import { autenticarFuncionarioPorCodigo } from "../services/tenantData";
+import { getFuncionarios } from "../services/tenantData";
 import { setOperadorAtual } from "../services/operadorSession";
+import InputSenha from "../components/InputSenha"; // 1. Importe o componente reutilizável
 import Swal from "sweetalert2";
 
-export default function ModalLoginCaixa({ onLoginSucesso }) {
+export default function ModalLoginCaixa({ onLoginSucesso, onClose }) {
   const [codigo, setCodigo] = useState("");
-  const [senha, setSenha] = useState("");
   const [carregando, setCarregando] = useState(false);
+
+  const fecharAntesDoAlerta = async () => {
+    if (!onClose) return;
+    onClose();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    if (!codigo || !senha) {
-      Swal.fire("Atenção", "Digite o código (PIN) e a senha.", "warning");
+    if (!codigo) {
+      await fecharAntesDoAlerta();
+      await Swal.fire(
+        "Atenção",
+        "Digite o código (PIN) do funcionário.",
+        "warning",
+      );
       return;
     }
 
     setCarregando(true);
     try {
-      // Utiliza a função que já existe no seu tenantData.js
-      const funcionario = await autenticarFuncionarioPorCodigo(codigo, senha);
+      // Busca a lista de funcionários do tenant
+      const funcionarios = await getFuncionarios();
+
+      // Procura o funcionário apenas pelo PIN e se ele está ativo
+      const funcionario = funcionarios.find(
+        (f) => String(f.codigo) === String(codigo) && f.ativo !== false,
+      );
+
+      if (!funcionario) {
+        throw new Error("PIN não encontrado ou funcionário inativo.");
+      }
 
       // Salva na sessão do PDV
       setOperadorAtual(funcionario);
 
-      Swal.fire({
+      await fecharAntesDoAlerta();
+      await Swal.fire({
         icon: "success",
         title: `Bem-vindo(a), ${funcionario.nome}!`,
         text: `Caixa liberado com sucesso.`,
@@ -36,9 +57,10 @@ export default function ModalLoginCaixa({ onLoginSucesso }) {
       }
     } catch (error) {
       console.error("Erro no login do caixa:", error);
-      Swal.fire(
+      await fecharAntesDoAlerta();
+      await Swal.fire(
         "Acesso Negado",
-        error.message || "PIN ou senha incorretos.",
+        error.message || "PIN incorreto.",
         "error",
       );
     } finally {
@@ -69,10 +91,30 @@ export default function ModalLoginCaixa({ onLoginSucesso }) {
           borderRadius: "0.75rem",
           width: "100%",
           maxWidth: "400px",
+          position: "relative",
           boxShadow:
             "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
         }}
       >
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fechar"
+            style={{
+              position: "absolute",
+              top: "0.75rem",
+              right: "0.75rem",
+              border: "none",
+              background: "transparent",
+              color: "#64748b",
+              fontSize: "1.25rem",
+              cursor: "pointer",
+            }}
+          >
+            &times;
+          </button>
+        )}
         <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
           <div
             style={{
@@ -89,65 +131,26 @@ export default function ModalLoginCaixa({ onLoginSucesso }) {
             Identificação do Caixa
           </h2>
           <p style={{ fontSize: "0.85rem", color: "#64748b" }}>
-            Digite seu PIN e senha para operar o PDV
+            Digite seu PIN numérico para operar o PDV
           </p>
         </div>
 
         <form onSubmit={handleLogin}>
-          <div style={{ marginBottom: "1rem" }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: "0.8rem",
-                fontWeight: 500,
-                color: "#475569",
-                marginBottom: "0.25rem",
-              }}
-            >
-              Código (PIN) do Funcionário
-            </label>
-            <input
-              type="text"
-              value={codigo}
-              onChange={(e) => setCodigo(e.target.value)}
-              placeholder="Ex: 101"
-              autoFocus
-              style={{
-                width: "100%",
-                padding: "0.75rem",
-                border: "1px solid #cbd5e1",
-                borderRadius: "0.375rem",
-                fontSize: "1rem",
-              }}
-            />
-          </div>
-
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: "0.8rem",
-                fontWeight: 500,
-                color: "#475569",
-                marginBottom: "0.25rem",
-              }}
-            >
-              Senha
-            </label>
-            <input
-              type="password"
-              value={senha}
-              onChange={(e) => setSenha(e.target.value)}
-              placeholder="••••••••"
-              style={{
-                width: "100%",
-                padding: "0.75rem",
-                border: "1px solid #cbd5e1",
-                borderRadius: "0.375rem",
-                fontSize: "1rem",
-              }}
-            />
-          </div>
+          {/* AQUI SUBSTITUÍMOS O INPUT COMUM PELO SEU COMPONENTE REUTILIZÁVEL */}
+          <InputSenha
+            label="Código (PIN) do Funcionário"
+            name="codigo"
+            value={codigo}
+            onChange={(e) => setCodigo(e.target.value)}
+            placeholder="Ex: 101"
+            inputStyle={{
+              fontSize: "1.25rem",
+              textAlign: "center",
+              letterSpacing: "0.1em",
+              fontWeight: "bold",
+              padding: "0.75rem",
+            }}
+          />
 
           <button
             type="submit"
@@ -162,6 +165,7 @@ export default function ModalLoginCaixa({ onLoginSucesso }) {
               fontWeight: 600,
               fontSize: "1rem",
               cursor: "pointer",
+              marginTop: "0.5rem",
             }}
           >
             {carregando ? "Verificando..." : "Entrar no Caixa"}
