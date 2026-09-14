@@ -11,63 +11,63 @@ const PLANOS = [
     periodo: "grátis por 7 dias",
     destaque: false,
     features: [
-      "1 estabelecimento",
-      "Até 50 produtos",
-      "PDV completo",
-      "Dashboard básico",
-      "Suporte por email",
+      "🏪 1 estabelecimento",
+      "📦 Até 50 produtos cadastrados",
+      "💻 PDV completo e ágil",
+      "📊 Dashboard básico de vendas",
+      "✉️ Suporte por email",
     ],
     tag: "TESTE GRÁTIS",
   },
   {
     id: "basico",
     nome: "Básico",
-    preco: "79,90",
+    preco: "89,90",
     periodo: "/mês",
     destaque: false,
     features: [
-      "1 estabelecimento",
-      "Produtos ilimitados",
-      "PDV + Dashboard",
-      "Relatórios completos",
-      "Suporte prioritário",
-      "Salvamento em nuvem",
+      "🏪 1 estabelecimento",
+      "📦 Produtos ilimitados",
+      "⚡ PDV + Dashboard em tempo real",
+      "📈 Relatórios semanais e mensais",
+      "☁️ Backup seguro em nuvem",
+      "⭐ Suporte prioritário",
     ],
     tag: "MAIS ACESSÍVEL",
   },
   {
     id: "profissional",
     nome: "Profissional",
-    preco: "99,90",
+    preco: "129,90",
     periodo: "/mês",
     destaque: true,
     features: [
-      "Até 3 estabelecimentos",
-      "Produtos ilimitados",
-      "Nota Fiscal Paulista",
-      "NF-e completa",
-      "Relatórios avançados",
-      "Suporte VIP",
-      "Backup automático",
+      "🏢 Até 3 estabelecimentos",
+      "📦 Produtos ilimitados",
+      "🧾 Nota Fiscal Paulista",
+      "📄 NF-e sem burocracia",
+      "📊 Faturamento diário interativo", // <- Foco no gráfico de barras com cliques
+      "🔍 Auditoria total de produtos por dia", // <- Foco na listagem com scroll
+      "💎 Suporte VIP dedicado",
+      "🛡️ Backup automático diário",
     ],
-    tag: "POPULAR",
+    tag: "MAIS VENDIDO 🔥", // Tag mais chamativa para o popular
   },
   {
     id: "premium",
     nome: "Premium",
-    preco: "149,90",
+    preco: "179,90",
     periodo: "/mês",
     destaque: false,
     features: [
-      "Estabelecimentos ilimitados",
-      "Produtos ilimitados",
-      "Nota Fiscal Paulista",
-      "Múltiplos usuários",
-      "Suporte 24h dedicado",
-      "Personalização completa",
-      "API de integração",
-      "Relatórios customizados",
-      "Prioridade em novas features",
+      "🚀 Estabelecimentos ilimitados",
+      "📦 Produtos ilimitados",
+      "🧾 Nota Fiscal Paulista",
+      "👥 Múltiplos usuários com permissões",
+      "🎯 Relatórios 100% customizados",
+      "🔌 API de integração completa",
+      "👑 Suporte 24h prioritário",
+      "✨ Acesso antecipado a novas features",
     ],
     tag: "COMPLETO",
   },
@@ -606,7 +606,7 @@ export default function LandingPage() {
                   </div>
 
                   <ul className="space-y-2.5 mb-5">
-                    {plano.features.slice(0, 4).map((feat, i) => (
+                    {plano.features.slice(0, 8).map((feat, i) => (
                       <li
                         key={i}
                         className="flex items-start gap-2 text-sm text-gray-600"

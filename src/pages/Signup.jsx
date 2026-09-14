@@ -10,7 +10,7 @@ import {
   alternarEstabelecimento,
 } from "../services/estabelecimentoManager";
 import { sanitizeInput } from "../utils/sanitize";
-import { sendEmailVerification } from "firebase/auth"; // <-- 1. Importe a função do Firebase Auth
+import { sendEmailVerification } from "firebase/auth";
 
 export default function Signup() {
   const [fullName, setFullName] = useState("");
@@ -18,7 +18,7 @@ export default function Signup() {
   const [businessType, setBusinessType] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState(""); // Estado correto corrigido
   const [error, setError] = useState("");
   const [carregando, setCarregando] = useState(false);
   const { signup } = useAuth();
@@ -51,7 +51,6 @@ export default function Signup() {
       );
 
       if (result.success) {
-        // 2. Envia o e-mail de verificação usando o objeto user retornado
         if (result.user) {
           try {
             await sendEmailVerification(result.user);
@@ -60,7 +59,6 @@ export default function Signup() {
           }
         }
 
-        // Após criar o usuário, inicializa seus dados no Firebase
         const tenantId = result.user.uid;
         const tenantInfo = {
           nome: fullName,
@@ -73,10 +71,8 @@ export default function Signup() {
         };
         await inicializarDadosTenant(tenantId, businessType, tenantInfo);
 
-        // Inicializa a assinatura com trial grátis de 7 dias
         criarAssinatura("free", true);
 
-        // Cria o primeiro estabelecimento automaticamente
         const nomeEstab =
           nomeEstabelecimento ||
           RAMOS_NEGOCIO.find((r) => r.id === businessType)?.nome;
@@ -127,9 +123,9 @@ export default function Signup() {
         <div className="text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4 overflow-hidden shadow-inner">
             <img
-              src="/logo.png" // Agora é a tag certa para imagem
+              src="/logo.png"
               alt="Logo do Sistema"
-              className="w-full h-full object-contain" // Garante que o logo caiba no círculo
+              className="w-full h-full object-contain"
             />
           </div>
           <h1 className="text-2xl font-bold text-slate-800">
@@ -230,20 +226,22 @@ export default function Signup() {
               required
             />
           </div>
+
           <div>
             <label className="block text-sm font-medium text-slate-700">
               Confirme a Senha
             </label>
-            <input // Alterado para usar o estado e a função de atualização de confirmPassword
+            <input
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={confirmPassword} // <-- Corrigido para o estado certo
+              onChange={(e) => setConfirmPassword(e.target.value)} // <-- Corrigido para a função certa
               className="w-full px-3.5 py-2.5 mt-1 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-800"
-              placeholder="Mínimo 6 caracteres"
+              placeholder="Repita a senha"
               minLength={6}
               required
             />
           </div>
+
           {error && (
             <p className="text-sm text-red-600 font-medium flex items-center gap-1">
               <i className="fas fa-exclamation-circle"></i>

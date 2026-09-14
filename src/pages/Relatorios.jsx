@@ -9,7 +9,7 @@ const SummaryCard = ({ icon, title, value, subtitle, cor }) => (
   <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-all">
     <div className="flex items-center gap-4">
       <div
-        className={`w-12 h-12 rounded-lg flex items-center justify-center`}
+        className="w-12 h-12 rounded-lg flex items-center justify-center"
         style={{ backgroundColor: (cor || "#3B82F6") + "20" }}
       >
         <i
@@ -30,6 +30,7 @@ export default function Relatorios() {
   const { user } = useAuth();
   const [mes, setMes] = useState(new Date().getMonth());
   const [ano, setAno] = useState(new Date().getFullYear());
+  const [diaSelecionado, setDiaSelecionado] = useState(new Date().getDate());
   const [vendas, setVendas] = useState([]);
   const [stats, setStats] = useState({
     faturamento: 0,
@@ -40,6 +41,7 @@ export default function Relatorios() {
     topProdutos: [],
   });
 
+  const faturamentoDiarioChartRef = useRef(null);
   const faturamentoChartRef = useRef(null);
   const pagamentoChartRef = useRef(null);
   const produtosChartRef = useRef(null);
@@ -123,13 +125,61 @@ export default function Relatorios() {
   useEffect(() => {
     Object.values(chartInstances.current).forEach((chart) => chart.destroy());
 
-    // Faturamento por semana
-    if (faturamentoChartRef.current) {
-      const vendasMes = vendas.filter((v) => {
+    const vendasMes = vendas.filter((v) => {
+      const data = new Date(v.data);
+      return data.getMonth() === mes && data.getFullYear() === ano;
+    });
+
+    // 1. Faturamento Diário (Gráfico de Barras por Dia)
+    if (faturamentoDiarioChartRef.current) {
+      const diasNoMes = new Date(ano, mes + 1, 0).getDate();
+      const diasLabels = Array.from(
+        { length: diasNoMes },
+        (_, i) => `Dia ${i + 1}`,
+      );
+      const faturamentoDias = Array(diasNoMes).fill(0);
+
+      vendasMes.forEach((v) => {
         const data = new Date(v.data);
-        return data.getMonth() === mes && data.getFullYear() === ano;
+        const diaDoMes = data.getDate();
+        if (diaDoMes >= 1 && diaDoMes <= diasNoMes) {
+          faturamentoDias[diaDoMes - 1] += v.total || 0;
+        }
       });
 
+      chartInstances.current.diario = new Chart(
+        faturamentoDiarioChartRef.current,
+        {
+          type: "bar",
+          data: {
+            labels: diasLabels,
+            datasets: [
+              {
+                label: "Faturamento Diário",
+                data: faturamentoDias,
+                backgroundColor: "rgba(30, 58, 138, 0.7)",
+                borderRadius: 6,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { display: false },
+            },
+            onClick: (event, elements) => {
+              if (elements.length > 0) {
+                const index = elements[0].index;
+                setDiaSelecionado(index + 1);
+              }
+            },
+          },
+        },
+      );
+    }
+
+    // 2. Faturamento por Semana
+    if (faturamentoChartRef.current) {
       const semanas = [0, 0, 0, 0, 0];
       vendasMes.forEach((v) => {
         const data = new Date(v.data);
@@ -169,10 +219,12 @@ export default function Relatorios() {
       );
     }
 
-    // Pagamentos
+    // 3. Pagamentos
     if (pagamentoChartRef.current) {
       const labels = Object.keys(stats.porPagamento);
-      const data = Object.values(stats.porPagamento).map((p) => p.valor);
+      const dataPagamento = Object.values(stats.porPagamento).map(
+        (p) => p.valor,
+      );
       const cores = ["#10B981", "#3B82F6", "#F59E0B", "#EF4444", "#8B5CF6"];
 
       chartInstances.current.pagamento = new Chart(pagamentoChartRef.current, {
@@ -181,7 +233,7 @@ export default function Relatorios() {
           labels: labels.length ? labels : ["Sem dados"],
           datasets: [
             {
-              data: labels.length ? data : [1],
+              data: labels.length ? dataPagamento : [1],
               backgroundColor: cores.slice(0, labels.length || 1),
             },
           ],
@@ -195,10 +247,10 @@ export default function Relatorios() {
       });
     }
 
-    // Top produtos
+    // 4. Top produtos
     if (produtosChartRef.current) {
       const labels = stats.topProdutos.map((p) => p.nome.substring(0, 15));
-      const data = stats.topProdutos.map((p) => p.valor);
+      const dataProdutos = stats.topProdutos.map((p) => p.valor);
       const cores = ["#EF4444", "#84CC16", "#3B82F6", "#F97316", "#6366F1"];
 
       chartInstances.current.produtos = new Chart(produtosChartRef.current, {
@@ -207,7 +259,7 @@ export default function Relatorios() {
           labels: labels.length ? labels : ["Sem dados"],
           datasets: [
             {
-              data: labels.length ? data : [1],
+              data: labels.length ? dataProdutos : [1],
               backgroundColor: cores.slice(0, labels.length || 1),
             },
           ],
@@ -221,7 +273,7 @@ export default function Relatorios() {
       });
     }
 
-    // Comparativo mensal
+    // 5. Comparativo mensal
     if (comparativoChartRef.current) {
       const meses = [
         "Jan",
@@ -276,7 +328,36 @@ export default function Relatorios() {
     return () => {
       Object.values(chartInstances.current).forEach((chart) => chart.destroy());
     };
-  }, [vendas, mes, ano, stats]);
+  }, [vendas, mes, ano, stats.porPagamento, stats.topProdutos]);
+
+  // Produtos vendidos no dia selecionado
+  const produtosDoDia = React.useMemo(() => {
+    const vendasDoDia = vendas.filter((v) => {
+      const data = new Date(v.data);
+      return (
+        data.getDate() === diaSelecionado &&
+        data.getMonth() === mes &&
+        data.getFullYear() === ano
+      );
+    });
+
+    const mapaProdutos = {};
+    vendasDoDia.forEach((v) => {
+      (v.carrinho || []).forEach((item) => {
+        const nome = item.descricao || "Produto";
+        if (!mapaProdutos[nome]) {
+          mapaProdutos[nome] = { qtd: 0, valorTotal: 0 };
+        }
+        mapaProdutos[nome].qtd += item.qtd || 1;
+        mapaProdutos[nome].valorTotal += (item.qtd || 1) * (item.vUnit || 0);
+      });
+    });
+
+    return Object.entries(mapaProdutos).map(([nome, dados]) => ({
+      nome,
+      ...dados,
+    }));
+  }, [vendas, diaSelecionado, mes, ano]);
 
   function handleImprimirRelatorio() {
     imprimirRelatorioVendas({
@@ -399,7 +480,92 @@ export default function Relatorios() {
           />
         </div>
 
-        {/* Gráficos */}
+        {/* Gráfico de Faturamento Diário em Barras */}
+        <div className="bg-white rounded-xl p-4 border border-gray-200 mb-6">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="font-semibold text-gray-800 text-sm">
+              Faturamento Diário (Clique em uma barra para ver os produtos do
+              dia)
+            </h3>
+            <span className="text-xs bg-blue-50 text-blue-700 font-medium px-2.5 py-1 rounded-lg">
+              Dia selecionado: {diaSelecionado}
+            </span>
+          </div>
+          <canvas ref={faturamentoDiarioChartRef}></canvas>
+        </div>
+
+        {/* Detalhamento de Produtos Vendidos no Dia Selecionado com Barra de Rolagem */}
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-6">
+          <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+            <h3 className="font-semibold text-gray-800 text-sm">
+              Produtos Vendidos no Dia {diaSelecionado} ({produtosDoDia.length}{" "}
+              itens)
+            </h3>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-600 font-medium">
+                Alterar dia:
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="31"
+                value={diaSelecionado}
+                onChange={(e) =>
+                  setDiaSelecionado(parseInt(e.target.value) || 1)
+                }
+                className="w-16 px-2 py-1 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+          {/* Container com altura máxima e rolagem interna */}
+          <div className="max-h-72 overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 sticky top-0 z-10 shadow-xs">
+                <tr>
+                  <th className="text-left p-3 font-medium text-gray-600 bg-gray-50">
+                    #
+                  </th>
+                  <th className="text-left p-3 font-medium text-gray-600 bg-gray-50">
+                    Produto
+                  </th>
+                  <th className="text-right p-3 font-medium text-gray-600 bg-gray-50">
+                    Qtd Vendida
+                  </th>
+                  <th className="text-right p-3 font-medium text-gray-600 bg-gray-50">
+                    Valor Total
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {produtosDoDia.length === 0 ? (
+                  <tr>
+                    <td colSpan="4" className="text-center p-6 text-gray-400">
+                      Nenhum produto vendido no dia {diaSelecionado}
+                    </td>
+                  </tr>
+                ) : (
+                  produtosDoDia.map((item, i) => (
+                    <tr
+                      key={i}
+                      className="border-t border-gray-100 hover:bg-gray-50"
+                    >
+                      <td className="p-3">{i + 1}</td>
+                      <td className="p-3 font-medium text-gray-800">
+                        {item.nome}
+                      </td>
+                      <td className="p-3 text-right">{item.qtd}</td>
+                      <td className="p-3 text-right font-semibold text-blue-600">
+                        {formatarMoeda(item.valorTotal)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Gráficos (Semanal, Pagamentos, Top Produtos) */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           <div className="bg-white rounded-xl p-4 border border-gray-200">
             <h3 className="font-semibold text-gray-800 mb-3 text-sm">
@@ -421,12 +587,12 @@ export default function Relatorios() {
           </div>
         </div>
 
-        {/* Tabelas */}
+        {/* Tabelas (Top Produtos Geral e Formas de Pagamento) */}
         <div className="grid md:grid-cols-2 gap-4 mb-6">
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="p-4 border-b border-gray-200 bg-gray-50">
               <h3 className="font-semibold text-gray-800 text-sm">
-                Top 5 Produtos
+                Top 5 Produtos (Geral do Mês)
               </h3>
             </div>
             <div className="overflow-x-auto">
