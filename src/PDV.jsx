@@ -27,7 +27,6 @@ import { abrirFechamentoCaixa } from "./components/fechamentoDeCaixa";
 import { imprimirCupom } from "./services/impressaoService";
 import { setOperadorAtual } from "./services/operadorSession";
 import { useAuth } from "./components/AuthContext";
-import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
 import PixQrCodeModal from "./components/PixQrCodeModal";
 import {
   gerarPayloadPix,
@@ -37,6 +36,7 @@ import {
 } from "./services/pixService"; // Importa o serviço do PIX
 import { getTenant } from "./hooks/useTenant"; // Importa a função para pegar os dados do tenant
 import logoFechado from "./assets/logo.png";
+import { verificarPinAdmin } from "./services/tenantData";
 
 const estadoInicial = {
   carrinho: [],
@@ -650,40 +650,11 @@ export default function PDV() {
       });
     },
     F4: async () => {
-      const { value: senhaAdmin } = await Swal.fire({
-        title: "Área Restrita",
-        text: "Digite a senha do Administrador para voltar ao Dashboard:",
-        input: "password",
-        inputPlaceholder: "Senha do Admin",
-        showCancelButton: true,
-        confirmButtonText: "Confirmar",
-        cancelButtonText: "Cancelar",
-        confirmButtonColor: "#1e3a8a",
-      });
+      const autorizado = await verificarPinAdmin();
 
-      if (senhaAdmin) {
-        try {
-          const auth = getAuth();
-          const user = auth.currentUser;
-
-          if (user && user.email) {
-            // Reautentica o admin no Firebase com a senha digitada
-            await signInWithEmailAndPassword(auth, user.email, senhaAdmin);
-
-            // Se a senha estiver correta, limpa o operador e vai para o dashboard
-            setOperadorAtual(null);
-            navigate("/dashboard");
-          } else {
-            throw new Error("Sessão do administrador não encontrada.");
-          }
-        } catch (error) {
-          console.error("Erro ao validar senha:", error);
-          Swal.fire(
-            "Senha Incorreta",
-            "A senha do Administrador está incorreta.",
-            "error",
-          );
-        }
+      if (autorizado) {
+        setOperadorAtual(null);
+        navigate("/dashboard");
       }
     },
 
@@ -702,6 +673,7 @@ export default function PDV() {
         }
       });
     },
+
     F6: () => {
       if (carrinho.length === 0) return;
       Swal.fire({
@@ -718,13 +690,17 @@ export default function PDV() {
         }
       });
     },
+
     F7: () => abrirPixQrCode(),
+
     F8: () => {
       if (carrinho.length > 0) finalizarVenda("Dinheiro");
     },
+
     F9: () => {
       if (carrinho.length > 0) finalizarVenda("Cartão");
     },
+
     F10: () => {
       setTermoBuscaF10("");
       setMostrarF10((prev) => !prev);

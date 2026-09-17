@@ -311,86 +311,111 @@ export async function carregarCategoriasFirebase() {
 // ===== VENDAS =====
 
 /**
- * Salva uma venda no Firebase (e localStorage como backup)
- */
-export async function salvarVendaFirebase(dadosVenda) {
-  const tenantId = getTenantId();
-  if (!tenantId) return null;
-
-  const vendaCompleta = {
-    ...dadosVenda,
-    id: Date.now(),
-    data: new Date().toISOString(),
-    timestamp: Date.now(),
-  };
-
-  // Salva no localStorage
-  try {
-    const vendasExistentes = JSON.parse(
-      localStorage.getItem(`pdv_vendas_${tenantId}`) || "[]",
-    );
-    vendasExistentes.unshift(vendaCompleta);
-    localStorage.setItem(
-      `pdv_vendas_${tenantId}`,
-      JSON.stringify(vendasExistentes.slice(0, 500)),
-    );
-  } catch (e) {
-    console.warn("Erro ao salvar venda no localStorage:", e);
-  }
-
-  // Tenta salvar no Firebase
-  if (isFirebaseReady()) {
-    try {
-      const vendasRef = getVendasCollectionRef(tenantId);
-      await addDoc(vendasRef, vendaCompleta);
-      console.log("✅ Venda salva no Firebase");
-    } catch (error) {
-      console.warn("⚠️ Erro ao salvar venda no Firebase:", error.message);
-    }
-  }
-
-  return vendaCompleta;
-}
-
-/**
- * Carrega vendas do Firebase (com fallback localStorage)
- */
-export async function carregarVendasFirebase() {
-  const tenantId = getTenantId();
-  if (!tenantId) return [];
-
-  // Tenta carregar do Firebase
-  if (isFirebaseReady()) {
-    try {
-      const vendasRef = getVendasCollectionRef(tenantId);
-      const q = query(vendasRef, orderBy("timestamp", "desc"), limit(100));
-      const querySnapshot = await getDocs(q);
-
-      if (!querySnapshot.empty) {
-        const vendas = [];
-        querySnapshot.forEach((doc) => {
-          vendas.push({ firebaseId: doc.id, ...doc.data() });
-        });
-
-        // Atualiza localStorage com dados do Firebase
-        localStorage.setItem(`pdv_vendas_${tenantId}`, JSON.stringify(vendas));
-        return vendas;
-      }
-    } catch (error) {
-      console.warn("⚠️ Erro ao carregar vendas do Firebase:", error.message);
-    }
-  }
-
-  // Fallback: carrega do localStorage
-  try {
-    const data = localStorage.getItem(`pdv_vendas_${tenantId}`);
-    if (data) return JSON.parse(data);
-  } catch (e) {
-    console.warn("Erro ao carregar vendas do localStorage:", e);
-  }
-
-  return [];
-}
+ /**
+  * Salva uma venda no Firebase (e localStorage como backup) com número sequencial
+  */
+ export async function salvarVendaFirebase(dadosVenda) {
+   const tenantId = getTenantId();
+   if (!tenantId) return null;
+ 
+   // 1. Descobre qual é o próximo número sequencial da venda
+   let proximoNumeroVenda = 1;
+   try {
+     // Carrega as vendas existentes (já usa sua lógica que busca do Firebase ou localStorage)
+     const vendasAtuais = await carregarVendasFirebase();
+     
+     if (vendasAtuais && vendasAtuais.length > 0) {
+       // Procura o maior número de venda já existente na lista
+       const numerosExistentes = vendasAtuais
+         .map(v => Number(v.numeroVenda) || 0)
+         .filter(n => n > 0);
+       
+       if (numerosExistentes.length > 0) {
+         const maiorNumero = Math.max(...numerosExistentes);
+         proximoNumeroVenda = maiorNumero + 1;
+       }
+     }
+   } catch (e) {
+     console.warn("⚠️ Erro ao calcular próximo número da venda, usando fallback:", e);
+     proximoNumeroVenda = Date.now().toString().slice(-5); // Fallback seguro se falhar
+   }
+ 
+   // 2. Monta o objeto completo da venda incluindo o número sequencial
+   const vendaCompleta = {
+     ...dadosVenda,
+     numeroVenda: proximoNumeroVenda, // <--- Aqui está o número subindo sequencialmente (1, 2, 3...)
+     id: Date.now(),
+     data: new Date().toISOString(),
+     timestamp: Date.now(),
+   };
+ 
+   // Salva no localStorage
+   try {
+     const vendasExistentes = JSON.parse(
+       localStorage.getItem(`pdv_vendas_${tenantId}`) || "[]",
+     );
+     vendasExistentes.unshift(vendaCompleta);
+     localStorage.setItem(
+       `pdv_vendas_${tenantId}`,
+       JSON.stringify(vendasExistentes.slice(0, 500)),
+     );
+   } catch (e) {
+     console.warn("Erro ao salvar venda no localStorage:", e);
+   }
+ 
+   // Tenta salvar no Firebase
+   if (isFirebaseReady()) {
+     try {
+       const vendasRef = getVendasCollectionRef(tenantId);
+       await addDoc(vendasRef, vendaCompleta);
+       console.log(`✅ Venda #${proximoNumeroVenda} salva no Firebase`);
+     } catch (error) {
+       console.warn("⚠️ Erro ao salvar venda no Firebase:", error.message);
+     }
+   }
+ 
+   return vendaCompleta;
+ }
+ 
+ /**
+  * Carrega vendas do Firebase (com fallback localStorage)
+  */
+ export async function carregarVendasFirebase() {
+   const tenantId = getTenantId();
+   if (!tenantId) return [];
+ 
+   // Tenta carregar do Firebase
+   if (isFirebaseReady()) {
+     try {
+       const vendasRef = getVendasCollectionRef(tenantId);
+       const q = query(vendasRef, orderBy("timestamp", "desc"), limit(100));
+       const querySnapshot = await getDocs(q);
+ 
+       if (!querySnapshot.empty) {
+         const vendas = [];
+         querySnapshot.forEach((doc) => {
+           vendas.push({ firebaseId: doc.id, ...doc.data() });
+         });
+ 
+         // Atualiza localStorage com dados do Firebase
+         localStorage.setItem(`pdv_vendas_${tenantId}`, JSON.stringify(vendas));
+         return vendas;
+       }
+     } catch (error) {
+       console.warn("⚠️ Erro ao carregar vendas do Firebase:", error.message);
+     }
+   }
+ 
+   // Fallback: carrega do localStorage
+   try {
+     const data = localStorage.getItem(`pdv_vendas_${tenantId}`);
+     if (data) return JSON.parse(data);
+   } catch (e) {
+     console.warn("Erro ao carregar vendas do localStorage:", e);
+   }
+ 
+   return [];
+ }
 
 // ===== ESTABELECIMENTOS =====
 

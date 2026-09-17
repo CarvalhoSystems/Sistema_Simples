@@ -6,6 +6,7 @@ import {
 } from "../../services/operadorSession"; // Ajuste o caminho se necessário
 import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
 import Swal from "sweetalert2";
+import { carregarVendasFirebase } from "../../services/firebaseData";
 
 export default function BarraSuperior() {
   const [hora, setHora] = useState("");
@@ -67,17 +68,24 @@ export default function BarraSuperior() {
     }
   };
 
-  // Opcional: Permitir pressionar a tecla ESC para acionar a saída protegida
-  /*useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        handleSairDoCaixa();
+  // Exemplo de como buscar o número atual para exibir na tela do PDV
+  const [proximoNumeroExibicao, setProximoNumeroExibicao] = useState("...");
+
+  useEffect(() => {
+    async function carregarProximoNumero() {
+      const vendas = await carregarVendasFirebase();
+      if (vendas && vendas.length > 0) {
+        const numeros = vendas
+          .map((v) => Number(v.numeroVenda) || 0)
+          .filter((n) => n > 0);
+        const maior = numeros.length > 0 ? Math.max(...numeros) : 0;
+        setProximoNumeroExibicao(maior + 1);
+      } else {
+        setProximoNumeroExibicao(1); // Se não tem nenhuma venda, começa do 1
       }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);*/
+    }
+    carregarProximoNumero();
+  }, []);
 
   return (
     <div className="bg-[#1e3a8a] text-white px-4 py-2 flex justify-between items-center text-sm font-bold shadow-md border-b-2 border-[#172554]">
@@ -95,7 +103,8 @@ export default function BarraSuperior() {
           <span className="text-blue-200 uppercase">{operadorNome}</span>
         </span>
         <span>
-          Nº da Venda: <span className="text-amber-300">{""}|</span>
+          Nº da Venda:{" "}
+          <span className="text-amber-300">{proximoNumeroExibicao}</span>
         </span>
         <span>{hora}</span>
       </div>

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
+import { Line } from "recharts";
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
@@ -21,9 +22,33 @@ export default function Sidebar() {
     { to: "/planos", icon: "fa-crown", text: "Planos" },
     { to: "/estabelecimentos", icon: "fa-store-alt", text: "Estabelecimentos" },
     { to: "/configuracoes", icon: "fa-cog", text: "Configurações" },
+    // Linha divisoria (item especial),
+    { divider: true },
+
     { to: "/suporte", icon: "fa-life-ring", text: "Suporte" },
     { to: "/nfp", icon: "fa-file-invoice", text: "N. Fiscal Paulista" },
   ];
+
+  {
+    navItems.map((nav, index) => {
+      // Se for o divisor, renderiza a linha com degradê
+      if (nav.divider) {
+        return (
+          <div key={index} className="my-4 px-3">
+            <div className="h-[1px] bg-gradient-to-r from-transparent via-slate-700 to-transparent"></div>
+          </div>
+        );
+      }
+
+      // Caso contrário, renderiza o link normal do menu
+      return (
+        <Link key={index} to={nav.to} className="...">
+          <i className={`fas ${nav.icon} mr-2`}></i>
+          {nav.text}
+        </Link>
+      );
+    });
+  }
 
   return (
     <aside
@@ -71,7 +96,6 @@ export default function Sidebar() {
           ></i>
         </button>
       </div>
-
       {/* Navegação */}
       <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto custom-scrollbar">
         {navItems.map((item) => (
@@ -119,7 +143,6 @@ export default function Sidebar() {
           )}
         </a>
       </nav>
-
       {/* Perfil do Usuário na Base */}
       <div className="p-3 border-t border-slate-800 bg-slate-900/50">
         <div
@@ -151,7 +174,7 @@ export default function Sidebar() {
             </div>
           )}
         </div>
-      </div>
+      </div>{" "}
     </aside>
   );
 }
