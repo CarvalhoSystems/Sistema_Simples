@@ -9,6 +9,9 @@ import {
   createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
+  updatePassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
 } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import {
@@ -33,6 +36,38 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [carregando, setCarregando] = useState(true);
+
+  // Alterar senha do usuário logado
+  const changePassword = async (senhaAtual, novaSenha) => {
+    if (!firebaseDisponivel || !firebaseAuth || !firebaseAuth.currentUser) {
+      return {
+        success: false,
+        error: "Nenhum usuário logado ou Firebase indisponível.",
+      };
+    }
+
+    try {
+      const user = firebaseAuth.currentUser;
+
+      // O Firebase exige reautenticação recente para alterar dados sensíveis como senha
+      const credential = EmailAuthProvider.credential(user.email, senhaAtual);
+      await reauthenticateWithCredential(user, credential);
+
+      // Atualiza para a nova senha
+      await updatePassword(user, novaSenha);
+
+      return { success: true, mensagem: "Senha alterada com sucesso!" };
+    } catch (error) {
+      console.error("Erro ao alterar senha:", error);
+      let mensagemErro = "Erro ao alterar a senha.";
+      if (error.code === "auth/wrong-password") {
+        mensagemErro = "A senha atual está incorreta.";
+      } else if (error.code === "auth/weak-password") {
+        mensagemErro = "A nova senha deve ter pelo menos 6 caracteres.";
+      }
+      return { success: false, error: mensagemErro };
+    }
+  };
 
   // Escuta mudanças no estado de autenticação do Firebase
   useEffect(() => {
@@ -311,6 +346,7 @@ export function AuthProvider({ children }) {
         login,
         signup,
         logout,
+        changePassword,
         carregando,
         firebaseDisponivel,
       }}
@@ -320,5 +356,6 @@ export function AuthProvider({ children }) {
   );
 }
 
-// Hook customizado para facilitar o uso do contexto
+// ** Garanta que esta linha exata esteja presente no final do arquivo: **
 export const useAuth = () => useContext(AuthContext);
+

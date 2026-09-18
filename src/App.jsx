@@ -31,6 +31,7 @@ import AdminDashboard from "./pages/AdminDashboard.jsx";
 import AdminClientes from "./pages/AdminClientes.jsx";
 import AdminFinanceiro from "./pages/AdminFinanceiro.jsx";
 import AdminPlanos from "./pages/AdminPlanos.jsx";
+import AdminConfig from "./pages/AdminConfig.jsx";
 
 
 export default function App() {
@@ -77,6 +78,7 @@ export default function App() {
           <Route path="/admin/clientes" element={<AdminClientes />} />
           <Route path="/admin/financeiro" element={<AdminFinanceiro />} />
           <Route path="/admin/planos" element={<AdminPlanos />} />
+          <Route path="/admin/configuracoes" element={<AdminConfig />} />
         </Route>
       </Route>
 

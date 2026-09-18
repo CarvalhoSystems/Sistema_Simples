@@ -3,6 +3,7 @@ import { useNavigate, Link, Route, Routes } from "react-router-dom";
 import { RAMOS_NEGOCIO } from "../services/supabaseClient";
 import Contato from "./contato";
 
+
 const PLANOS = [
   {
     id: "free",
@@ -136,6 +137,10 @@ export default function LandingPage() {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
     setMenuAberto(false);
   };
+
+  function RodapeDoSistema() {
+    const versaoSistema = import.meta.env.PACKAGE_VERSION;
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -842,6 +847,7 @@ export default function LandingPage() {
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm">
             <p>
               © 2026 SystemPDV. Todos os direitos reservados. Carvalho Systems.
+              <span>Version do Sistema: {versaoSistema}</span>
             </p>
           </div>
         </div>
