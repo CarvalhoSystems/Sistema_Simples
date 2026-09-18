@@ -31,6 +31,7 @@ import AdminDashboard from "./pages/AdminDashboard.jsx";
 import AdminClientes from "./pages/AdminClientes.jsx";
 import AdminFinanceiro from "./pages/AdminFinanceiro.jsx";
 import AdminPlanos from "./pages/AdminPlanos.jsx";
+import "./components/Dashboard.css";
 
 export default function App() {
   return (
