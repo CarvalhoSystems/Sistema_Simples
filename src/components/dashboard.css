@@ -24,90 +24,99 @@
         0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
-/* Estrutura Principal */
-.dashboard-container {
-    display: flex;
-    min-height: 100vh;
-    background-color: var(--bg-main);
-    font-family: "Inter", sans-serif;
-    /* Recomendo adicionar a fonte Inter ao seu projeto */
+/* --- REGRA GLOBAL DE RESET (Impede estouro de largura) --- */
+
+*,
+*::before,
+*::after {
+
+    box-sizing: border-box !important;
+
 }
 
-/* --- Barra Lateral (Sidebar) --- */
-.sidebar {
-    width: 260px;
-    background: var(--bg-sidebar);
-    border-right: 1px solid var(--border-color);
-    display: flex;
-    flex-direction: column;
-    transition: transform 0.3s ease;
-    z-index: 1000;
-}
+html,
+body {
 
-.sidebar-header {
-    padding: 1.75rem 1.5rem;
-    border-bottom: 1px solid var(--border-color);
-    text-align: center;
-}
-
-.sidebar-header h1 {
-    font-size: 1.5rem;
-    margin: 0 0 0.25rem 0;
-    color: var(--text-dark);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.75rem;
-    font-weight: 700;
-}
-
-.sidebar-header h1 i {
-    color: var(--primary);
-}
-
-.sidebar-header p {
     margin: 0;
-    color: var(--text-light);
-    font-size: 0.875rem;
-}
 
-.sidebar-nav {
-    padding: 1rem 0;
-    flex-grow: 1;
-}
-
-.sidebar-nav ul {
-    list-style: none;
     padding: 0;
-    margin: 0;
-}
 
-.sidebar-nav a {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 0.85rem 1.5rem;
-    margin: 0 1rem;
-    color: var(--text-medium);
-    text-decoration: none;
-    transition: all 0.2s ease;
-    font-weight: 500;
-    border-radius: 8px;
-}
+    width: 100%;
 
-.sidebar-nav a:hover {
+    height: 100%;
+
+    overflow-x: hidden !important;
+    /* Mata o scroll horizontal no navegador */
+
     background-color: var(--bg-main);
-    color: var(--text-dark);
+
 }
 
-.sidebar-nav a.active {
-    background-color: var(--primary);
-    color: var(--text-white);
-    box-shadow: var(--shadow);
+/* Container Principal do Layout */
+.dashboard-container {
+
+    display: flex;
+width: 100vw;
+    min-height: 100vh;
+overflow-x: hidden !important;
 }
 
-.sidebar-nav a.active i {
-    color: var(--text-white);
+/* --- SIDEBAR CORRIGIDA --- */
+.sidebar {
+
+    width: 260px;
+    /* Defina a largura fixa necessária */
+    
+        min-width: 260px;
+    
+        height: 100vh;
+    
+        position: sticky;
+    
+        top: 0;
+    background: var(--bg-sidebar);
+
+    border-right: 1px solid var(--border-color);
+
+    display: flex;
+
+    flex-direction: column;
+transition: all 0.3s ease;
+    z-index: 1000;
+
+    overflow-x: hidden !important;
+        /* Oculta estouro horizontal */
+    
+        overflow-y: auto;
+        /* Permite scroll vertical se o menu for longo */
+    
+        scrollbar-width: none;
+        /* Firefox */
+}
+
+/* Esconde a barra visualmente no Chrome, Safari e Edge */
+
+.sidebar::-webkit-scrollbar {
+
+    display: none !important;
+
+    width: 0 !important;
+
+    height: 0 !important;
+
+}
+
+
+/* Esconde totalmente a barra horizontal de qualquer elemento com custom-scrollbar */
+.custom-scrollbar::-webkit-scrollbar:horizontal {
+    display: none !important;
+    height: 0 !important;
+}
+
+/* Garante que o container não permita rolagem nos eixos indesejados */
+.custom-scrollbar {
+    scrollbar-width: thin;
+    overflow-x: hidden !important;
 }
 
 /* --- Conteúdo Principal --- */
