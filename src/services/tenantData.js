@@ -1,0 +1,368 @@
+/**
+ * Serviço de dados multi-tenant
+ * 
+ * Gerencia produtos, categorias e vendas de forma isolada
+ * para cada tenant (cliente/estabelecimento).
+ *
+ * Cada tenant tem seu próprio namespace no localStorage:
+ * - pdv_produtos_{tenantId}
+ * - pdv_categorias_{tenantId}
+ * - pdv_vendas_{tenantId}
+ */
+import { getTenantId, getTenantRamo, getTenant } from "../hooks/useTenant.js";
+import {
+  PRODUTOS_PADRAO,
+  CATEGORIAS_PADRAO as CATEGORIAS_MOCK,
+} from "./supabaseClient.js";
+import {
+  carregarProdutosFirebase,
+  salvarProdutosFirebase,
+  salvarVendaFirebase,
+  carregarCategoriasFirebase, // Adicionado para carregar categorias do Firebase
+  salvarCategoriasFirebase, // Adicionado para salvar categorias no Firebase
+  carregarVendasFirebase, // Adicionado para carregar vendas do Firebase
+  carregarFuncionariosFirebase, // Adcionado a função de novos funcionarios
+  salvarFuncionariosFirebase, // Salva os
+} from "./firebaseData.js";
+import Swal from "sweetalert2";
+
+/**
+ * Retorna a chave do localStorage para um dado do tenant
+ */
+function tenantKey(tenantId, tipo) {
+  return `pdv_${tipo}_${tenantId}`;
+}
+
+function normalizeRamo(ramo) {
+  if (typeof ramo !== "string" || !ramo.trim()) return "mercado";
+  const normalized = ramo.trim().toLowerCase();
+  return normalized in PRODUTOS_PADRAO ? normalized : "mercado";
+}
+
+export function getDefaultInventoryForRamo(ramo = "mercado") {
+  const ramoNormalizado = normalizeRamo(ramo);
+  const produtos = PRODUTOS_PADRAO[ramoNormalizado] || PRODUTOS_PADRAO.mercado;
+  const categorias =
+    CATEGORIAS_MOCK[ramoNormalizado] || CATEGORIAS_MOCK.mercado;
+
+  return {
+    produtos: produtos.map((produto) => ({ ...produto })),
+    categorias: [...categorias],
+  };
+}
+
+/**
+ * Obtém os produtos do tenant atual
+ */
+export async function getProdutos() {
+  const tenantId = getTenantId();
+  if (!tenantId) return [];
+
+  // carregarProdutosFirebase já lida com o carregamento do Firebase e fallback para localStorage.
+  // Se ele retornar vazio, significa que não há produtos persistidos.
+  // Não deve haver fallback para PRODUTOS_PADRAO aqui, pois isso sobrescreveria o estoque real.
+  const produtosDoTenant = await carregarProdutosFirebase();
+  return produtosDoTenant;
+}
+
+/**
+ * Salva os produtos do tenant atual
+ */
+export async function setProdutos(produtos) {
+  // Salva no Firebase e no localStorage (o firebaseData já faz o fallback)
+  await salvarProdutosFirebase(produtos);
+}
+
+/**
+ * Gera o próximo código sequencial baseado nos produtos existentes
+ */
+function gerarProximoCodigo(produtos) {
+  // Filtra apenas códigos que são números puros
+  const codigosNumericos = produtos
+    .map((p) => parseInt(p.codigo, 10))
+    .filter((num) => !isNaN(num) && num > 0);
+
+  if (codigosNumericos.length === 0) {
+    return "1";
+  }
+
+  // Pega o maior código e adiciona 1
+  const ultimoCodigo = Math.max(...codigosNumericos);
+  const proximoCodigo = ultimoCodigo + 1;
+
+  return String(proximoCodigo);
+}
+
+/**
+ * Adiciona um produto ao tenant atual
+ */
+export async function addProduto(produto) {
+  const produtos = await getProdutos();
+
+  // Se não fornecer código, gera um sequencial
+  const codigo = produto.codigo || gerarProximoCodigo(produtos);
+
+  const novoProduto = {
+    ...produto,
+    codigo: codigo,
+  };
+
+  produtos.push(novoProduto);
+  await setProdutos(produtos);
+  return novoProduto;
+}
+
+/**
+ * Atualiza um produto do tenant atual
+ */
+export async function updateProduto(codigo, dadosAtualizados) {
+  const produtos = await getProdutos();
+  const index = produtos.findIndex((p) => p.codigo === codigo);
+  if (index === -1) return null;
+
+  produtos[index] = { ...produtos[index], ...dadosAtualizados };
+  await setProdutos(produtos);
+  return produtos[index];
+}
+
+/**
+ * Remove um produto do tenant atual
+ */
+export async function removeProduto(codigo) {
+  const produtos = await getProdutos();
+  const novosProdutos = produtos.filter((p) => p.codigo !== codigo);
+  await setProdutos(novosProdutos);
+  return novosProdutos;
+}
+
+/**
+ * Obtém as categorias do tenant atual
+ */
+export async function getCategorias() {
+  const tenantId = getTenantId();
+  if (!tenantId) return [];
+
+  // Carrega categorias do Firebase com fallback para localStorage
+  const categoriasDoTenant = await carregarCategoriasFirebase();
+  return categoriasDoTenant;
+}
+
+/**
+ * Função de fallback para obter categorias do localStorage.
+ */
+/* Removida, pois a lógica de fallback agora está em carregarCategoriasFirebase
+  try {
+    const data = localStorage.getItem(tenantKey(tenantId, "categorias"));
+    if (data) {
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn("Erro ao carregar categorias do localStorage:", e);
+  }
+  const ramo = getTenantRamo();
+  return getDefaultInventoryForRamo(ramo).categorias;
+*/
+
+/**
+ * Salva as categorias do tenant atual
+ */
+export async function setCategorias(categorias) {
+  // Tornar assíncrona para usar salvarCategoriasFirebase
+  await salvarCategoriasFirebase(categorias);
+}
+
+/**
+ * Obtém as vendas do tenant atual
+ * Busca do Firebase primeiro (dados sincronizados entre dispositivos),
+ * com fallback para localStorage.
+ */
+export async function getVendas() {
+  const tenantId = getTenantId();
+  if (!tenantId) return [];
+
+  // Busca do Firebase primeiro para garantir dados sincronizados entre dispositivos
+  const vendasDoFirebase = await carregarVendasFirebase();
+  if (vendasDoFirebase && vendasDoFirebase.length > 0) {
+    return vendasDoFirebase;
+  }
+
+  // Fallback: carrega do localStorage
+  try {
+    const data = localStorage.getItem(tenantKey(tenantId, "vendas"));
+    if (data) {
+      return JSON.parse(data);
+    }
+  } catch (e) {
+    console.warn("Erro ao carregar vendas:", e);
+  }
+  return [];
+}
+
+/**
+ * Salva uma nova venda no histórico do tenant
+ */
+export async function addVenda(dadosVenda) {
+  // A função salvarVendaFirebase já faz o fallback para localStorage
+  const novaVenda = await salvarVendaFirebase(dadosVenda);
+  return novaVenda;
+}
+
+/**
+ * Busca um produto pelo código
+ */
+export async function buscarProdutoPorCodigo(codigo) {
+  const produtos = await getProdutos();
+  return produtos.find((p) => p.codigo === codigo) || null;
+}
+
+/**
+ * Busca produtos por termo (código ou descrição)
+ */
+export function buscarProdutos(termo, produtos) {
+  if (!termo) return produtos;
+  const termoLower = String(termo).toLowerCase();
+  return produtos.filter(
+    (p) =>
+      p.descricao.toLowerCase().includes(termoLower) ||
+      p.codigo.toLowerCase().includes(termoLower),
+  );
+}
+
+/**
+ * Obtém informações do estabelecimento do tenant
+ */
+export function getEstabelecimentoInfo() {
+  const tenant = getTenant() || {};
+  return {
+    nome: tenant.nomeEstabelecimento || "Meu Estabelecimento",
+    ramo: tenant.ramo || "mercado",
+    ramoInfo: tenant.ramoInfo || null,
+    email: tenant.email || "",
+  };
+
+  // **
+}
+
+/**
+ * Obtém os funcionários/caixas cadastrados do tenant atual
+ */
+export async function getFuncionarios() {
+  const tenantId = getTenantId();
+  if (!tenantId) return [];
+
+  // carregar do Firebase
+  const funcionariosDoTenant = await carregarFuncionariosFirebase();
+  return funcionariosDoTenant;
+}
+
+/**
+ * Senha Admin Dashboard
+ */
+
+export const verificarPinAdmin = async () => {
+  // O PIN Mestre é o código do funcionário com cargo administrativo.
+  const { value: pinDigitado } = await Swal.fire({
+    title: "Acesso Restrito ao Administrador",
+    text: "Digite o PIN Mestre de 4 dígitos do Administrador:",
+    input: "password", // ou "text" com máscara numérica se preferir
+    inputAttributes: {
+      maxlength: "6",
+      autocapitalize: "off",
+      autocorrect: "off",
+    },
+    showCancelButton: true,
+    confirmButtonText: "Confirmar",
+    cancelButtonText: "Cancelar",
+    confirmButtonColor: "#4f46e5",
+  });
+
+  if (!pinDigitado) return false;
+
+  const funcionarios = await getFuncionarios();
+  const autorizado = funcionarios.some((funcionario) => {
+    const cargo = String(funcionario.cargo || "")
+      .trim()
+      .toLowerCase();
+    return (
+      funcionario.ativo !== false &&
+      (cargo === "admin" || cargo === "gerente") &&
+      String(funcionario.codigo) === String(pinDigitado)
+    );
+  });
+
+  if (autorizado) return true;
+
+  {
+    Swal.fire({
+      icon: "error",
+      title: "PIN Incorreto",
+      text: "O PIN informado não pertence ao Administrador.",
+    });
+    return false;
+  }
+};
+
+/**
+ * Salva a lista de funcionários do tenant
+ */
+export async function setFuncionarios(funcionarios) {
+  const tenantId = getTenantId();
+  await salvarFuncionariosFirebase(funcionarios);
+}
+
+/**
+ * Excluir Funcionarios do Firebase
+ */
+
+/**
+ * Cadastra um novo funcionário com código curto (PIN) e senha
+ */
+export async function addFuncionario(dadosFuncionario) {
+  const funcionarios = await getFuncionarios();
+
+  // Valida se já existe um funcionário com o mesmo código curto neste tenant
+  const existe = funcionarios.some((f) => f.codigo === dadosFuncionario.codigo);
+  if (existe) {
+    throw new Error(
+      "Este código de acesso (PIN) já está em uso por outro funcionário.",
+    );
+  }
+
+  const novoFuncionario = {
+    id: Date.now().toString(),
+    codigo: dadosFuncionario.codigo,
+    nome: dadosFuncionario.nome,
+    senha: dadosFuncionario.senha,
+    cargo: dadosFuncionario.cargo || "caixa", // "caixa" ou "admin"
+    ativo: true,
+    criadoEm: new Date().toISOString(),
+  };
+
+  funcionarios.push(novoFuncionario);
+  await setFuncionarios(funcionarios);
+  return novoFuncionario;
+}
+
+/**
+ * Autentica um caixa pelo código curto e senha dentro do tenant
+ */
+export async function autenticarFuncionarioPorCodigo(codigo, senha) {
+  const funcionarios = await getFuncionarios();
+
+  const funcionario = funcionarios.find(
+    (f) => f.codigo === String(codigo) && f.ativo === true,
+  );
+
+  if (!funcionario) {
+    throw new Error("Funcionário não encontrado ou inativo.");
+  }
+
+  if (funcionario.senha !== String(senha)) {
+    throw new Error("Senha incorreta.");
+  }
+
+  return funcionario; // Retorna os dados do funcionário (incluindo o cargo)
+}

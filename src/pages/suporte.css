@@ -1,0 +1,71 @@
+.support-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    background-color: #f8fafc;
+    width: 100%;
+    min-height: 100%;
+}
+
+.support-card {
+    background-color: #ffffff;
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e2e8f0;
+    width: 100%;
+    max-width: 600px;
+    padding: 2rem;
+}
+
+.support-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.support-header .fa-headset {
+    font-size: 3rem;
+    color: #4f46e5;
+    margin-bottom: 1rem;
+}
+
+.support-header h2 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.support-header p {
+    color: #64748b;
+    margin-top: 0.5rem;
+}
+
+.support-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.btn-support {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 0.8rem 1.5rem;
+    background-color: #25d366;
+    color: white;
+    font-weight: 600;
+    font-size: 1rem;
+    border-radius: 0.5rem;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.btn-support:hover {
+    background-color: #128c7e;
+}
+
+.btn-support .fab {
+    font-size: 1.25rem;
+}
