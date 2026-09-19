@@ -22,6 +22,7 @@ export default function AdminLayout() {
     { to: "/admin/clientes", icon: "fa-users", text: "Clientes" },
     { to: "/admin/financeiro", icon: "fa-dollar-sign", text: "Financeiro" },
     { to: "/admin/planos", icon: "fa-crown", text: "Planos" },
+    { to: "/admin/configuracoes", icon: "fa-cog", text: "Configurações" }, // <--- ADICIONADO AQUI
   ];
 
   return (
@@ -79,7 +80,7 @@ export default function AdminLayout() {
         </nav>
       </aside>
 
-      {/* Conteúdo */}
+      {/* Conteúdo dinâmico das rotas */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <main className="flex-1 overflow-y-auto bg-gray-50">
           <Outlet />

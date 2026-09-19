@@ -6,6 +6,7 @@ import {
   renovarTrialManual,
   alterarStatusManual,
   bloquearClienteManual,
+  alterarVencimentoManual,
 } from "../services/planoManager";
 import { RAMOS_NEGOCIO } from "../services/supabaseClient";
 
@@ -23,7 +24,7 @@ export default function AdminClientes() {
   async function carregarClientes() {
     setCarregando(true);
     const dados = await gerarRelatorioAdmin();
-    setClientes(dados || []); // Garante que seja sempre um array
+    setClientes(dados || []);
     setCarregando(false);
   }
 
@@ -46,16 +47,11 @@ export default function AdminClientes() {
     return new Date(data).toLocaleDateString("pt-BR");
   }
 
-  function getRamoNome(ramoId) {
-    const ramo = RAMOS_NEGOCIO.find((r) => r.id === ramoId);
-    return ramo?.nome || ramoId || "N/A";
-  }
-
   async function handleAlterarPlano(cliente, novoPlano) {
     setCarregando(true);
     const result = await alterarPlanoManual(cliente.id, cliente, novoPlano);
     setMensagem(result);
-    setModalAberto(null); // Fecha o modal
+    setModalAberto(null);
     await carregarClientes();
     setCarregando(false);
   }
@@ -63,7 +59,7 @@ export default function AdminClientes() {
   async function handleRenovarTrial(cliente, dias = 7) {
     setCarregando(true);
     const result = await renovarTrialManual(cliente.id, dias);
-    setMensagem(result); // Exibe mensagem de sucesso/erro
+    setMensagem(result);
     setModalAberto(null);
     await carregarClientes();
     setCarregando(false);
@@ -71,7 +67,7 @@ export default function AdminClientes() {
 
   async function handleAlterarStatus(cliente, novoStatus) {
     setCarregando(true);
-    const result = await alterarStatusManual(cliente.id, novoStatus); // Altera o status
+    const result = await alterarStatusManual(cliente.id, novoStatus);
     setMensagem(result);
     setModalAberto(null);
     await carregarClientes();
@@ -82,6 +78,15 @@ export default function AdminClientes() {
     setCarregando(true);
     const result = await bloquearClienteManual(cliente.id, bloquear);
     setMensagem(result);
+    await carregarClientes();
+    setCarregando(false);
+  }
+
+  async function handleAlterarVencimento(cliente, novaData) {
+    setCarregando(true);
+    const result = await alterarVencimentoManual(cliente.id, novaData);
+    setMensagem(result);
+    setModalAberto(null);
     await carregarClientes();
     setCarregando(false);
   }
@@ -267,6 +272,15 @@ export default function AdminClientes() {
                           </button>
                           <button
                             onClick={() =>
+                              setModalAberto({ tipo: "vencimento", cliente })
+                            }
+                            className="px-2 py-1 text-xs bg-purple-50 text-purple-600 rounded hover:bg-purple-100 transition-colors"
+                            title="Alterar Data de Vencimento"
+                          >
+                            <i className="fas fa-calendar-alt"></i>
+                          </button>
+                          <button
+                            onClick={() =>
                               setModalAberto({ tipo: "status", cliente })
                             }
                             className="px-2 py-1 text-xs bg-green-50 text-green-600 rounded hover:bg-green-100 transition-colors"
@@ -407,6 +421,64 @@ export default function AdminClientes() {
                 Cancelar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal - Alterar Data de Vencimento */}
+      {modalAberto?.tipo === "vencimento" && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-xl">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">
+              Alterar Data de Vencimento
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Cliente: <strong>{modalAberto.cliente.nome}</strong>
+            </p>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const novaData = e.target.elements.novaData.value;
+                handleAlterarVencimento(modalAberto.cliente, novaData);
+              }}
+            >
+              <div className="mb-4">
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Nova Data de Vencimento
+                </label>
+                <input
+                  type="date"
+                  name="novaData"
+                  defaultValue={
+                    modalAberto.cliente.assinatura?.proximoVencimento
+                      ? modalAberto.cliente.assinatura.proximoVencimento.split(
+                          "T",
+                        )[0]
+                      : ""
+                  }
+                  required
+                  className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setModalAberto(null)}
+                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={carregando}
+                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Salvar
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

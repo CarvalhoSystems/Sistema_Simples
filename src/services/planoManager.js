@@ -156,6 +156,50 @@ export async function salvarAssinatura(assinatura, tenantIdOverride) {
 }
 
 /**
+ * Altera a data de vencimento de um tenant manualmente
+ */
+export async function alterarVencimentoManual(tenantId, novaDataStr) {
+  try {
+    // Busca a assinatura do CLIENTE usando o tenantId passado
+    const assinatura = await carregarAssinatura(true, tenantId);
+    if (!assinatura || !assinatura.tenantId) {
+      return { success: false, error: "Nenhuma assinatura encontrada" };
+    }
+
+    // Valida e converte a string de data (YYYY-MM-DD) para ISO com hora atual ou fim do dia
+    const [ano, mes, dia] = novaDataStr.split("-");
+    const novaData = new Date(ano, mes - 1, dia);
+
+    if (isNaN(novaData.getTime())) {
+      return { success: false, error: "Data inválida" };
+    }
+
+    assinatura.proximoVencimento = novaData.toISOString();
+
+    // Se a nova data for no futuro e o cliente estiver vencido/bloqueado, opcionalmente reativamos:
+    const agora = new Date();
+    if (
+      novaData > agora &&
+      (assinatura.status === "vencida" ||
+        assinatura.status === "trial_expirado")
+    ) {
+      assinatura.status = "ativa";
+      assinatura.bloqueado = false;
+      assinatura.dataBloqueio = null;
+    }
+
+    await salvarAssinatura(assinatura, tenantId);
+
+    return {
+      success: true,
+      mensagem: `Data de vencimento alterada para ${novaData.toLocaleDateString("pt-BR")}`,
+    };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
  * Carrega a assinatura do tenant
  * @param {boolean} forceRefresh - Se true, força busca no Firebase
  * @param {string} [tenantIdOverride] - ID do tenant (opcional, para admin alterar outro cliente)
