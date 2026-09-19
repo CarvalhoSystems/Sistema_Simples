@@ -8,7 +8,7 @@ import {
   getEstabelecimentoAtivoId,
   getEstabelecimentoAtivo,
 } from "../services/estabelecimentoManager";
-
+import InputSenha from "../components/InputSenha";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -223,7 +223,7 @@ export default function Login() {
             <label className="block text-sm font-medium text-slate-700">
               Senha
             </label>
-            <input
+            <InputSenha
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

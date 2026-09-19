@@ -3,73 +3,79 @@ import { useNavigate, Link, Route, Routes } from "react-router-dom";
 import { RAMOS_NEGOCIO } from "../services/supabaseClient";
 import Contato from "./contato";
 
+const versaoSistema = import.meta.env.VITE_APP_VERSION || "local";
+
 const PLANOS = [
   {
     id: "free",
     nome: "Free",
-    preco: "0",
+    icone: "🌱",
+    preco: 0,
     periodo: "grátis por 7 dias",
     destaque: false,
-    features: [
-      "🏪 1 estabelecimento",
-      "📦 Até 50 produtos cadastrados",
-      "💻 PDV completo e ágil",
-      "📊 Dashboard básico de vendas",
-      "✉️ Suporte por email",
-    ],
     tag: "TESTE GRÁTIS",
+    features: [
+      { icone: "🏪", texto: "1 estabelecimento" },
+      { icone: "📦", texto: "Até 50 produtos cadastrados" },
+      { icone: "💻", texto: "PDV completo e ágil" },
+      { icone: "📊", texto: "Dashboard básico de vendas" },
+      { icone: "✉️", texto: "Suporte por email" },
+    ],
   },
   {
     id: "basico",
     nome: "Básico",
-    preco: "89,90",
+    icone: "⚡",
+    preco: 89.9,
     periodo: "/mês",
     destaque: false,
-    features: [
-      "🏪 1 estabelecimento",
-      "📦 Produtos ilimitados",
-      "⚡ PDV + Dashboard em tempo real",
-      "📈 Relatórios semanais e mensais",
-      "☁️ Backup seguro em nuvem",
-      "⭐ Suporte prioritário",
-    ],
     tag: "MAIS ACESSÍVEL",
+    features: [
+      { icone: "🏪", texto: "1 estabelecimento" },
+      { icone: "📦", texto: "Produtos ilimitados" },
+      { icone: "⚡", texto: "PDV + Dashboard em tempo real" },
+      { icone: "📈", texto: "Relatórios semanais e mensais" },
+      { icone: "☁️", texto: "Backup seguro em nuvem" },
+      { icone: "⭐", texto: "Suporte prioritário" },
+    ],
   },
   {
     id: "profissional",
     nome: "Profissional",
-    preco: "129,90",
+    icone: "🚀",
+    preco: 129.9,
     periodo: "/mês",
     destaque: true,
+    tag: "MAIS VENDIDO 🔥",
     features: [
-      "🏢 Até 3 estabelecimentos",
-      "📦 Produtos ilimitados",
-      "🧾 Nota Fiscal Paulista",
-      "📄 NF-e sem burocracia",
-      "📊 Faturamento diário interativo", // <- Foco no gráfico de barras com cliques
-      "🔍 Auditoria total de produtos por dia", // <- Foco na listagem com scroll
-      "💎 Suporte VIP dedicado",
-      "🛡️ Backup automático diário",
+      { icone: "🏢", texto: "Até 3 estabelecimentos" },
+      { icone: "📦", texto: "Produtos ilimitados" },
+      { icone: "🧾", texto: "Nota Fiscal Paulista" },
+      { icone: "📄", texto: "NF-e sem burocracia" },
+      { icone: "📊", texto: "Faturamento diário interativo" },
+      { icone: "🔍", texto: "Auditoria total de produtos por dia" },
+      { icone: "💎", texto: "Suporte VIP dedicado" },
+      { icone: "🛡️", texto: "Backup automático diário" },
     ],
-    tag: "MAIS VENDIDO 🔥", // Tag mais chamativa para o popular
   },
   {
     id: "premium",
     nome: "Premium",
-    preco: "179,90",
+    icone: "👑",
+    preco: 179.9,
     periodo: "/mês",
     destaque: false,
-    features: [
-      "🚀 Estabelecimentos ilimitados",
-      "📦 Produtos ilimitados",
-      "🧾 Nota Fiscal Paulista",
-      "👥 Múltiplos usuários com permissões",
-      "🎯 Relatórios 100% customizados",
-      "🔌 API de integração completa",
-      "👑 Suporte 24h prioritário",
-      "✨ Acesso antecipado a novas features",
-    ],
     tag: "COMPLETO",
+    features: [
+      { icone: "🚀", texto: "Estabelecimentos ilimitados" },
+      { icone: "📦", texto: "Produtos ilimitados" },
+      { icone: "🧾", texto: "Nota Fiscal Paulista" },
+      { icone: "👥", texto: "Múltiplos usuários com permissões" },
+      { icone: "🎯", texto: "Relatórios 100% customizados" },
+      { icone: "🔌", texto: "API de integração completa" },
+      { icone: "👑", texto: "Suporte 24h prioritário" },
+      { icone: "✨", texto: "Acesso antecipado a novas features" },
+    ],
   },
 ];
 
@@ -612,7 +618,9 @@ export default function LandingPage() {
                         className="flex items-start gap-2 text-sm text-gray-600"
                       >
                         <i className="fas fa-check text-green-500 mt-0.5"></i>
-                        {feat}
+                        <span>
+                          {feat.icone} {feat.texto}
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -842,6 +850,7 @@ export default function LandingPage() {
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm">
             <p>
               © 2026 SystemPDV. Todos os direitos reservados. Carvalho Systems.
+              <span className="ml-2">Versão do sistema: {versaoSistema}</span>
             </p>
           </div>
         </div>

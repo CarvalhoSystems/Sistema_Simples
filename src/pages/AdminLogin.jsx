@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../components/AuthContext";
+import InputSenha from "../components/InputSenha"; // 1. Importe o componente reutilizável
 
 // Email do admin vem do .env - NÃO exposto no código fonte!
 const ADMIN_EMAIL =
@@ -78,7 +79,7 @@ export default function AdminLogin() {
               <label className="block text-sm font-medium text-gray-300 mb-1">
                 Senha
               </label>
-              <input
+              <InputSenha
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

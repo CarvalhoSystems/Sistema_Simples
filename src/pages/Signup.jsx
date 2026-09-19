@@ -11,6 +11,7 @@ import {
 } from "../services/estabelecimentoManager";
 import { sanitizeInput } from "../utils/sanitize";
 import { sendEmailVerification } from "firebase/auth";
+import InputSenha from "../components/InputSenha";
 
 export default function Signup() {
   const [fullName, setFullName] = useState("");
@@ -216,7 +217,7 @@ export default function Signup() {
             <label className="block text-sm font-medium text-slate-700">
               Senha
             </label>
-            <input
+            <InputSenha
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -231,7 +232,7 @@ export default function Signup() {
             <label className="block text-sm font-medium text-slate-700">
               Confirme a Senha
             </label>
-            <input
+            <InputSenha
               type="password"
               value={confirmPassword} // <-- Corrigido para o estado certo
               onChange={(e) => setConfirmPassword(e.target.value)} // <-- Corrigido para a função certa
