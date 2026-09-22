@@ -5,6 +5,7 @@ import { getVendas } from "../services/tenantData";
 import { imprimirRelatorioVendas } from "../services/impressaoService";
 import PlanBlock from "../components/PlanBlock";
 
+
 const SummaryCard = ({ icon, title, value, subtitle, cor }) => (
   <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-all">
     <div className="flex items-center gap-4">
@@ -34,6 +35,7 @@ export default function Relatorios() {
   const [vendas, setVendas] = useState([]);
   const [stats, setStats] = useState({
     faturamento: 0,
+    faturamentoDiario: 0,
     totalVendas: 0,
     ticketMedio: 0,
     descontos: 0,
@@ -49,13 +51,21 @@ export default function Relatorios() {
   const chartInstances = useRef({});
 
   const calcularEstatisticas = React.useCallback(() => {
-    // Filtra vendas do mês/ano selecionado
     const vendasFiltradas = vendas.filter((v) => {
       const data = new Date(v.data);
       return data.getMonth() === mes && data.getFullYear() === ano;
     });
 
+    const vendasDoDia = vendasFiltradas.filter((v) => {
+      const data = new Date(v.data);
+      return data.getDate() === diaSelecionado;
+    });
+
     const totalFaturamento = vendasFiltradas.reduce(
+      (acc, v) => acc + (v.total || 0),
+      0,
+    );
+    const totalFaturamentoDiario = vendasDoDia.reduce(
       (acc, v) => acc + (v.total || 0),
       0,
     );
@@ -99,13 +109,14 @@ export default function Relatorios() {
 
     setStats({
       faturamento: totalFaturamento,
+      faturamentoDiario: totalFaturamentoDiario,
       totalVendas: vendasFiltradas.length,
       ticketMedio,
       descontos: totalDescontos,
       porPagamento,
       topProdutos,
     });
-  }, [mes, ano, vendas]);
+  }, [mes, ano, diaSelecionado, vendas]);
 
   // Carrega vendas do tenant
   useEffect(() => {
@@ -449,10 +460,28 @@ export default function Relatorios() {
         </div>
 
         {/* Cards de resumo */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+          <SummaryCard
+            icon="fa-calendar-day"
+            title="Vendas do Dia"
+            value={formatarMoeda(
+              vendas
+                .filter((v) => {
+                  const data = new Date(v.data);
+                  return (
+                    data.getDate() === diaSelecionado &&
+                    data.getMonth() === mes &&
+                    data.getFullYear() === ano
+                  );
+                })
+                .reduce((acc, v) => acc + (v.total || 0), 0),
+            )}
+            subtitle={`Dia ${diaSelecionado}`}
+            cor="#6366F1"
+          />
           <SummaryCard
             icon="fa-dollar-sign"
-            title="Faturamento"
+            title="Faturamento Mensal"
             value={formatarMoeda(stats.faturamento)}
             subtitle="Mês selecionado"
             cor="#10B981"
