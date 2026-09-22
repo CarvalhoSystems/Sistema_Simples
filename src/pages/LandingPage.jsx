@@ -135,7 +135,6 @@ export default function LandingPage() {
   const navigate = useNavigate();
   const [menuAberto, setMenuAberto] = useState(false);
   const [faqAberto, setFaqAberto] = useState(null);
-  const versaoSistema = packageJson.version;
 
   const scrollTo = (id) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
