@@ -220,9 +220,7 @@ export default function Login() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700">
-              Senha
-            </label>
+            <label className="block text-sm font-medium text-slate-700"></label>
             <InputSenha
               type="password"
               value={password}

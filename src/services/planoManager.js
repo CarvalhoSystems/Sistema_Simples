@@ -99,10 +99,15 @@ function getAssinaturaKey(tenantId) {
   return `pdv_assinatura_${tenantId}`;
 }
 
+function getContaTenantId() {
+  const tenant = getTenant();
+  return tenant?.uid || tenant?.id || getTenantId();
+}
+
 // ===== FUNÇÕES DE ASSINATURA =====
 
 export function criarAssinatura(planoId, periodoTeste = true) {
-  const tenantId = getTenantId();
+  const tenantId = getContaTenantId();
   if (!tenantId) return null;
 
   const agora = new Date();
@@ -135,7 +140,7 @@ export function criarAssinatura(planoId, periodoTeste = true) {
  * @param {string} [tenantIdOverride] - ID do tenant (opcional, para uso do admin ao alterar assinatura de outro cliente)
  */
 export async function salvarAssinatura(assinatura, tenantIdOverride) {
-  const tenantId = tenantIdOverride || getTenantId();
+  const tenantId = tenantIdOverride || getContaTenantId();
   if (tenantId)
     localStorage.setItem(
       getAssinaturaKey(tenantId),
@@ -208,7 +213,7 @@ export async function carregarAssinatura(
   forceRefresh = false,
   tenantIdOverride,
 ) {
-  const tenantId = tenantIdOverride || getTenantId();
+  const tenantId = tenantIdOverride || getContaTenantId();
   if (!tenantId) return null;
 
   // Tenta carregar do Firebase primeiro, especialmente se forçado
@@ -239,6 +244,23 @@ export async function carregarAssinatura(
   } catch (e) {
     console.warn("Erro ao carregar assinatura do localStorage:", e);
   }
+
+  const tenantAtivoId = getTenantId();
+  if (!tenantIdOverride && tenantAtivoId && tenantAtivoId !== tenantId) {
+    const assinaturaDaUnidade = await carregarAssinatura(
+      forceRefresh,
+      tenantAtivoId,
+    );
+    if (assinaturaDaUnidade) {
+      const assinaturaDaConta = {
+        ...assinaturaDaUnidade,
+        tenantId,
+      };
+      await salvarAssinatura(assinaturaDaConta, tenantId);
+      return assinaturaDaConta;
+    }
+  }
+
   return null;
 }
 
@@ -358,7 +380,7 @@ export async function registrarPagamento(planoId, valor, metadata = {}) {
   const agora = new Date();
 
   if (!assinatura) {
-    const tenantId = getTenantId();
+    const tenantId = getContaTenantId();
     if (!tenantId) return null;
 
     assinatura = {

@@ -10,6 +10,8 @@
  * - Credenciais de acesso à API
  */
 
+import { getTenant, getTenantId } from "../hooks/useTenant.js";
+
 const API_BASE_URL =
   import.meta.env.VITE_NFP_API_URL ||
   "https://homologacao.nfpaulista.fazenda.sp.gov.br/api";
@@ -41,6 +43,26 @@ let configEmpresa = {
   ambiente: "homologacao", // "homologacao" ou "producao"
 };
 
+const CONFIG_EMPRESA_PADRAO = JSON.parse(JSON.stringify(configEmpresa));
+
+function carregarValorTenant(tipo, chaveLegada) {
+  const tenantId = getTenantId();
+  const chaveTenant = tenantId ? `pdv_nfp_${tipo}_${tenantId}` : null;
+  let valor = chaveTenant ? localStorage.getItem(chaveTenant) : null;
+
+  if (valor === null) {
+    valor = localStorage.getItem(chaveLegada);
+    if (valor !== null && chaveTenant) {
+      const tenantPrincipalId = getTenant()?.uid || tenantId;
+      localStorage.setItem(`pdv_nfp_${tipo}_${tenantPrincipalId}`, valor);
+      localStorage.removeItem(chaveLegada);
+      if (tenantPrincipalId !== tenantId) valor = null;
+    }
+  }
+
+  return { chaveTenant, valor };
+}
+
 // Cache de notas emitidas na sessão
 let notasEmitidas = [];
 
@@ -49,7 +71,8 @@ let notasEmitidas = [];
  */
 export function carregarConfiguracoes() {
   try {
-    const salvo = localStorage.getItem("nfp_config");
+    const { valor: salvo } = carregarValorTenant("config", "nfp_config");
+    configEmpresa = JSON.parse(JSON.stringify(CONFIG_EMPRESA_PADRAO));
     if (salvo) {
       configEmpresa = { ...configEmpresa, ...JSON.parse(salvo) };
     }
@@ -64,7 +87,11 @@ export function carregarConfiguracoes() {
  */
 export function salvarConfiguracoes(novaConfig) {
   configEmpresa = { ...configEmpresa, ...novaConfig };
-  localStorage.setItem("nfp_config", JSON.stringify(configEmpresa));
+  const { chaveTenant } = carregarValorTenant("config", "nfp_config");
+  localStorage.setItem(
+    chaveTenant || "nfp_config",
+    JSON.stringify(configEmpresa),
+  );
   return configEmpresa;
 }
 
@@ -319,6 +346,8 @@ function gerarXMLNotaFiscal(dadosVenda, cpfCliente) {
  * https://homologacao.nfpaulista.fazenda.sp.gov.br/
  */
 export async function emitirNotaFiscal(dadosVenda, cpfCliente) {
+  carregarConfiguracoes();
+  carregarNotasEmitidas();
   // Validações
   if (!configEmpresa.cnpj) {
     throw new Error(
@@ -378,8 +407,9 @@ export async function emitirNotaFiscal(dadosVenda, cpfCliente) {
  */
 function salvarNotasEmitidas() {
   try {
+    const { chaveTenant } = carregarValorTenant("notas", "nfp_notas");
     localStorage.setItem(
-      "nfp_notas",
+      chaveTenant || "nfp_notas",
       JSON.stringify(notasEmitidas.slice(0, 100)),
     );
   } catch (e) {
@@ -392,9 +422,11 @@ function salvarNotasEmitidas() {
  */
 export function carregarNotasEmitidas() {
   try {
-    const salvo = localStorage.getItem("nfp_notas");
+    const { valor: salvo } = carregarValorTenant("notas", "nfp_notas");
     if (salvo) {
       notasEmitidas = JSON.parse(salvo);
+    } else {
+      notasEmitidas = [];
     }
   } catch (e) {
     console.warn("Erro ao carregar notas emitidas:", e);
@@ -409,6 +441,7 @@ export function carregarNotasEmitidas() {
  * e acumular créditos. Esta função simula essa consulta.
  */
 export async function consultarNotasPorCPF(cpf) {
+  carregarNotasEmitidas();
   const cpfLimpo = formatarDocumento(cpf);
 
   if (cpfLimpo.length !== 11) {
@@ -440,6 +473,7 @@ export async function consultarNotasPorCPF(cpf) {
  * Cancela uma nota fiscal (dentro do prazo legal)
  */
 export async function cancelarNotaFiscal(chaveAcesso, justificativa) {
+  carregarNotasEmitidas();
   // Simula cancelamento
   await new Promise((resolve) => setTimeout(resolve, 1000));
 
@@ -563,6 +597,7 @@ export function gerarDANFE(nota) {
  * Verifica se a empresa está configurada para emitir NFP
  */
 export function isConfigurado() {
+  carregarConfiguracoes();
   return !!(
     configEmpresa.cnpj &&
     configEmpresa.ie &&

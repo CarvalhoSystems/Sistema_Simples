@@ -34,9 +34,25 @@ import {
   getPixHolderFromTenant,
   getMerchantCityFromTenant,
 } from "./services/pixService"; // Importa o serviço do PIX
-import { getTenant } from "./hooks/useTenant"; // Importa a função para pegar os dados do tenant
+import { getTenant, getTenantId } from "./hooks/useTenant"; // Importa a função para pegar os dados do tenant
 import logoFechado from "./assets/logo.png";
 import { verificarPinAdmin } from "./services/tenantData";
+
+function lerEstadoCaixa(tenantId, chave) {
+  const chaveTenant = `pdv_${chave}_${tenantId}`;
+  const valorTenant = localStorage.getItem(chaveTenant);
+  if (valorTenant !== null) return valorTenant;
+
+  const valorLegado = localStorage.getItem(chave);
+  if (valorLegado !== null) {
+    const tenantPrincipalId = getTenant()?.uid || tenantId;
+    localStorage.setItem(`pdv_${chave}_${tenantPrincipalId}`, valorLegado);
+    localStorage.removeItem(chave);
+    return tenantPrincipalId === tenantId ? valorLegado : null;
+  }
+
+  return null;
+}
 
 const estadoInicial = {
   carrinho: [],
@@ -133,15 +149,18 @@ function reducer(estado, acao) {
 }
 
 export default function PDV() {
+  const tenantId = getTenantId() || "sem_tenant";
+  const chaveCaixaFechado = `pdv_caixaFechado_${tenantId}`;
+  const chaveDadosFechamento = `pdv_dadosFechamento_${tenantId}`;
   const [mostrarF10, setMostrarF10] = useState(false);
   const [termoBuscaF10, setTermoBuscaF10] = useState("");
   const [mostrarPixModal, setMostrarPixModal] = useState(false);
   const [pixPayload, setPixPayload] = useState("");
   const [caixaFechado, setCaixaFechado] = useState(
-    () => localStorage.getItem("caixaFechado") === "true",
+    () => lerEstadoCaixa(tenantId, "caixaFechado") === "true",
   );
   const [dadosFechamento, setDadosFechamento] = useState(() => {
-    const dados = localStorage.getItem("dadosFechamento");
+    const dados = lerEstadoCaixa(tenantId, "dadosFechamento");
     return dados ? JSON.parse(dados) : null;
   });
   const vendasRealizadasRef = useRef([]);
@@ -601,8 +620,8 @@ export default function PDV() {
     ) {
       setCaixaFechado(false);
       setDadosFechamento(null);
-      localStorage.removeItem("caixaFechado");
-      localStorage.removeItem("dadosFechamento");
+      localStorage.removeItem(chaveCaixaFechado);
+      localStorage.removeItem(chaveDadosFechamento);
       vendasRealizadasRef.current = [];
       Swal.fire("Sucesso!", "Caixa reaberto com sucesso.", "success");
     } else {
@@ -739,9 +758,9 @@ export default function PDV() {
       abrirFechamentoCaixa(vendasCombinadas, (dadosFechamento) => {
         setDadosFechamento(dadosFechamento);
         setCaixaFechado(true);
-        localStorage.setItem("caixaFechado", "true");
+        localStorage.setItem(chaveCaixaFechado, "true");
         localStorage.setItem(
-          "dadosFechamento",
+          chaveDadosFechamento,
           JSON.stringify(dadosFechamento),
         );
         dispatch({ type: "LIMPAR_CARRINHO" });

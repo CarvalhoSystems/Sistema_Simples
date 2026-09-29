@@ -40,10 +40,10 @@ export default function Toolbar({
 
       {/* Lado Direito: Ações */}
       <div className="flex gap-3">
-        <button className="flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+        {/*<button className="flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
           <i className="fas fa-download"></i>
           Exportar
-        </button>
+        </button>*/}
         <button
           onClick={onAddNew}
           className="flex items-center gap-2 px-4 py-2 text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"

@@ -24,7 +24,10 @@ import {
   getTenant,
 } from "../hooks/useTenant";
 import { carregarAssinatura } from "../services/planoManager";
-import { carregarTenantFirebase } from "../services/firebaseData";
+import {
+  carregarInfoTenantFirebase,
+  carregarTenantFirebase,
+} from "../services/firebaseData";
 import {
   getEstabelecimentoAtivoId,
   getEstabelecimentoAtivo,
@@ -113,8 +116,28 @@ export function AuthProvider({ children }) {
               const estabAtivoId = await getEstabelecimentoAtivoId();
               const estabAtivo = await getEstabelecimentoAtivo();
               if (estabAtivoId && estabAtivo) {
+                const camposInfoEstabelecimento = [
+                  "nomeFantasia",
+                  "cnpj",
+                  "endereco",
+                  "telefone",
+                  "pixKey",
+                  "pixHolder",
+                  "receiptMessage",
+                  "cartaoProvedor",
+                  "mercadoPagoAccessToken",
+                  "mercadoPagoDeviceId",
+                  "mercadoPagoCommercialAddress",
+                ];
+                const tenantBase = { ...tenantData };
+                camposInfoEstabelecimento.forEach(
+                  (campo) => delete tenantBase[campo],
+                );
+                const infoEstabelecimento =
+                  await carregarInfoTenantFirebase(estabAtivoId);
                 tenantData = {
-                  ...tenantData,
+                  ...tenantBase,
+                  ...infoEstabelecimento,
                   id: estabAtivoId,
                   nomeEstabelecimento: estabAtivo.nome,
                   ramo: estabAtivo.ramo || tenantData.ramo,

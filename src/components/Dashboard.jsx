@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext.jsx";
 import { getProdutos, getVendas } from "../services/tenantData.js";
-import { getTenant } from "../hooks/useTenant.js";
+import { getTenant, getTenantId } from "../hooks/useTenant.js";
 import { getOperadorAtual } from "../services/operadorSession.js";
 import { formatCurrency } from "../utils/formatters.js";
 import ProdutosEmFalta from "./ProdutosEmFalta.jsx";
@@ -21,9 +21,18 @@ export default function Dashboard() {
     todaySales: 0,
   });
   const [nomeEstabelecimento, setNomeEstabelecimento] = useState("");
+  const [tenantId, setTenantId] = useState(() => getTenantId());
+
+  useEffect(() => {
+    const atualizarTenant = () => setTenantId(getTenantId());
+    window.addEventListener("estabelecimento-alterado", atualizarTenant);
+    return () =>
+      window.removeEventListener("estabelecimento-alterado", atualizarTenant);
+  }, []);
 
   // Proteção de Rota Definitiva baseada no Operador (PIN)
   useEffect(() => {
+    let cancelado = false;
     const operador = getOperadorAtual();
 
     if (operador && operador.cargo) {
@@ -36,7 +45,9 @@ export default function Dashboard() {
           confirmButtonText: "Voltar ao Caixa",
         });
         navigate("/caixa");
-        return;
+        return () => {
+          cancelado = true;
+        };
       }
     }
 
@@ -48,7 +59,9 @@ export default function Dashboard() {
         confirmButtonText: "Voltar",
       });
       navigate("/selecao-objetivo");
-      return;
+      return () => {
+        cancelado = true;
+      };
     }
 
     const tenant = getTenant();
@@ -57,6 +70,7 @@ export default function Dashboard() {
         tenant.nomeEstabelecimento || tenant.nome || "seu negócio",
       );
     }
+    setStats({ totalRevenue: 0, totalProducts: 0, todaySales: 0 });
 
     const carregarEstatisticas = async () => {
       try {
@@ -72,14 +86,19 @@ export default function Dashboard() {
           venda.data.startsWith(new Date().toISOString().split("T")[0]),
         ).length;
 
-        setStats({ totalRevenue, totalProducts, todaySales });
+        if (!cancelado) {
+          setStats({ totalRevenue, totalProducts, todaySales });
+        }
       } catch (error) {
         console.error("Erro ao carregar estatísticas do dashboard:", error);
       }
     };
 
     carregarEstatisticas();
-  }, [user, navigate]);
+    return () => {
+      cancelado = true;
+    };
+  }, [user, navigate, tenantId]);
 
   // Dispara o Tour Guiado automaticamente apenas no primeiro acesso
   useEffect(() => {

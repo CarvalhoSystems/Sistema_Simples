@@ -29,18 +29,129 @@ import { podeAdicionarEstabelecimento } from "./planoManager";
 import {
   salvarEstabelecimentosFirebase,
   carregarEstabelecimentosFirebase,
+  carregarTenantFirebase,
   salvarEstabelecimentoAtivoFirebase,
   carregarEstabelecimentoAtivoFirebase,
+  carregarInfoTenantFirebase,
 } from "./firebaseData";
 
 const ESTABELECIMENTOS_KEY = "pdv_estabelecimentos";
 const ESTABELECIMENTO_ATIVO_KEY = "pdv_estabelecimento_ativo";
+const CAMPOS_INFO_ESTABELECIMENTO = [
+  "nomeFantasia",
+  "cnpj",
+  "endereco",
+  "telefone",
+  "pixKey",
+  "pixHolder",
+  "receiptMessage",
+  "cartaoProvedor",
+  "mercadoPagoAccessToken",
+  "mercadoPagoDeviceId",
+  "mercadoPagoCommercialAddress",
+];
 
 /**
  * Retorna a chave para a lista de estabelecimentos do usuário
  */
 function getEstabelecimentosKey(userId) {
   return `${ESTABELECIMENTOS_KEY}_${userId}`;
+}
+
+function gerarEstabelecimentoId() {
+  return `estab_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function notificarEstabelecimentosAlterados(estabId) {
+  window.dispatchEvent(
+    new CustomEvent("estabelecimento-alterado", { detail: { id: estabId } }),
+  );
+}
+
+async function recuperarEstabelecimentoPrincipal(estabelecimentos, userId) {
+  if (estabelecimentos.length === 0) return estabelecimentos;
+
+  const tenant = getTenant() || {};
+  const dadosPrincipais = await carregarTenantFirebase(userId);
+  const infoPrincipal = dadosPrincipais?.info || {};
+  const indicePrincipal = estabelecimentos.findIndex(
+    (estab) => estab.id === userId,
+  );
+  const nomePrincipal =
+    infoPrincipal.nomeEstabelecimento ||
+    infoPrincipal.nomeFantasia ||
+    tenant.nomeFantasia ||
+    (tenant.id === userId ? tenant.nomeEstabelecimento : null) ||
+    "Loja principal";
+  const criadoEmPrincipal =
+    infoPrincipal.criadoEm || tenant.criadoEm || new Date().toISOString();
+  let alterado = false;
+
+  if (indicePrincipal === -1) {
+    estabelecimentos.unshift({
+      id: userId,
+      nome: nomePrincipal,
+      ramo: infoPrincipal.ramo || tenant.ramo || "mercado",
+      criadoEm: criadoEmPrincipal,
+      ativo: false,
+    });
+    alterado = true;
+  } else {
+    const principal = estabelecimentos[indicePrincipal];
+    const dataCadastro = Date.parse(criadoEmPrincipal);
+    const dataRegistro = Date.parse(principal.criadoEm);
+    const registroCriadoDepois =
+      Number.isFinite(dataCadastro) &&
+      Number.isFinite(dataRegistro) &&
+      dataRegistro - dataCadastro > 60_000;
+
+    if (registroCriadoDepois && principal.nome !== nomePrincipal) {
+      const estabelecimentoRecuperado = {
+        ...principal,
+        id: gerarEstabelecimentoId(),
+        ativo: false,
+      };
+      estabelecimentos[indicePrincipal] = {
+        id: userId,
+        nome: nomePrincipal,
+        ramo: infoPrincipal.ramo || tenant.ramo || "mercado",
+        criadoEm: criadoEmPrincipal,
+        ativo: false,
+      };
+      estabelecimentos.push(estabelecimentoRecuperado);
+      alterado = true;
+
+      const ativoAtual =
+        (await carregarEstabelecimentoAtivoFirebase()) ||
+        localStorage.getItem(ESTABELECIMENTO_ATIVO_KEY);
+      if (!ativoAtual || ativoAtual === userId) {
+        await salvarEstabelecimentoAtivoFirebase(estabelecimentoRecuperado.id);
+        const tenantBase = { ...tenant };
+        CAMPOS_INFO_ESTABELECIMENTO.forEach(
+          (campo) => delete tenantBase[campo],
+        );
+        const updatedTenant = {
+          ...tenantBase,
+          id: estabelecimentoRecuperado.id,
+          uid: userId,
+          nomeEstabelecimento: estabelecimentoRecuperado.nome,
+          ramo: estabelecimentoRecuperado.ramo,
+          estabelecimentoAtivo: estabelecimentoRecuperado.id,
+        };
+        setTenant(updatedTenant);
+        if (tenant.email) setTenantByEmail(tenant.email, updatedTenant);
+      }
+    }
+  }
+
+  if (alterado) {
+    await salvarEstabelecimentos(userId, estabelecimentos);
+    notificarEstabelecimentosAlterados(
+      estabelecimentos.find((estab) => estab.id !== userId)?.id || userId,
+    );
+  }
+
+  return estabelecimentos;
 }
 
 /**
@@ -63,18 +174,19 @@ export async function listarEstabelecimentos() {
 
   // Busca do Firebase primeiro para garantir dados sincronizados
   const estabelecimentosFirebase = await carregarEstabelecimentosFirebase();
-  if (estabelecimentosFirebase && estabelecimentosFirebase.length > 0) {
-    return estabelecimentosFirebase;
+  let estabelecimentos = estabelecimentosFirebase;
+
+  if (!Array.isArray(estabelecimentos) || estabelecimentos.length === 0) {
+    try {
+      const data = localStorage.getItem(getEstabelecimentosKey(userId));
+      estabelecimentos = data ? JSON.parse(data) : [];
+    } catch (e) {
+      console.warn("Erro ao carregar estabelecimentos:", e);
+      estabelecimentos = [];
+    }
   }
 
-  // Fallback: localStorage
-  try {
-    const data = localStorage.getItem(getEstabelecimentosKey(userId));
-    return data ? JSON.parse(data) : [];
-  } catch (e) {
-    console.warn("Erro ao carregar estabelecimentos:", e);
-    return [];
-  }
+  return recuperarEstabelecimentoPrincipal(estabelecimentos, userId);
 }
 
 /**
@@ -101,9 +213,9 @@ export async function getEstabelecimentoAtivoId() {
   }
 
   try {
-    return localStorage.getItem(ESTABELECIMENTO_ATIVO_KEY);
+    return localStorage.getItem(ESTABELECIMENTO_ATIVO_KEY) || getTenantId();
   } catch (e) {
-    return null;
+    return getTenantId();
   }
 }
 
@@ -143,7 +255,7 @@ export async function criarEstabelecimento(nome, ramo = "") {
   // tenants/{uid} sejam usados pelo estabelecimento principal.
   // Estabelecimentos adicionais usam IDs gerados (estab_xxx).
   const novoEstabelecimento = {
-    id: estabelecimentos.length === 0 ? userId : `estab_${Date.now()}`,
+    id: estabelecimentos.length === 0 ? userId : gerarEstabelecimentoId(),
     nome: nome,
     ramo: ramo,
     criadoEm: new Date().toISOString(),
@@ -160,6 +272,8 @@ export async function criarEstabelecimento(nome, ramo = "") {
   if (novoEstabelecimento.id !== userId) {
     inicializarDadosEstabelecimento(novoEstabelecimento.id, ramo);
   }
+
+  notificarEstabelecimentosAlterados(novoEstabelecimento.id);
 
   return { success: true, estabelecimento: novoEstabelecimento };
 }
@@ -192,8 +306,23 @@ export async function alternarEstabelecimento(estabId) {
   // Atualiza o tenant no localStorage para refletir o estabelecimento ativo
   const tenant = getTenant();
   if (tenant) {
+    const chaveInfoAtual = `pdv_tenant_info_${tenant.id}`;
+    if (!localStorage.getItem(chaveInfoAtual)) {
+      const infoAtual = Object.fromEntries(
+        Object.entries(tenant).filter(([campo]) =>
+          CAMPOS_INFO_ESTABELECIMENTO.includes(campo),
+        ),
+      );
+      if (Object.keys(infoAtual).length > 0) {
+        localStorage.setItem(chaveInfoAtual, JSON.stringify(infoAtual));
+      }
+    }
+    const infoEstabelecimento = await carregarInfoTenantFirebase(estabId);
+    const tenantBase = { ...tenant };
+    CAMPOS_INFO_ESTABELECIMENTO.forEach((campo) => delete tenantBase[campo]);
     const updatedTenant = {
-      ...tenant,
+      ...tenantBase,
+      ...infoEstabelecimento,
       id: estabId,
       uid: userId,
       nomeEstabelecimento: estab.nome,
@@ -205,6 +334,7 @@ export async function alternarEstabelecimento(estabId) {
     if (tenant.email) {
       setTenantByEmail(tenant.email, updatedTenant);
     }
+    notificarEstabelecimentosAlterados(estabId);
   }
 
   return { success: true, estabelecimento: estab };
@@ -243,6 +373,12 @@ export async function removerEstabelecimento(estabId) {
   localStorage.removeItem(`pdv_produtos_${estabId}`);
   localStorage.removeItem(`pdv_vendas_${estabId}`);
   localStorage.removeItem(`pdv_categorias_${estabId}`);
+  localStorage.removeItem(`pdv_tenant_info_${estabId}`);
+  localStorage.removeItem(`pdv_nfp_config_${estabId}`);
+  localStorage.removeItem(`pdv_nfp_notas_${estabId}`);
+  localStorage.removeItem(`pdv_caixaFechado_${estabId}`);
+  localStorage.removeItem(`pdv_dadosFechamento_${estabId}`);
+  notificarEstabelecimentosAlterados();
 
   return { success: true };
 }
@@ -276,6 +412,33 @@ export async function renomearEstabelecimento(estabId, novoNome) {
     }
   }
 
+  return { success: true };
+}
+
+export async function alterarRamoEstabelecimento(estabId, novoRamo) {
+  const userId = getUserId();
+  if (!userId) return { success: false, error: "Usuário não encontrado" };
+
+  const estabelecimentos = await listarEstabelecimentos();
+  const estab = estabelecimentos.find((item) => item.id === estabId);
+  if (!estab) {
+    return { success: false, error: "Estabelecimento não encontrado" };
+  }
+
+  estab.ramo = novoRamo;
+  await salvarEstabelecimentos(userId, estabelecimentos);
+
+  const ativoId = await getEstabelecimentoAtivoId();
+  if (ativoId === estabId) {
+    const tenant = getTenant();
+    if (tenant) {
+      const updatedTenant = { ...tenant, ramo: novoRamo };
+      setTenant(updatedTenant);
+      if (tenant.email) setTenantByEmail(tenant.email, updatedTenant);
+    }
+  }
+
+  notificarEstabelecimentosAlterados(estabId);
   return { success: true };
 }
 

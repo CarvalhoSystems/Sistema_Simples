@@ -620,6 +620,7 @@ export async function salvarInfoTenantFirebase(info) {
   if (!tenantId) return;
 
   // Salva no localStorage como fallback
+  localStorage.setItem(`pdv_tenant_info_${tenantId}`, JSON.stringify(info));
   const tenant = getTenant() || {};
   const updatedTenant = { ...tenant, ...info };
   localStorage.setItem("pdv_tenant", JSON.stringify(updatedTenant));
@@ -633,6 +634,40 @@ export async function salvarInfoTenantFirebase(info) {
   } catch (error) {
     console.error("❌ Erro ao salvar info do tenant no Firebase:", error);
   }
+}
+
+export async function carregarInfoTenantFirebase(tenantId) {
+  if (!tenantId) return {};
+
+  let info = {};
+  try {
+    info = JSON.parse(
+      localStorage.getItem(`pdv_tenant_info_${tenantId}`) || "{}",
+    );
+  } catch (error) {
+    console.warn(
+      "Erro ao carregar informações locais do estabelecimento:",
+      error,
+    );
+  }
+
+  if (isFirebaseReady()) {
+    try {
+      const docSnap = await getDoc(getTenantDocRef(tenantId));
+      const infoFirebase = docSnap.exists() ? docSnap.data().info : null;
+      if (infoFirebase && typeof infoFirebase === "object") {
+        info = { ...info, ...infoFirebase };
+        localStorage.setItem(
+          `pdv_tenant_info_${tenantId}`,
+          JSON.stringify(info),
+        );
+      }
+    } catch (error) {
+      console.warn("Erro ao carregar informações do estabelecimento:", error);
+    }
+  }
+
+  return info;
 }
 
 // ===== INICIALIZAÇÃO DE DADOS (NOVO) =====

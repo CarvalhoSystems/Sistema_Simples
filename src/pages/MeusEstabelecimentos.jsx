@@ -7,7 +7,7 @@ import {
   alternarEstabelecimento,
   removerEstabelecimento,
   renomearEstabelecimento,
-  contarEstabelecimentos,
+  alterarRamoEstabelecimento,
   getEstabelecimentoAtivoId,
 } from "../services/estabelecimentoManager";
 import { RAMOS_NEGOCIO } from "../services/supabaseClient";
@@ -24,6 +24,7 @@ export default function MeusEstabelecimentos() {
   const [novoRamo, setNovoRamo] = useState("mercado");
   const [editandoId, setEditandoId] = useState(null);
   const [editandoNome, setEditandoNome] = useState("");
+  const [editandoRamo, setEditandoRamo] = useState("mercado");
 
   useEffect(() => {
     carregarDados();
@@ -107,21 +108,28 @@ export default function MeusEstabelecimentos() {
     }
   };
 
-  const handleRenomear = async (estabId) => {
+  const handleSalvarEdicao = async (estabId) => {
     if (!editandoNome.trim()) {
       Swal.fire("Atenção", "Digite um nome válido.", "warning");
       return;
     }
-    const result = await renomearEstabelecimento(
+    const resultNome = await renomearEstabelecimento(
       estabId,
       sanitizeInput(editandoNome.trim()),
     );
-    if (result.success) {
-      setEditandoId(null);
-      await carregarDados();
-    } else {
-      Swal.fire("Erro", result.error, "error");
+    if (!resultNome.success) {
+      Swal.fire("Erro", resultNome.error, "error");
+      return;
     }
+
+    const resultRamo = await alterarRamoEstabelecimento(estabId, editandoRamo);
+    if (!resultRamo.success) {
+      Swal.fire("Erro", resultRamo.error, "error");
+      return;
+    }
+
+    setEditandoId(null);
+    await carregarDados();
   };
 
   const limite = statusAssinatura?.plano?.maxEstabelecimentos || 1;
@@ -141,15 +149,24 @@ export default function MeusEstabelecimentos() {
             estabelecimentos usados
           </p>
         </div>
-        {podeAdicionar && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => setShowModal(true)}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
+            onClick={() => navigate("/dashboard")}
+            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-2"
           >
-            <i className="fas fa-plus"></i>
-            Novo Estabelecimento
+            <i className="fas fa-arrow-left"></i>
+            Voltar ao Dashboard
           </button>
-        )}
+          {podeAdicionar && (
+            <button
+              onClick={() => setShowModal(true)}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
+            >
+              <i className="fas fa-plus"></i>
+              Novo Estabelecimento
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Barra de progresso do limite */}
@@ -229,29 +246,43 @@ export default function MeusEstabelecimentos() {
                   </div>
                   <div className="flex-1">
                     {editandoId === estab.id ? (
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <input
                           type="text"
                           value={editandoNome}
                           onChange={(e) => setEditandoNome(e.target.value)}
-                          className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                          aria-label="Nome do estabelecimento"
+                          className="min-w-40 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                           autoFocus
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") handleRenomear(estab.id);
+                            if (e.key === "Enter") handleSalvarEdicao(estab.id);
                             if (e.key === "Escape") setEditandoId(null);
                           }}
                         />
-                        <button
-                          onClick={() => handleRenomear(estab.id)}
-                          className="px-2 py-1.5 text-green-600 hover:bg-green-50 rounded"
+                        <select
+                          value={editandoRamo}
+                          onChange={(e) => setEditandoRamo(e.target.value)}
+                          aria-label="Ramo do estabelecimento"
+                          className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                         >
-                          <i className="fas fa-check"></i>
+                          {RAMOS_NEGOCIO.map((ramo) => (
+                            <option key={ramo.id} value={ramo.id}>
+                              {ramo.nome}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => handleSalvarEdicao(estab.id)}
+                          className="px-2 py-1.5 text-green-700 hover:bg-green-50 rounded"
+                          title="Salvar nome e ramo"
+                        >
+                          <i className="fas fa-check mr-1"></i>Salvar
                         </button>
                         <button
                           onClick={() => setEditandoId(null)}
                           className="px-2 py-1.5 text-gray-600 hover:bg-gray-100 rounded"
                         >
-                          <i className="fas fa-times"></i>
+                          <i className="fas fa-times mr-1"></i>Cancelar
                         </button>
                       </div>
                     ) : (
@@ -287,19 +318,20 @@ export default function MeusEstabelecimentos() {
                     onClick={() => {
                       setEditandoId(estab.id);
                       setEditandoNome(estab.nome);
+                      setEditandoRamo(estab.ramo || "mercado");
                     }}
-                    className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                    title="Renomear"
+                    className="px-2 py-1.5 text-sm text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
+                    title="Editar nome e ramo"
                   >
-                    <i className="fas fa-pen"></i>
+                    <i className="fas fa-pen mr-1.5"></i>Editar
                   </button>
                   {estabelecimentos.length > 1 && (
                     <button
                       onClick={() => handleRemover(estab.id, estab.nome)}
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      className="px-2 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                       title="Remover"
                     >
-                      <i className="fas fa-trash"></i>
+                      <i className="fas fa-trash mr-1.5"></i>Excluir
                     </button>
                   )}
                 </div>
