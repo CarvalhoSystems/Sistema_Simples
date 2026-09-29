@@ -847,7 +847,8 @@ export default function LandingPage() {
           </div>
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm">
             <p>
-              © 2026 SystemPDV. Todos os direitos reservados. Carvalho Systems.
+              © 2026 FacilSistemas. Todos os direitos reservados. Carvalho
+              Systems.
             </p>
           </div>
         </div>
