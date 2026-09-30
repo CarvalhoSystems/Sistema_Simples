@@ -11,6 +11,21 @@ import {
 
 export const TENANT_KEY = "pdv_tenant";
 
+const CAMPOS_SENSIVEIS = [
+  "mercadoPagoAccessToken",
+  "senha",
+  "password",
+  "certificadoDigital",
+];
+
+function removerCamposSensiveis(dados) {
+  if (!dados || typeof dados !== "object") return dados;
+
+  const seguro = { ...dados };
+  CAMPOS_SENSIVEIS.forEach((campo) => delete seguro[campo]);
+  return seguro;
+}
+
 export function normalizeEmail(email) {
   if (typeof email !== "string") return "";
   return email.trim().toLowerCase();
@@ -29,7 +44,12 @@ export function getTenant() {
   try {
     const data = localStorage.getItem(TENANT_KEY);
     if (data) {
-      return JSON.parse(data);
+      const tenant = JSON.parse(data);
+      const tenantSeguro = removerCamposSensiveis(tenant);
+      if (JSON.stringify(tenant) !== JSON.stringify(tenantSeguro)) {
+        localStorage.setItem(TENANT_KEY, JSON.stringify(tenantSeguro));
+      }
+      return tenantSeguro;
     }
   } catch (e) {
     console.warn("Erro ao carregar tenant:", e);
@@ -41,7 +61,10 @@ export function getTenant() {
  * Salva o tenant no localStorage
  */
 export function setTenant(tenantData) {
-  localStorage.setItem(TENANT_KEY, JSON.stringify(tenantData));
+  localStorage.setItem(
+    TENANT_KEY,
+    JSON.stringify(removerCamposSensiveis(tenantData)),
+  );
 }
 
 /**
@@ -160,7 +183,7 @@ export function setTenantByEmail(email, tenantData) {
   try {
     const key = getTenantEmailStorageKey(normalizedEmail);
     const tenantToStore = {
-      ...tenantData,
+      ...removerCamposSensiveis(tenantData),
       email: normalizedEmail,
     };
     localStorage.setItem(key, JSON.stringify(tenantToStore));

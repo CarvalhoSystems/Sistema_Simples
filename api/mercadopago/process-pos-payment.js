@@ -7,18 +7,11 @@ export default async function handler(request, response) {
     return response.status(405).json({ error: "Method Not Allowed" });
   }
 
-  const {
-    tenantId,
-    amount,
-    description,
-    deviceId,
-    accessToken: accessTokenFromBody,
-  } = request.body;
+  const { tenantId, amount, description, deviceId } = request.body;
 
-  // 1. Prioriza o Access Token enviado pelo frontend (configurado nas Configurações da Loja)
-  let accessToken = accessTokenFromBody;
+  let accessToken;
 
-  // 2. Se não veio do frontend, busca o Access Token específico do lojista no Firebase
+  // A credencial nunca deve ser recebida do navegador.
   if (!accessToken) {
     try {
       const tenantDocRef = doc(db, "tenants", tenantId);
@@ -39,12 +32,10 @@ export default async function handler(request, response) {
   }
 
   if (!accessToken) {
-    return response
-      .status(500)
-      .json({
-        success: false,
-        error: "Access Token do Mercado Pago não configurado.",
-      });
+    return response.status(500).json({
+      success: false,
+      error: "Access Token do Mercado Pago não configurado.",
+    });
   }
 
   const client = new MercadoPagoConfig({ accessToken });
@@ -72,11 +63,9 @@ export default async function handler(request, response) {
     });
   } catch (error) {
     console.error("Erro ao criar intenção de pagamento no Point:", error);
-    return response
-      .status(500)
-      .json({
-        success: false,
-        error: "Falha ao iniciar pagamento na maquininha.",
-      });
+    return response.status(500).json({
+      success: false,
+      error: "Falha ao iniciar pagamento na maquininha.",
+    });
   }
 }

@@ -51,7 +51,6 @@ export async function processarPagamentoCartaoPDV({
   amount,
   description,
   deviceId,
-  accessToken,
 }) {
   try {
     const response = await fetch(`${API_BASE_URL}/process-pos-payment`, {
@@ -62,7 +61,6 @@ export async function processarPagamentoCartaoPDV({
         amount,
         description,
         deviceId,
-        accessToken,
       }),
     });
 
@@ -101,14 +99,6 @@ export async function processarPagamento({ venda, formaPagamento }) {
 
   if (provedor === "mercadopago") {
     // Envia via API do Mercado Pago para a maquininha Smart/Pro integrar
-    if (!formaPagamento?.token && !formaPagamento?.accessToken) {
-      return {
-        success: false,
-        error:
-          "Mercado Pago não configurado. Configure seu Access Token nas Configurações da Loja.",
-      };
-    }
-
     if (!formaPagamento?.deviceId) {
       return {
         success: false,
@@ -122,7 +112,6 @@ export async function processarPagamento({ venda, formaPagamento }) {
       amount: venda?.amount,
       description: venda?.description || "Venda PDV",
       deviceId: formaPagamento.deviceId,
-      accessToken: formaPagamento.token || formaPagamento.accessToken,
     });
   }
 

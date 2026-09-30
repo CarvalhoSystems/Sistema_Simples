@@ -87,10 +87,17 @@ export function carregarConfiguracoes() {
  */
 export function salvarConfiguracoes(novaConfig) {
   configEmpresa = { ...configEmpresa, ...novaConfig };
+  const configParaPersistir = {
+    ...configEmpresa,
+    certificadoDigital: {
+      ...configEmpresa.certificadoDigital,
+      senha: "",
+    },
+  };
   const { chaveTenant } = carregarValorTenant("config", "nfp_config");
   localStorage.setItem(
     chaveTenant || "nfp_config",
-    JSON.stringify(configEmpresa),
+    JSON.stringify(configParaPersistir),
   );
   return configEmpresa;
 }

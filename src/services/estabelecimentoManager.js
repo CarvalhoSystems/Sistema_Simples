@@ -33,6 +33,7 @@ import {
   salvarEstabelecimentoAtivoFirebase,
   carregarEstabelecimentoAtivoFirebase,
   carregarInfoTenantFirebase,
+  salvarInfoTenantFirebase,
 } from "./firebaseData";
 
 const ESTABELECIMENTOS_KEY = "pdv_estabelecimentos";
@@ -50,6 +51,7 @@ const CAMPOS_INFO_ESTABELECIMENTO = [
   "mercadoPagoDeviceId",
   "mercadoPagoCommercialAddress",
 ];
+const criacoesEmAndamento = new Set();
 
 /**
  * Retorna a chave para a lista de estabelecimentos do usuário
@@ -236,46 +238,57 @@ export async function getEstabelecimentoAtivo() {
 export async function criarEstabelecimento(nome, ramo = "") {
   const userId = getUserId();
   if (!userId) return { success: false, error: "Usuário não encontrado" };
-
-  // Verifica limite do plano
-  const estabelecimentos = await listarEstabelecimentos();
-  const podeAdicionar = await podeAdicionarEstabelecimento(
-    estabelecimentos.length,
-  );
-  if (!podeAdicionar) {
+  if (criacoesEmAndamento.has(userId)) {
     return {
       success: false,
-      error:
-        "Limite de estabelecimentos atingido para seu plano. Faça upgrade para adicionar mais.",
+      error: "A criação de um estabelecimento já está em andamento.",
     };
   }
 
-  // IMPORTANTE: O primeiro estabelecimento usa o UID do usuário como ID.
-  // Isso garante que os dados iniciais (produtos, categorias) salvos em
-  // tenants/{uid} sejam usados pelo estabelecimento principal.
-  // Estabelecimentos adicionais usam IDs gerados (estab_xxx).
-  const novoEstabelecimento = {
-    id: estabelecimentos.length === 0 ? userId : gerarEstabelecimentoId(),
-    nome: nome,
-    ramo: ramo,
-    criadoEm: new Date().toISOString(),
-    ativo: false,
-  };
+  criacoesEmAndamento.add(userId);
+  try {
+    // Verifica limite do plano
+    const estabelecimentos = await listarEstabelecimentos();
+    const podeAdicionar = await podeAdicionarEstabelecimento(
+      estabelecimentos.length,
+    );
+    if (!podeAdicionar) {
+      return {
+        success: false,
+        error:
+          "Limite de estabelecimentos atingido para seu plano. Faça upgrade para adicionar mais.",
+      };
+    }
 
-  estabelecimentos.push(novoEstabelecimento);
-  await salvarEstabelecimentos(userId, estabelecimentos);
+    // IMPORTANTE: O primeiro estabelecimento usa o UID do usuário como ID.
+    // Isso garante que os dados iniciais (produtos, categorias) salvos em
+    // tenants/{uid} sejam usados pelo estabelecimento principal.
+    // Estabelecimentos adicionais usam IDs gerados (estab_xxx).
+    const novoEstabelecimento = {
+      id: estabelecimentos.length === 0 ? userId : gerarEstabelecimentoId(),
+      nome: nome,
+      ramo: ramo,
+      criadoEm: new Date().toISOString(),
+      ativo: false,
+    };
 
-  // Inicializa dados padrão para o novo estabelecimento
-  // IMPORTANTE: Não sobrescreve os dados do primeiro estabelecimento (userId)
-  // pois os produtos/categorias iniciais já foram salvos no Firebase
-  // durante o cadastro (inicializarDadosTenant).
-  if (novoEstabelecimento.id !== userId) {
-    inicializarDadosEstabelecimento(novoEstabelecimento.id, ramo);
+    estabelecimentos.push(novoEstabelecimento);
+    await salvarEstabelecimentos(userId, estabelecimentos);
+
+    // Inicializa dados padrão para um novo estabelecimento
+    // IMPORTANTE: Não sobrescreve os dados do primeiro estabelecimento (userId)
+    // pois os produtos/categorias iniciais já foram salvos no Firebase
+    // durante o cadastro (inicializarDadosTenant).
+    if (novoEstabelecimento.id !== userId) {
+      inicializarDadosEstabelecimento(novoEstabelecimento.id, ramo);
+    }
+
+    notificarEstabelecimentosAlterados(novoEstabelecimento.id);
+
+    return { success: true, estabelecimento: novoEstabelecimento };
+  } finally {
+    criacoesEmAndamento.delete(userId);
   }
-
-  notificarEstabelecimentosAlterados(novoEstabelecimento.id);
-
-  return { success: true, estabelecimento: novoEstabelecimento };
 }
 
 /**
@@ -397,6 +410,14 @@ export async function renomearEstabelecimento(estabId, novoNome) {
 
   estab.nome = novoNome;
   await salvarEstabelecimentos(userId, estabelecimentos);
+
+  if (estabId === userId) {
+    const infoPrincipal = await carregarInfoTenantFirebase(userId);
+    await salvarInfoTenantFirebase(
+      { ...infoPrincipal, nomeEstabelecimento: novoNome },
+      userId,
+    );
+  }
 
   // Se for o ativo, atualiza o tenant também
   const ativoId = await getEstabelecimentoAtivoId();

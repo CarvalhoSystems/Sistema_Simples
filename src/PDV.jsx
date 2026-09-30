@@ -362,10 +362,9 @@ export default function PDV() {
       try {
         if (cartaoProvedor === "mercadopago") {
           // Integração automática com Mercado Pago Point
-          const mercadoPagoAccessToken = tenant?.mercadoPagoAccessToken;
           const mercadoPagoDeviceId = tenant?.mercadoPagoDeviceId;
 
-          if (!mercadoPagoAccessToken || !mercadoPagoDeviceId) {
+          if (!mercadoPagoDeviceId) {
             Swal.fire({
               icon: "warning",
               title: "Mercado Pago não configurado",
@@ -395,7 +394,6 @@ export default function PDV() {
             },
             formaPagamento: {
               provedor: "mercadopago",
-              token: mercadoPagoAccessToken,
               deviceId: mercadoPagoDeviceId,
             },
           });

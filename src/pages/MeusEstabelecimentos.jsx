@@ -20,6 +20,7 @@ export default function MeusEstabelecimentos() {
   const [estabelecimentoAtivoId, setEstabelecimentoAtivoId] = useState(null);
   const [statusAssinatura, setStatusAssinatura] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [criando, setCriando] = useState(false);
   const [novoNome, setNovoNome] = useState("");
   const [novoRamo, setNovoRamo] = useState("mercado");
   const [editandoId, setEditandoId] = useState(null);
@@ -42,27 +43,34 @@ export default function MeusEstabelecimentos() {
   }
 
   const handleCriar = async () => {
+    if (criando) return;
+
     if (!novoNome.trim()) {
       Swal.fire("Atenção", "Digite um nome para o estabelecimento.", "warning");
       return;
     }
 
-    const result = await criarEstabelecimento(
-      sanitizeInput(novoNome.trim()),
-      novoRamo,
-    );
-    if (result.success) {
-      Swal.fire(
-        "Criado!",
-        `Estabelecimento "${novoNome}" criado com sucesso.`,
-        "success",
+    setCriando(true);
+    try {
+      const result = await criarEstabelecimento(
+        sanitizeInput(novoNome.trim()),
+        novoRamo,
       );
-      setShowModal(false);
-      setNovoNome("");
-      setNovoRamo("mercado");
-      await carregarDados();
-    } else {
-      Swal.fire("Erro", result.error, "error");
+      if (result.success) {
+        Swal.fire(
+          "Criado!",
+          `Estabelecimento "${novoNome}" criado com sucesso.`,
+          "success",
+        );
+        setShowModal(false);
+        setNovoNome("");
+        setNovoRamo("mercado");
+        await carregarDados();
+      } else {
+        Swal.fire("Erro", result.error, "error");
+      }
+    } finally {
+      setCriando(false);
     }
   };
 
@@ -369,7 +377,9 @@ export default function MeusEstabelecimentos() {
                   placeholder="Ex: Filial Centro, Loja 2..."
                   className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   autoFocus
-                  onKeyDown={(e) => e.key === "Enter" && handleCriar()}
+                  onKeyDown={(e) =>
+                    e.key === "Enter" && !criando && handleCriar()
+                  }
                 />
               </div>
               <div>
@@ -399,10 +409,11 @@ export default function MeusEstabelecimentos() {
               </button>
               <button
                 onClick={handleCriar}
+                disabled={criando}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
               >
                 <i className="fas fa-plus mr-2"></i>
-                Criar
+                {criando ? "Criando..." : "Criar"}
               </button>
             </div>
           </div>
