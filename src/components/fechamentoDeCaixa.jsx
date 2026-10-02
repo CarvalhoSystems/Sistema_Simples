@@ -1,8 +1,12 @@
 import Swal from "sweetalert2";
 import { getTenant } from "../hooks/useTenant";
 import { formatCurrency } from "../utils/formatters";
-import { signInWithEmailAndPassword } from "firebase/auth"; // Exemplo usando Firebase Auth direto
-import { auth } from "../services/firebaseClient.js"; // Ajuste o caminho do seu firebase
+import {
+  getOperadorAtual,
+  setOperadorAtual,
+} from "../services/operadorSession"; // Gestão da sessão
+import { autenticarFuncionarioPorCodigo } from "../services/tenantData.js";
+import InputSenha from "../components/InputSenha.jsx"; // Ajuste o caminho se necessário
 
 /**
  * 1. Confirmação inicial para fechar o caixa
@@ -25,59 +29,65 @@ export function abrirFechamentoCaixa(todaySales = [], onConfirmClose) {
     confirmButtonColor: "#d33",
   }).then((result) => {
     if (result.isConfirmed) {
-      // Passa para a etapa de credenciais DEPOIS que o usuário confirmou
       solicitarCredenciaisParaFechar(todaySales, onConfirmClose);
     }
   });
 }
 
 /**
- * 2. Passo de Credenciais (VALIDAÇÃO REAL NO FIREBASE)
+ * 2. Validação por PIN + Limpeza de Sessão do Operador
  */
 async function solicitarCredenciaisParaFechar(todaySales, onConfirmClose) {
+  const operadorAtual = getOperadorAtual();
+
   Swal.fire({
     title: "Autorização do Operador",
     html: `
       <div style="text-align: left; margin-bottom: 10px; font-size: 13px; color: #666;">
-        Insira o e-mail e a senha cadastrados no Firebase para autorizar o fechamento:
+        Insira o PIN e a senha do operador para confirmar o fechamento:
       </div>
-      <input id="swal-usuario" type="email" class="swal2-input" placeholder="E-mail do operador" style="margin-bottom: 8px;">
-      <input id="swal-senha" type="password" class="swal2-input" placeholder="Senha">
+      <input id="swal-pin" type="password" class="swal2-input" placeholder="PIN do operador" style="margin-bottom: 8px;" maxlength="6" value="${operadorAtual?.codigo || ""}">
+      <input id="swal-senha" type="password" class="swal2-input" placeholder="Senha do operador">
     `,
     focusConfirm: false,
     showCancelButton: true,
     confirmButtonText: "Confirmar e Fechar",
     cancelButtonText: "Cancelar",
     confirmButtonColor: "#d33",
+    showLoaderOnConfirm: true,
     preConfirm: async () => {
-      const usuario = document.getElementById("swal-usuario").value.trim();
-      const senha = document.getElementById("swal-senha").value;
+      const pinInput = document.getElementById("swal-pin");
+      const senhaInput = document.getElementById("swal-senha");
 
-      if (!usuario || !senha) {
-        Swal.showValidationMessage("Preencha o e-mail e a senha!");
+      const pin = pinInput ? pinInput.value.trim() : "";
+      const senha = senhaInput ? senhaInput.value : "";
+
+      if (!pin || !senha) {
+        Swal.showValidationMessage("Preencha o PIN e a Senha!");
         return false;
       }
 
       try {
-        // VALIDAÇÃO SEGURA DIRETAMENTE NO FIREBASE AUTH
-        // (Se você tiver uma função customizada de login, substitua aqui,
-        // mas certifique-se de que ela só retorna true se o Firebase autenticar com sucesso)
-        const userCredential = await signInWithEmailAndPassword(
-          auth,
-          usuario,
-          senha,
-        );
-        return { usuario: userCredential.user.email };
+        const funcionario = await autenticarFuncionarioPorCodigo(pin, senha);
+        return { funcionario };
       } catch (error) {
-        console.error("Erro de autenticação:", error);
-        Swal.showValidationMessage("E-mail ou senha inválidos no Firebase!");
+        console.error("Erro ao validar credenciais:", error);
+        Swal.showValidationMessage(error.message || "PIN ou senha inválidos!");
         return false;
       }
     },
+    allowOutsideClick: () => !Swal.isLoading(),
   }).then((result) => {
-    if (result.value) {
-      // Sucesso na senha! Agora sim processa o fechamento
-      processarFechamento(todaySales, onConfirmClose, result.value.usuario);
+    if (result.isConfirmed && result.value?.funcionario) {
+      const { funcionario } = result.value;
+
+      setOperadorAtual(null);
+
+      processarFechamento(
+        todaySales,
+        onConfirmClose,
+        funcionario.nome || `Operador (${funcionario.codigo})`,
+      );
     }
   });
 }
@@ -85,7 +95,7 @@ async function solicitarCredenciaisParaFechar(todaySales, onConfirmClose) {
 /**
  * 3. Processa o fechamento e gera o relatório
  */
-function processarFechamento(todaySales, onConfirmClose, operadorEmail) {
+function processarFechamento(todaySales, onConfirmClose, operadorNome) {
   const tenant = getTenant();
 
   const totaisPorMetodo = {};
@@ -106,7 +116,7 @@ function processarFechamento(todaySales, onConfirmClose, operadorEmail) {
       endereco: tenant?.endereco || "Endereço não cadastrado",
       telefone: tenant?.telefone || "(00) 0000-0000",
     },
-    operador: operadorEmail,
+    operador: operadorNome,
     quantVendas: todaySales.length,
     totalGeral,
     totaisPorMetodo,
@@ -115,7 +125,7 @@ function processarFechamento(todaySales, onConfirmClose, operadorEmail) {
 
   Swal.fire({
     title: "✅ Caixa Fechado com Sucesso!",
-    html: `<p>O caixa foi encerrado pelo operador <b>${operadorEmail}</b>.</p>`,
+    html: `<p>O caixa foi encerrado pelo operador <b>${operadorNome}</b>.</p>`,
     icon: "success",
     confirmButtonText: "📄 Imprimir Relatório",
     confirmButtonColor: "#1e3a8a",
@@ -125,15 +135,12 @@ function processarFechamento(todaySales, onConfirmClose, operadorEmail) {
     if (result.isConfirmed) {
       imprimirRelatorioFechamento(dadosFechamento);
     }
-    // Dispara a função de callback para alterar o estado do sistema para "Caixa Fechado"
     if (onConfirmClose) {
       onConfirmClose(dadosFechamento);
     }
   });
 }
 
-
-// Imprime o relatório completo de fechamento
 function imprimirRelatorioFechamento(dados) {
   const metodosLinhas = Object.entries(dados.totaisPorMetodo)
     .map(([metodo, valor]) => {
@@ -199,14 +206,13 @@ function imprimirRelatorioFechamento(dados) {
   </div>
   <div class="linha"></div>
 
-  <!-- Lista de vendas do dia -->
   <div class="destaque" style="text-align: center; margin-bottom: 5px;">VENDAS REALIZADAS</div>
   ${dados.vendas
     .map(
       (venda, i) => `
     <div class="info" style="font-size: 9px;">
       <div class="flex">
-        <span>#${i + 1} ${new Date(venda.data).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
+        <span>#${i + 1}${new Date(venda.data).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
         <span>${venda.metodo || "N/A"}</span>
         <span>R$ ${(venda.total || 0).toFixed(2)}</span>
       </div>
@@ -234,7 +240,6 @@ function imprimirRelatorioFechamento(dados) {
   }
 }
 
-// Mantém o componente para compatibilidade
 export default function FechamentoDeCaixa() {
   return null;
 }

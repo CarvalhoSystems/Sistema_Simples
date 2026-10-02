@@ -12,6 +12,7 @@ import {
   addVenda,
   setProdutos,
   getVendas,
+  verificarPinAdmin,
 } from "./services/tenantData";
 import { formatCurrency } from "./utils/formatters";
 import {
@@ -33,10 +34,10 @@ import {
   getPixKeyFromTenant,
   getPixHolderFromTenant,
   getMerchantCityFromTenant,
-} from "./services/pixService"; // Importa o serviço do PIX
-import { getTenant, getTenantId } from "./hooks/useTenant"; // Importa a função para pegar os dados do tenant
+} from "./services/pixService";
+import { getTenant, getTenantId } from "./hooks/useTenant";
 import logoFechado from "./assets/logo.png";
-import { verificarPinAdmin } from "./services/tenantData";
+import { autenticarFuncionarioPorCodigo } from "./services/tenantData"; // Ajuste o caminho se necessário
 
 function lerEstadoCaixa(tenantId, chave) {
   const chaveTenant = `pdv_${chave}_${tenantId}`;
@@ -175,10 +176,9 @@ export default function PDV() {
 
   useEffect(() => {
     if (mostrarF10) {
-      // Usa requestAnimationFrame para garantir que o modal renderizou e o input está pronto
       requestAnimationFrame(() => {
         inputBuscaF10Ref.current?.focus();
-        inputBuscaF10Ref.current?.select(); // Opcional: já seleciona o texto se houver
+        inputBuscaF10Ref.current?.select();
       });
     }
   }, [mostrarF10]);
@@ -199,43 +199,34 @@ export default function PDV() {
     const inputCodigoBarras = document.getElementById("codigo-barras-input");
     const manterFoco = () => {
       const isSwalOpen = document.body.classList.contains("swal2-shown");
-      // Adcionado se o F10 estiver aberto
       if (mostrarF10) return;
       if (document.activeElement !== inputCodigoBarras && !isSwalOpen) {
         inputCodigoBarras?.focus();
       }
     };
 
-    // Só ativa a lógica de manter o foco se o caixa estiver ABERTO e a busca F10 FECHADA.
     if (!caixaFechado && !mostrarF10) {
-      manterFoco(); // Foca uma vez
-      // E observa para manter o foco
+      manterFoco();
       document.addEventListener("focusin", manterFoco);
       return () => {
         document.removeEventListener("focusin", manterFoco);
       };
     }
-  }, [mostrarF10, caixaFechado]); // Reavalia quando estes estados mudam
+  }, [mostrarF10, caixaFechado]);
 
-  // Componente auxiliar para focar nos inputs de login/senha
   const FocusLoginInputs = ({ caixaFechado }) => {
     useEffect(() => {
       if (caixaFechado) {
-        // Use um pequeno timeout para garantir que os elementos estejam renderizados
-        // e interativos antes de tentar focar.
         const timer = setTimeout(() => {
-          const inputEmail = document.getElementById("reabrir-email");
-          const inputSenha = document.getElementById("reabrir-senha");
-          if (inputEmail) {
-            inputEmail.focus();
-          } else if (inputSenha) {
-            inputSenha.focus();
+          const inputPin = document.getElementById("reabrir-pin");
+          if (inputPin) {
+            inputPin.focus();
           }
-        }, 50); // Pequeno atraso para garantir que os elementos estejam prontos
+        }, 50);
         return () => clearTimeout(timer);
       }
     }, [caixaFechado]);
-    return null; // Este componente não renderiza nada, apenas gerencia o foco
+    return null;
   };
 
   const lidarComBipe = (codigoBipado) => {
@@ -361,7 +352,6 @@ export default function PDV() {
       let paymentResult;
       try {
         if (cartaoProvedor === "mercadopago") {
-          // Integração automática com Mercado Pago Point
           const mercadoPagoDeviceId = tenant?.mercadoPagoDeviceId;
 
           if (!mercadoPagoDeviceId) {
@@ -400,7 +390,6 @@ export default function PDV() {
 
           Swal.close();
         } else {
-          // Maquininha física manual (qualquer marca) - apenas registra a venda
           const { value: confirmarPagamento } = await Swal.fire({
             title: "Pagamento na Maquininha",
             html: `Total: <strong>${formatCurrency(total)}</strong><br><br>
@@ -537,15 +526,12 @@ export default function PDV() {
   };
 
   const abrirPixQrCode = () => {
-    console.log("Abrindo PIX QRCode...");
-
     if (carrinho.length === 0) {
       Swal.fire("Atenção", "O cupom está vazio!", "warning");
       return;
     }
 
     const pixKey = getPixKeyFromTenant();
-    console.log("PIX Key:", pixKey);
 
     if (!pixKey) {
       Swal.fire({
@@ -561,14 +547,6 @@ export default function PDV() {
       const city = getMerchantCityFromTenant();
       const txId = String(Date.now()).slice(-8);
 
-      console.log("Gerando payload PIX com:", {
-        pixKey,
-        amount: total,
-        holderName,
-        city,
-        txId,
-      });
-
       const payload = gerarPayloadPix({
         pixKey,
         amount: total,
@@ -578,65 +556,68 @@ export default function PDV() {
         txId,
       });
 
-      console.log("Payload PIX gerado:", payload);
       setPixPayload(payload);
       setMostrarPixModal(true);
-      console.log("Modal PIX aberto");
     } catch (error) {
       console.error("Erro ao gerar PIX:", error);
       Swal.fire("Erro", error.message, "error");
     }
   };
 
-  // Função segura para reabrir o caixa usando o Firebase Auth do context
   const handleReabrirCaixa = async () => {
     setReabrindoCaixa(true);
-    const emailField = document.getElementById("reabrir-email");
+    const pinField = document.getElementById("reabrir-pin");
     const senhaField = document.getElementById("reabrir-senha");
 
-    const email = emailField?.value?.trim();
-    const senha = senhaField?.value;
+    const pin = pinField?.value?.trim();
+    const senha = senhaField?.value?.trim();
 
-    if (!email || !senha) {
-      Swal.fire("Atenção", "Preencha o e-mail e a senha!", "warning");
+    if (!pin || !senha) {
+      Swal.fire("Atenção", "Preencha o PIN e a Senha!", "warning");
       setReabrindoCaixa(false);
       return;
     }
 
-    // Chama a função real do AuthContext
-    const sucesso = await login(email, senha);
+    try {
+      // ✅ Autentica usando o PIN e a Senha do funcionário/operador cadastrado
+      const funcionario = await autenticarFuncionarioPorCodigo(pin, senha);
 
-    // Pega os dados do tenant (dono do estabelecimento) atual
-    const tenant = getTenant();
-    const emailDonoEstabelecimento = tenant?.email;
+      // (Opcional) Se quiser restringir a reabertura apenas para Gerente/Admin:
+      // const cargo = String(funcionario.cargo || "").toLowerCase();
+      // if (cargo !== "admin" && cargo !== "gerente") {
+      //   Swal.fire("Acesso Negado", "Apenas Gerentes ou Administradores podem reabrir o caixa.", "error");
+      //   setReabrindoCaixa(false);
+      //   return;
+      // }
 
-    // VERIFICAÇÃO DE SEGURANÇA:
-    // O login foi bem-sucedido E o e-mail digitado é o mesmo do dono do estabelecimento?
-    if (
-      sucesso &&
-      email.toLowerCase() === emailDonoEstabelecimento?.toLowerCase()
-    ) {
+      // ✅ Define o operador atual com os dados do funcionário autenticado
+      setOperadorAtual({
+        codigo: funcionario.codigo,
+        nome: funcionario.nome,
+        cargo: funcionario.cargo || "caixa",
+      });
+
       setCaixaFechado(false);
       setDadosFechamento(null);
       localStorage.removeItem(chaveCaixaFechado);
       localStorage.removeItem(chaveDadosFechamento);
       vendasRealizadasRef.current = [];
-      Swal.fire("Sucesso!", "Caixa reaberto com sucesso.", "success");
-    } else {
-      // Se o login foi sucesso, mas o e-mail não é do dono do estabelecimento, mostra erro de permissão.
-      if (sucesso) {
-        Swal.fire(
-          "Acesso Negado",
-          "Este usuário não tem permissão para reabrir o caixa.",
-          "error",
-        );
-      } else {
-        // Se o login falhou (senha errada, etc.), mostra erro genérico.
-        Swal.fire("Erro", "E-mail ou senha inválidos!", "error");
-      }
-    }
 
-    setReabrindoCaixa(false);
+      Swal.fire(
+        "Sucesso!",
+        `Caixa reaberto com sucesso por ${funcionario.nome || "Operador"}.`,
+        "success",
+      );
+    } catch (error) {
+      console.error("Erro ao reabrir caixa:", error);
+      Swal.fire(
+        "Acesso Negado",
+        error.message || "PIN ou senha inválidos!",
+        "error",
+      );
+    } finally {
+      setReabrindoCaixa(false);
+    }
   };
 
   const acoesTeclado = {
@@ -656,6 +637,7 @@ export default function PDV() {
         }
       });
     },
+
     F3: () => {
       if (carrinho.length === 0) return;
       Swal.fire({
@@ -666,6 +648,7 @@ export default function PDV() {
         if (res.isConfirmed) dispatch({ type: "LIMPAR_CARRINHO" });
       });
     },
+
     F4: async () => {
       const autorizado = await verificarPinAdmin();
 
@@ -724,8 +707,6 @@ export default function PDV() {
     },
 
     F12: async () => {
-      // Carrega TODAS as vendas do dia do Firebase (sincronizadas entre dispositivos)
-      // e combina com as vendas da sessão atual
       let vendasDoDia = [];
 
       try {
@@ -737,7 +718,6 @@ export default function PDV() {
         console.warn("Erro ao carregar vendas do dia:", error);
       }
 
-      // Combina com as vendas da sessão atual (evita duplicatas)
       const vendasSessao = vendasRealizadasRef.current.filter((v) => {
         return new Date(v.data).toDateString() === new Date().toDateString();
       });
@@ -786,7 +766,7 @@ export default function PDV() {
           subtotal={subtotal}
           desconto={desconto}
           total={total}
-          disabled={caixaFechado} // Desabilita o painel lateral quando o caixa está fechado
+          disabled={caixaFechado}
           aoBipar={lidarComBipe}
           quantidadeAtual={quantidade}
         />
@@ -794,9 +774,8 @@ export default function PDV() {
 
       <RodapeAtalhos />
 
-      {/* O componente FocusLoginInputs é renderizado condicionalmente para gerenciar o foco */}
       {caixaFechado && <FocusLoginInputs caixaFechado={caixaFechado} />}
-      {/* Overlay de Caixa Fechado com a SUA LOGO */}
+
       {caixaFechado && (
         <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center z-100 p-4">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
@@ -819,30 +798,22 @@ export default function PDV() {
             <div className="p-6">
               {dadosFechamento && (
                 <div className="bg-slate-50 rounded-lg p-3 mb-4 font-mono text-xs border border-slate-100">
-                  <div className="flex justify-between mb-1">
-                    <span className="text-slate-500">Total do dia:</span>
-                    <span className="font-bold text-slate-800">
-                      {formatCurrency(dadosFechamento.totalGeral)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Vendas realizadas:</span>
-                    <span className="font-bold text-slate-800">
-                      {dadosFechamento.quantVendas}
-                    </span>
-                  </div>
+                  <div className="flex justify-between"></div>
                 </div>
               )}
 
-              <p className="text-xs font-semibold text-slate-600 text-center mb-3">
-                Informe as credenciais do operador para reabrir o caixa:
+              <p className="text-xs font-semibold text-slate-900 text-center mb-3">
+                <span>
+                  Informe as credenciais do operador para reabrir o caixa:
+                </span>
               </p>
 
               <div className="space-y-3">
                 <input
-                  id="reabrir-email"
-                  type="email"
-                  placeholder="E-mail do operador"
+                  id="reabrir-pin"
+                  type="password"
+                  placeholder="PIN do operador"
+                  maxLength={6}
                   className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 />
                 <input
@@ -912,7 +883,6 @@ export default function PDV() {
 
       {mostrarF10 && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 select-text">
-          {/* ADICIONE A CLASSE AQUI */}
           <div className="f10-modal-container bg-white w-full max-w-2xl rounded shadow-2xl border-2 border-[#1e3a8a] overflow-hidden flex flex-col max-h-[80vh]">
             <div className="bg-[#1e3a8a] text-white p-3 font-mono font-bold flex justify-between items-center">
               <span>[F10] CONSULTA DE PRODUTOS</span>
