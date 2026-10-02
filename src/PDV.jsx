@@ -26,7 +26,10 @@ import {
 } from "./services/notaFiscalPaulista";
 import { abrirFechamentoCaixa } from "./components/fechamentoDeCaixa";
 import { imprimirCupom } from "./services/impressaoService";
-import { setOperadorAtual } from "./services/operadorSession";
+import {
+  getOperadorAtual,
+  setOperadorAtual,
+} from "./services/operadorSession";
 import { useAuth } from "./components/AuthContext";
 import PixQrCodeModal from "./components/PixQrCodeModal";
 import {
@@ -297,6 +300,8 @@ export default function PDV() {
 
   const finalizarVenda = async (metodo) => {
     const nfpConfigurada = isConfigurado();
+    let valorPago = total;
+    let troco = 0;
 
     let { value: querCpf } = await Swal.fire({
       title: "CPF na nota?",
@@ -340,7 +345,8 @@ export default function PDV() {
       });
 
       if (!valorRecebido) return;
-      const troco = parseFloat(valorRecebido) - total;
+      valorPago = parseFloat(valorRecebido);
+      troco = valorPago - total;
       await Swal.fire("Troco", `O troco é de ${formatCurrency(troco)}`, "info");
     } else if (metodo === "Cartão") {
       const tenant = getTenant();
@@ -475,9 +481,11 @@ export default function PDV() {
       subtotal,
       desconto,
       metodo,
+      valorPago,
+      troco,
       cpfCliente: cpfCliente || null,
       data: new Date().toISOString(),
-      operador: "Sistema",
+      operador: getOperadorAtual()?.nome || "Sistema",
       notaFiscal: notaEmitida
         ? {
             numeroNota: notaEmitida.numeroNota,

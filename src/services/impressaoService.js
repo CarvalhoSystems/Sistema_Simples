@@ -9,6 +9,7 @@
 
 import { getTenant } from "../hooks/useTenant";
 import { formatCurrency } from "../utils/formatters";
+import { getOperadorAtual } from "./operadorSession";
 
 /**
  * Obtém dados do estabelecimento para o cabeçalho
@@ -37,110 +38,120 @@ function formatarData(data) {
 export function imprimirCupom(dadosVenda) {
   const estabelecimento = getDadosEstabelecimento();
   const dataHora = formatarData(dadosVenda.data);
+  const operador =
+    dadosVenda.operador?.nome ||
+    dadosVenda.operador ||
+    dadosVenda.funcionario?.nome ||
+    dadosVenda.funcionario ||
+    dadosVenda.Funcionario?.nome ||
+    dadosVenda.Funcionario ||
+    getOperadorAtual()?.nome ||
+    "Sistema";
 
   const conteudo = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Cupom Fiscal</title>
-  <style>
-    @page { margin: 0; size: 80mm auto; }
-    body {
-      font-family: 'Courier New', monospace;
-      font-size: 12px;
-      width: 80mm;
-      margin: 0 auto;
-      padding: 5px;
-    }
-    .header { text-align: center; margin-bottom: 10px; }
-    .header h2 { font-size: 14px; margin: 2px 0; }
-    .header p { font-size: 10px; margin: 1px 0; color: #333; }
-    .divisoria { border-top: 1px dashed #000; margin: 5px 0; }
-    .info { font-size: 10px; margin: 3px 0; }
-    table { width: 100%; font-size: 11px; border-collapse: collapse; }
-    th { text-align: left; border-bottom: 1px dashed #000; padding: 2px 0; }
-    td { padding: 2px 0; }
-    .qtd { text-align: center; }
-    .valor { text-align: right; }
-    .total { font-weight: bold; font-size: 13px; text-align: right; margin: 5px 0; }
-    .footer { text-align: center; font-size: 10px; margin-top: 10px; }
-    .cpf { font-size: 10px; margin: 3px 0; }
-    @media print {
-      body { margin: 0; padding: 5px; }
-    }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h2>${estabelecimento.nome}</h2>
-    <p>${getTenant()?.nomeEstabelecimento || estabelecimento.endereco}</p>
-    <p>CNPJ: ${getTenant()?.cnpj || estabelecimento.cnpj}</p>
-    <p>Tel: ${getTenant()?.telefone || estabelecimento.telefone}</p>
-  </div>
-  <div class="divisoria"></div>
-  <div class="info">
-    <p>Data: ${dataHora}</p>
-    <p>Caixa: ${estabelecimento.nome}</p>
-    <p>Operador: ${dadosVenda.operador || ""}</p>
-    ${dadosVenda.cpfCliente ? `<p class="cpf">CPF: ${dadosVenda.cpfCliente}</p>` : ""}
-  </div>
-  <div class="divisoria"></div>
-  <table>
-    <thead>
-      <tr>
-        <th>ITEM</th>
-        <th class="qtd">QTD</th>
-        <th class="valor">VL.UN</th>
-        <th class="valor">TOTAL</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${(dadosVenda.carrinho || [])
-        .map(
-          (item) => `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Cupom Fiscal</title>
+    <style>
+      @page { margin: 0; size: 80mm auto; }
+      body {
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        width: 80mm;
+        margin: 0 auto;
+        padding: 5px;
+      }
+      .header { text-align: center; margin-bottom: 10px; }
+      .header h2 { font-size: 14px; margin: 2px 0; }
+      .header p { font-size: 10px; margin: 1px 0; color: #333; }
+      .divisoria { border-top: 1px dashed #000; margin: 5px 0; }
+      .info { font-size: 10px; margin: 3px 0; }
+      table { width: 100%; font-size: 11px; border-collapse: collapse; }
+      th { text-align: left; border-bottom: 1px dashed #000; padding: 2px 0; }
+      td { padding: 2px 0; }
+      .qtd { text-align: center; }
+      .valor { text-align: right; }
+      .total { font-weight: bold; font-size: 13px; text-align: right; margin: 5px 0; }
+      .footer { text-align: center; font-size: 10px; margin-top: 10px; }
+      .cpf { font-size: 10px; margin: 3px 0; }
+      @media print {
+        body { margin: 0; padding: 5px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h2>${estabelecimento.nome}</h2>
+      <p>${getTenant()?.nomeEstabelecimento || estabelecimento.endereco}</p>
+      <p>CNPJ: ${getTenant()?.cnpj || estabelecimento.cnpj}</p>
+      <p>Tel: ${getTenant()?.telefone || estabelecimento.telefone}</p>
+    </div>
+    <div class="divisoria"></div>
+    <div class="info">
+      <p>Data: ${dataHora}</p>
+      <p>Operador: ${operador}</p>
+      ${dadosVenda.cpfCliente ? `<p class="cpf">CPF: ${dadosVenda.cpfCliente}</p>` : ""}
+    </div>
+    <div class="divisoria"></div>
+    <table>
+      <thead>
         <tr>
-          <td>${item.descricao?.substring(0, 20) || "Item"}</td>
-          <td class="qtd">${item.qtd || 1}</td>
-          <td class="valor">R$ ${(item.vUnit || 0).toFixed(2)}</td>
-          <td class="valor">R$ ${((item.qtd || 1) * (item.vUnit || 0)).toFixed(2)}</td>
-        </tr>`,
-        )
-        .join("")}
-    </tbody>
-  </table>
-  <div class="divisoria"></div>
-  <div class="info">
-    <p>Subtotal: R$ ${(dadosVenda.subtotal || 0).toFixed(2)}</p>
-    ${dadosVenda.desconto ? `<p>Desconto: R$ ${(dadosVenda.desconto || 0).toFixed(2)}</p>` : ""}
-  </div>
-  <div class="total">
-    <p>VALOR TOTAL: R$ ${(dadosVenda.total || 0).toFixed(2)}</p>
-  </div>
-  <div class="divisoria"></div>
-  <div class="info">
-    <p>Forma de Pagamento: ${dadosVenda.metodo || "N/A"}</p>
-  </div>
-  ${
-    dadosVenda.notaFiscal
-      ? `
-  <div class="divisoria"></div>
-  <div class="info" style="font-size: 9px;">
-    <p>NF-e: ${dadosVenda.notaFiscal.numeroNota}</p>
-    <p>Chave: ${dadosVenda.notaFiscal.chaveAcesso}</p>
-    <p>Protocolo: ${dadosVenda.notaFiscal.protocolo}</p>
-  </div>
-  `
-      : ""
-  }
-  <div class="divisoria"></div>
-  <div class="footer">
-    <p>Obrigado pela preferência!</p>
-    <p>Sistema Simples  - Gestão Comercial</p>
-  </div>
-  <script>window.print();</script>
-</body>
-</html>`;
+          <th>ITEM</th>
+          <th class="qtd">QTD</th>
+          <th class="valor">VL.UN</th>
+          <th class="valor">TOTAL</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${(dadosVenda.carrinho || [])
+          .map(
+            (item) => `
+          <tr>
+            <td>${item.descricao?.substring(0, 20) || "Item"}</td>
+            <td class="qtd">${item.qtd || 1}</td>
+            <td class="valor">R$ ${(item.vUnit || 0).toFixed(2)}</td>
+            <td class="valor">R$ ${((item.qtd || 1) * (item.vUnit || 0)).toFixed(2)}</td>
+          </tr>`,
+          )
+          .join("")}
+      </tbody>
+    </table>
+    <div class="divisoria"></div>
+    <div class="info">
+      <p>Subtotal: R$ ${(dadosVenda.subtotal || 0).toFixed(2)}</p>
+      ${dadosVenda.desconto ? `<p>Desconto: R$ ${(dadosVenda.desconto || 0).toFixed(2)}</p>` : ""}
+    </div>
+    <div class="total">
+      <p>VALOR TOTAL: R$ ${(dadosVenda.total || 0).toFixed(2)}</p>
+    </div>
+    <div class="divisoria"></div>
+    <div class="info">
+      <p>Forma de Pagamento: ${dadosVenda.metodo || "N/A"}</p>
+      ${dadosVenda.valorPago != null ? `<p>Valor Pago: ${formatCurrency(dadosVenda.valorPago)}</p>` : ""}
+      ${dadosVenda.troco != null ? `<p>Troco: ${formatCurrency(dadosVenda.troco)}</p>` : ""}
+    </div>
+    ${
+      dadosVenda.notaFiscal
+        ? `
+    <div class="divisoria"></div>
+    <div class="info" style="font-size: 9px;">
+      <p>NF-e: ${dadosVenda.notaFiscal.numeroNota}</p>
+      <p>Chave: ${dadosVenda.notaFiscal.chaveAcesso}</p>
+      <p>Protocolo: ${dadosVenda.notaFiscal.protocolo}</p>
+    </div>
+    `
+        : ""
+    }
+    <div class="divisoria"></div>
+    <div class="footer">
+      <p>Obrigado pela preferência!</p>
+      <p>Sistema Simples - Gestão Comercial</p>
+    </div>
+    <script>window.print();</script>
+  </body>
+  </html>`;
 
   abrirJanelaImpressao(conteudo);
 }
