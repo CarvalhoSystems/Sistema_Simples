@@ -11,6 +11,7 @@
  *     ├── produtos: [{ codigo, descricao, preco, ... }]
  *     ├── categorias: ["Padaria", "Bebidas", ...]
  *     └── vendas: [{ id, data, total, ... }]
+ *     └── configNFP: dados cadastrais fiscais (sem certificados ou senhas)
  *
  */
 
@@ -19,7 +20,6 @@ import {
   doc,
   setDoc,
   getDoc,
-  updateDoc,
   collection,
   addDoc,
   query,
@@ -65,6 +65,32 @@ function getTenantDocRef(tenantId) {
 function getVendasCollectionRef(tenantId) {
   if (!db) return null;
   return collection(db, "tenants", tenantId, "vendas");
+}
+
+export async function carregarConfiguracaoNFPFirebase(
+  tenantId = getTenantId(),
+) {
+  if (!tenantId || !isFirebaseReady()) return null;
+
+  const docSnap = await getDoc(getTenantDocRef(tenantId));
+  const configNFP = docSnap.exists() ? docSnap.data().configNFP : null;
+  if (!configNFP?.razaoSocial && !configNFP?.cnpj && !configNFP?.ie) {
+    return null;
+  }
+  return configNFP;
+}
+
+export async function salvarConfiguracaoNFPFirebase(
+  configNFP,
+  tenantId = getTenantId(),
+) {
+  if (!isFirebaseReady()) return false;
+  if (!tenantId) {
+    throw new Error("Não foi possível identificar o estabelecimento ativo.");
+  }
+
+  await setDoc(getTenantDocRef(tenantId), { configNFP }, { merge: true });
+  return true;
 }
 
 // ===== PRODUTOS =====

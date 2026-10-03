@@ -299,7 +299,12 @@ export default function PDV() {
   };
 
   const finalizarVenda = async (metodo) => {
-    const nfpConfigurada = isConfigurado();
+    let nfpConfigurada = false;
+    try {
+      nfpConfigurada = await isConfigurado();
+    } catch (error) {
+      console.error("Não foi possível carregar as configurações fiscais:", error);
+    }
     let valorPago = total;
     let troco = 0;
 
@@ -457,8 +462,19 @@ export default function PDV() {
         const resultado = await emitirNotaFiscal(dadosVenda, cpfCliente);
         notaEmitida = resultado;
       } catch (error) {
-        console.error(error);
+        console.error("A emissão fiscal falhou:", error);
+        await Swal.fire({
+          icon: "error",
+          title: "NFC-e não emitida",
+          text: `${error.message} A venda será registrada, mas não existe autorização fiscal para entregar ao cliente.`,
+        });
       }
+    } else if (cpfCliente) {
+      await Swal.fire({
+        icon: "warning",
+        title: "NFC-e não emitida",
+        text: "Os dados fiscais da empresa não foram carregados ou estão incompletos. A venda será registrada sem emissão de documento fiscal.",
+      });
     }
 
     const produtosAtualizados = carrinho.reduce((acc, item) => {

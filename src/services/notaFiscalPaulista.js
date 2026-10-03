@@ -3,19 +3,18 @@
  *
  * Documentação oficial: https://www.nfpaulista.fazenda.sp.gov.br/
  *
- * ATENÇÃO: Este é um serviço de simulação/estruturação.
+ * ATENÇÃO: A emissão oficial de NFC-e ainda não está implementada.
  * Para produção, é necessário:
- * - Certificado digital A1 ou A3
- * - Cadastro no ambiente da SEFAZ-SP
- * - Credenciais de acesso à API
+ * - Integração segura no servidor com a SEFAZ-SP
+ * - Certificado digital e CSC/ID do CSC do contribuinte
+ * - Dados tributários corretos para cada produto
  */
 
 import { getTenant, getTenantId } from "../hooks/useTenant.js";
-
-const API_BASE_URL =
-  import.meta.env.VITE_NFP_API_URL ||
-  "https://homologacao.nfpaulista.fazenda.sp.gov.br/api";
-const API_TOKEN = import.meta.env.VITE_NFP_API_TOKEN || "";
+import {
+  carregarConfiguracaoNFPFirebase,
+  salvarConfiguracaoNFPFirebase,
+} from "./firebaseData.js";
 
 // Configurações da empresa (devem ser preenchidas pelo usuário)
 let configEmpresa = {
@@ -45,6 +44,28 @@ let configEmpresa = {
 
 const CONFIG_EMPRESA_PADRAO = JSON.parse(JSON.stringify(configEmpresa));
 
+function normalizarConfiguracao(config) {
+  return {
+    ...CONFIG_EMPRESA_PADRAO,
+    ...config,
+    endereco: {
+      ...CONFIG_EMPRESA_PADRAO.endereco,
+      ...config?.endereco,
+    },
+    certificadoDigital: {
+      ...CONFIG_EMPRESA_PADRAO.certificadoDigital,
+      ...config?.certificadoDigital,
+      senha: "",
+    },
+  };
+}
+
+function configuracaoSemCredenciais(config) {
+  return Object.fromEntries(
+    Object.entries(config).filter(([chave]) => chave !== "certificadoDigital"),
+  );
+}
+
 function carregarValorTenant(tipo, chaveLegada) {
   const tenantId = getTenantId();
   const chaveTenant = tenantId ? `pdv_nfp_${tipo}_${tenantId}` : null;
@@ -72,9 +93,9 @@ let notasEmitidas = [];
 export function carregarConfiguracoes() {
   try {
     const { valor: salvo } = carregarValorTenant("config", "nfp_config");
-    configEmpresa = JSON.parse(JSON.stringify(CONFIG_EMPRESA_PADRAO));
+    configEmpresa = normalizarConfiguracao();
     if (salvo) {
-      configEmpresa = { ...configEmpresa, ...JSON.parse(salvo) };
+      configEmpresa = normalizarConfiguracao(JSON.parse(salvo));
     }
   } catch (e) {
     console.warn("Erro ao carregar configurações NFP:", e);
@@ -82,68 +103,46 @@ export function carregarConfiguracoes() {
   return configEmpresa;
 }
 
+export async function sincronizarConfiguracoes() {
+  carregarConfiguracoes();
+  const configNuvem = await carregarConfiguracaoNFPFirebase();
+  let sincronizado = Boolean(configNuvem);
+  if (configNuvem) {
+    configEmpresa = normalizarConfiguracao(configNuvem);
+    const { chaveTenant } = carregarValorTenant("config", "nfp_config");
+    localStorage.setItem(
+      chaveTenant || "nfp_config",
+      JSON.stringify(configuracaoSemCredenciais(configEmpresa)),
+    );
+  } else if (configEmpresa.razaoSocial || configEmpresa.cnpj || configEmpresa.ie) {
+    sincronizado = await salvarConfiguracaoNFPFirebase(
+      configuracaoSemCredenciais(configEmpresa),
+    );
+  }
+
+  return {
+    config: configEmpresa,
+    sincronizado,
+  };
+}
+
 /**
  * Salva as configurações no localStorage
  */
-export function salvarConfiguracoes(novaConfig) {
-  configEmpresa = { ...configEmpresa, ...novaConfig };
-  const configParaPersistir = {
+export async function salvarConfiguracoes(novaConfig) {
+  configEmpresa = normalizarConfiguracao({
     ...configEmpresa,
-    certificadoDigital: {
-      ...configEmpresa.certificadoDigital,
-      senha: "",
-    },
-  };
+    ...novaConfig,
+  });
+  const configParaPersistir = configuracaoSemCredenciais(configEmpresa);
   const { chaveTenant } = carregarValorTenant("config", "nfp_config");
   localStorage.setItem(
     chaveTenant || "nfp_config",
     JSON.stringify(configParaPersistir),
   );
-  return configEmpresa;
-}
-
-/**
- * Gera um número de lote único para a nota fiscal
- */
-function gerarNumeroLote() {
-  const timestamp = Date.now().toString();
-  const random = Math.floor(Math.random() * 1000)
-    .toString()
-    .padStart(3, "0");
-  return `${timestamp}${random}`;
-}
-
-/**
- * Gera uma chave de acesso para a NF-e (44 dígitos)
- * Formato: UF + AAMM + CNPJ + modelo + serie + numero + tpEmis + codigoNumerico + dv
- */
-function gerarChaveAcesso(numeroNota) {
-  const uf = "35"; // SP
-  const data = new Date();
-  const aamm = `${data.getFullYear().toString().slice(-2)}${String(data.getMonth() + 1).padStart(2, "0")}`;
-  const cnpj = configEmpresa.cnpj.replace(/\D/g, "").padStart(14, "0");
-  const modelo = "55"; // NF-e modelo 55
-  const serie = "1";
-  const numero = String(numeroNota).padStart(9, "0");
-  const tpEmis = "1"; // 1=Normal
-  const codigoNumerico = String(Math.floor(Math.random() * 100000000)).padStart(
-    8,
-    "0",
-  );
-
-  const chaveSemDV = `${uf}${aamm}${cnpj}${modelo}${serie}${numero}${tpEmis}${codigoNumerico}`;
-
-  // Cálculo do dígito verificador (módulo 11)
-  let peso = 2;
-  let soma = 0;
-  for (let i = chaveSemDV.length - 1; i >= 0; i--) {
-    soma += parseInt(chaveSemDV[i]) * peso;
-    peso = peso === 9 ? 2 : peso + 1;
-  }
-  const resto = soma % 11;
-  const dv = resto < 2 ? 0 : 11 - resto;
-
-  return chaveSemDV + dv;
+  const sincronizado =
+    await salvarConfiguracaoNFPFirebase(configParaPersistir);
+  return { config: configEmpresa, sincronizado };
 }
 
 /**
@@ -194,234 +193,13 @@ export function formatarCPF(cpf) {
 }
 
 /**
- * Gera o XML da Nota Fiscal (simplificado para demonstração)
- * Em produção, usar biblioteca específica como node-xml ou xmlbuilder
+ * Bloqueia a emissão até existir integração oficial e autorização confirmada pela SEFAZ.
  */
-function gerarXMLNotaFiscal(dadosVenda, cpfCliente) {
-  const numeroNota = Math.floor(Math.random() * 1000000) + 1;
-  const chaveAcesso = gerarChaveAcesso(numeroNota);
-  const dataAtual = new Date();
-  const dataEmissao = dataAtual.toISOString().split("T")[0];
-  const horaEmissao = dataAtual.toTimeString().split(" ")[0];
-
-  // Calcular totais
-  const baseCalculoICMS = dadosVenda.total;
-  const valorICMS = baseCalculoICMS * 0.18; // 18% para SP (simplificado)
-  const valorPIS = baseCalculoICMS * 0.0165;
-  const valorCOFINS = baseCalculoICMS * 0.076;
-
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<enviNFe xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
-  <idLote>${gerarNumeroLote()}</idLote>
-  <indSinc>0</indSinc>
-  <NFe xmlns="http://www.portalfiscal.inf.br/nfe">
-    <infNFe versao="4.00" Id="NFe${chaveAcesso}">
-      <ide>
-        <cUF>35</cUF>
-        <cNF>${chaveAcesso.slice(35, 43)}</cNF>
-        <natOp>VENDA</natOp>
-        <mod>55</mod>
-        <serie>1</serie>
-        <nNF>${numeroNota}</nNF>
-        <dhEmi>${dataEmissao}T${horaEmissao}-03:00</dhEmi>
-        <tpNF>1</tpNF>
-        <idDest>1</idDest>
-        <cMunFG>3550308</cMunFG>
-        <tpImp>1</tpImp>
-        <tpEmis>1</tpEmis>
-        <cDV>${chaveAcesso[43]}</cDV>
-        <tpAmb>${configEmpresa.ambiente === "producao" ? 1 : 2}</tpAmb>
-        <finNFe>1</finNFe>
-        <indFinal>1</indFinal>
-        <indPres>1</indPres>
-        <procEmi>0</procEmi>
-        <verProc>PDV React 1.0</verProc>
-      </ide>
-      <emit>
-        <CNPJ>${formatarDocumento(configEmpresa.cnpj)}</CNPJ>
-        <xNome>${configEmpresa.razaoSocial}</xNome>
-        <xFant>${configEmpresa.nomeFantasia}</xFant>
-        <enderEmit>
-          <xLgr>${configEmpresa.endereco.logradouro}</xLgr>
-          <nro>${configEmpresa.endereco.numero}</nro>
-          <xBairro>${configEmpresa.endereco.bairro}</xBairro>
-          <cMun>3550308</cMun>
-          <xMun>${configEmpresa.endereco.cidade}</xMun>
-          <UF>${configEmpresa.endereco.uf}</UF>
-          <CEP>${configEmpresa.endereco.cep.replace(/\D/g, "")}</CEP>
-          <cPais>1058</cPais>
-          <xPais>BRASIL</xPais>
-        </enderEmit>
-        <IE>${configEmpresa.ie}</IE>
-        <CRT>${configEmpresa.crt}</CRT>
-      </emit>
-      <dest>
-        <CPF>${formatarDocumento(cpfCliente)}</CPF>
-        <xNome>CONSUMIDOR NAO INFORMADO</xNome>
-        <indIEDest>9</indIEDest>
-        <enderDest>
-          <xLgr>NAO INFORMADO</xLgr>
-          <nro>S/N</nro>
-          <xBairro>NAO INFORMADO</xBairro>
-          <cMun>3550308</cMun>
-          <xMun>SAO PAULO</xMun>
-          <UF>SP</UF>
-          <CEP>00000000</CEP>
-          <cPais>1058</cPais>
-          <xPais>BRASIL</xPais>
-        </enderDest>
-      </dest>
-      <det nItem="1">
-        <prod>
-          <cProd>${dadosVenda.carrinho[0]?.codigo || "0001"}</cProd>
-          <xProd>${dadosVenda.carrinho
-            .map((i) => i.descricao)
-            .join(" + ")
-            .substring(0, 120)}</xProd>
-          <NCM>21069090</NCM>
-          <CFOP>5102</CFOP>
-          <uCom>UN</uCom>
-          <qCom>1.0000</qCom>
-          <vUnCom>${dadosVenda.total.toFixed(2)}</vUnCom>
-          <vProd>${dadosVenda.total.toFixed(2)}</vProd>
-          <indTot>1</indTot>
-        </prod>
-        <imposto>
-          <ICMS>
-            <ICMS00>
-              <orig>0</orig>
-              <CST>00</CST>
-              <modBC>3</modBC>
-              <vBC>${baseCalculoICMS.toFixed(2)}</vBC>
-              <pICMS>18.00</pICMS>
-              <vICMS>${valorICMS.toFixed(2)}</vICMS>
-            </ICMS00>
-          </ICMS>
-          <PIS>
-            <PISOutr>
-              <CST>99</CST>
-              <vBC>${baseCalculoICMS.toFixed(2)}</vBC>
-              <pPIS>1.65</pPIS>
-              <vPIS>${valorPIS.toFixed(2)}</vPIS>
-            </PISOutr>
-          </PIS>
-          <COFINS>
-            <COFINSOutr>
-              <CST>99</CST>
-              <vBC>${baseCalculoICMS.toFixed(2)}</vBC>
-              <pCOFINS>7.60</pCOFINS>
-              <vCOFINS>${valorCOFINS.toFixed(2)}</vCOFINS>
-            </COFINSOutr>
-          </COFINS>
-        </imposto>
-      </det>
-      <total>
-        <ICMSTot>
-          <vBC>${baseCalculoICMS.toFixed(2)}</vBC>
-          <vICMS>${valorICMS.toFixed(2)}</vICMS>
-          <vICMSDeson>0.00</vICMSDeson>
-          <vFCP>0.00</vFCP>
-          <vBCST>0.00</vBCST>
-          <vST>0.00</vST>
-          <vProd>${dadosVenda.total.toFixed(2)}</vProd>
-          <vFrete>0.00</vFrete>
-          <vSeg>0.00</vSeg>
-          <vDesc>${dadosVenda.desconto.toFixed(2)}</vDesc>
-          <vII>0.00</vII>
-          <vIPI>0.00</vIPI>
-          <vIPIDevol>0.00</vIPIDevol>
-          <vPIS>${valorPIS.toFixed(2)}</vPIS>
-          <vCOFINS>${valorCOFINS.toFixed(2)}</vCOFINS>
-          <vOutro>0.00</vOutro>
-          <vNF>${dadosVenda.total.toFixed(2)}</vNF>
-        </ICMSTot>
-      </total>
-    </infNFe>
-  </NFe>
-</enviNFe>`;
-
-  return { xml, chaveAcesso, numeroNota };
-}
-
-/**
- * Envia a nota fiscal para a SEFAZ-SP
- *
- * EM PRODUÇÃO: Esta função deve fazer uma requisição HTTP real para a API da SEFAZ
- * usando o certificado digital para autenticação.
- *
- * Para testes/homologação, use o ambiente de homologação da SEFAZ:
- * https://homologacao.nfpaulista.fazenda.sp.gov.br/
- */
-export async function emitirNotaFiscal(dadosVenda, cpfCliente) {
-  carregarConfiguracoes();
-  carregarNotasEmitidas();
-  // Validações
-  if (!configEmpresa.cnpj) {
-    throw new Error(
-      "CNPJ da empresa não configurado. Acesse Configurações > Nota Fiscal Paulista.",
-    );
-  }
-  if (!configEmpresa.ie) {
-    throw new Error("Inscrição Estadual não configurada.");
-  }
-  if (!cpfCliente || !validarCPF(cpfCliente)) {
-    throw new Error("CPF do cliente inválido.");
-  }
-  if (!dadosVenda.carrinho || dadosVenda.carrinho.length === 0) {
-    throw new Error("Carrinho vazio. Adicione itens antes de emitir a nota.");
-  }
-
-  // Gera o XML da nota
-  const { xml, chaveAcesso, numeroNota } = gerarXMLNotaFiscal(
-    dadosVenda,
-    cpfCliente,
+export async function emitirNotaFiscal(_dadosVenda, _cpfCliente) {
+  await sincronizarConfiguracoes();
+  throw new Error(
+    "A emissão oficial de NFC-e modelo 65 ainda não está integrada à SEFAZ. Nenhuma nota foi emitida; não use as chaves antigas como comprovante fiscal.",
   );
-
-  // Simula o envio para a SEFAZ
-  // EM PRODUÇÃO: Substituir por chamada real à API
-  console.log("=== NOTA FISCAL PAULISTA - ENVIO ===");
-  console.log("XML Gerado:", xml.substring(0, 200) + "...");
-  console.log("Chave de Acesso:", chaveAcesso);
-  console.log("Número da Nota:", numeroNota);
-
-  // Simula processamento (em produção, isso seria uma chamada assíncrona real)
-  await new Promise((resolve) => setTimeout(resolve, 1500));
-
-  // Simula resposta da SEFAZ
-  const notaEmitida = {
-    id: Date.now(),
-    chaveAcesso,
-    numeroNota,
-    serie: "1",
-    dataEmissao: new Date().toISOString(),
-    cpfCliente: formatarCPF(cpfCliente),
-    valorTotal: dadosVenda.total,
-    status: "autorizada",
-    protocolo: `SP${Date.now()}`,
-    xml,
-    dadosVenda: { ...dadosVenda },
-  };
-
-  // Salva no cache
-  notasEmitidas.unshift(notaEmitida);
-  salvarNotasEmitidas();
-
-  return notaEmitida;
-}
-
-/**
- * Salva as notas emitidas no localStorage
- */
-function salvarNotasEmitidas() {
-  try {
-    const { chaveTenant } = carregarValorTenant("notas", "nfp_notas");
-    localStorage.setItem(
-      chaveTenant || "nfp_notas",
-      JSON.stringify(notasEmitidas.slice(0, 100)),
-    );
-  } catch (e) {
-    console.warn("Erro ao salvar notas emitidas:", e);
-  }
 }
 
 /**
@@ -431,7 +209,9 @@ export function carregarNotasEmitidas() {
   try {
     const { valor: salvo } = carregarValorTenant("notas", "nfp_notas");
     if (salvo) {
-      notasEmitidas = JSON.parse(salvo);
+      notasEmitidas = JSON.parse(salvo).map((nota) =>
+        nota.status === "autorizada" ? { ...nota, status: "simulada" } : nota,
+      );
     } else {
       notasEmitidas = [];
     }
@@ -448,62 +228,36 @@ export function carregarNotasEmitidas() {
  * e acumular créditos. Esta função simula essa consulta.
  */
 export async function consultarNotasPorCPF(cpf) {
-  carregarNotasEmitidas();
   const cpfLimpo = formatarDocumento(cpf);
 
   if (cpfLimpo.length !== 11) {
     throw new Error("CPF inválido para consulta.");
   }
 
-  // Simula consulta à API da NFP
-  await new Promise((resolve) => setTimeout(resolve, 800));
-
-  // Retorna notas locais + simulação de consulta externa
-  const notasLocais = notasEmitidas.filter(
-    (n) => n.cpfCliente === formatarCPF(cpf),
+  throw new Error(
+    "A consulta oficial de notas por CPF ainda não está integrada à SEFAZ/NFP.",
   );
-
-  return {
-    cpf: formatarCPF(cpf),
-    nome: "CONSUMIDOR",
-    totalNotas: notasLocais.length,
-    valorTotalAcumulado: notasLocais.reduce((acc, n) => acc + n.valorTotal, 0),
-    creditosAcumulados: notasLocais.reduce(
-      (acc, n) => acc + n.valorTotal * 0.003,
-      0,
-    ), // 0.3% de crédito
-    notas: notasLocais,
-  };
 }
 
 /**
  * Cancela uma nota fiscal (dentro do prazo legal)
  */
-export async function cancelarNotaFiscal(chaveAcesso, justificativa) {
-  carregarNotasEmitidas();
-  // Simula cancelamento
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-
-  const notaIndex = notasEmitidas.findIndex(
-    (n) => n.chaveAcesso === chaveAcesso,
+export async function cancelarNotaFiscal(_chaveAcesso, _justificativa) {
+  throw new Error(
+    "O cancelamento oficial de NFC-e ainda não está integrado à SEFAZ.",
   );
-  if (notaIndex === -1) {
-    throw new Error("Nota fiscal não encontrada.");
-  }
-
-  notasEmitidas[notaIndex].status = "cancelada";
-  notasEmitidas[notaIndex].justificativaCancelamento = justificativa;
-  notasEmitidas[notaIndex].dataCancelamento = new Date().toISOString();
-
-  salvarNotasEmitidas();
-
-  return notasEmitidas[notaIndex];
 }
 
 /**
  * Gera o DANFE (Documento Auxiliar da Nota Fiscal Eletrônica) em formato HTML
  */
 export function gerarDANFE(nota) {
+  if (nota.status === "simulada") {
+    throw new Error(
+      "Este registro foi criado pela simulação antiga e não representa uma NFC-e autorizada.",
+    );
+  }
+
   return `
 <!DOCTYPE html>
 <html>
@@ -603,12 +357,12 @@ export function gerarDANFE(nota) {
 /**
  * Verifica se a empresa está configurada para emitir NFP
  */
-export function isConfigurado() {
-  carregarConfiguracoes();
+export async function isConfigurado() {
+  const { config } = await sincronizarConfiguracoes();
   return !!(
-    configEmpresa.cnpj &&
-    configEmpresa.ie &&
-    configEmpresa.razaoSocial
+    config.cnpj &&
+    config.ie &&
+    config.razaoSocial
   );
 }
 

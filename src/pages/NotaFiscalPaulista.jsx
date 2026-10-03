@@ -2,35 +2,58 @@ import React, { useState, useEffect } from "react";
 import Swal from "sweetalert2";
 import PlanBlock from "../components/PlanBlock";
 import {
-  carregarConfiguracoes,
   salvarConfiguracoes,
   getConfiguracoes,
-  isConfigurado,
-  emitirNotaFiscal,
+  sincronizarConfiguracoes,
   consultarNotasPorCPF,
   carregarNotasEmitidas,
   gerarDANFE,
   validarCPF,
-  formatarCPF,
 } from "../services/notaFiscalPaulista";
 
 export default function NotaFiscalPaulista() {
   const [abaAtiva, setAbaAtiva] = useState("configuracao");
   const [config, setConfig] = useState(getConfiguracoes());
   const [notas, setNotas] = useState([]);
+  const [configurado, setConfigurado] = useState(false);
+  const [configSincronizada, setConfigSincronizada] = useState(false);
   const [cpfConsulta, setCpfConsulta] = useState("");
   const [resultadoConsulta, setResultadoConsulta] = useState(null);
   const [carregando, setCarregando] = useState(false);
 
-  const carregarDados = React.useCallback(() => {
-    const configSalva = carregarConfiguracoes();
-    setConfig(configSalva);
+  const carregarDados = React.useCallback(async () => {
+    const resultado = await sincronizarConfiguracoes();
+    setConfig(resultado.config);
+    setConfigSincronizada(resultado.sincronizado);
+    setConfigurado(
+      Boolean(
+        resultado.config.razaoSocial &&
+          resultado.config.cnpj &&
+          resultado.config.ie,
+      ),
+    );
     const notasSalvas = carregarNotasEmitidas();
     setNotas(notasSalvas);
   }, []);
 
   useEffect(() => {
-    carregarDados();
+    carregarDados().catch((error) => {
+      console.error("Erro ao carregar configuração fiscal:", error);
+      const configLocal = getConfiguracoes();
+      setConfig(configLocal);
+      setConfigurado(
+        Boolean(
+          configLocal.razaoSocial && configLocal.cnpj && configLocal.ie,
+        ),
+      );
+      setConfigSincronizada(false);
+      setNotas(carregarNotasEmitidas());
+      Swal.fire({
+        icon: "warning",
+        title: "Não foi possível carregar os dados da nuvem",
+        text: "Os dados locais continuam disponíveis neste dispositivo. Confira a conexão e as permissões do estabelecimento no Firebase.",
+      });
+    });
   }, [carregarDados]);
 
   function handleConfigChange(campo, valor) {
@@ -45,7 +68,7 @@ export default function NotaFiscalPaulista() {
     }
   }
 
-  function handleSalvarConfig() {
+  async function handleSalvarConfig() {
     if (!config.razaoSocial || !config.cnpj || !config.ie) {
       Swal.fire({
         icon: "error",
@@ -55,14 +78,34 @@ export default function NotaFiscalPaulista() {
       return;
     }
 
-    salvarConfiguracoes(config);
-    Swal.fire({
-      icon: "success",
-      title: "Configurações salvas!",
-      text: "As configurações da Nota Fiscal Paulista foram salvas com sucesso.",
-      timer: 2000,
-      showConfirmButton: false,
-    });
+    try {
+      const resultado = await salvarConfiguracoes(config);
+      setConfig(resultado.config);
+      setConfigSincronizada(resultado.sincronizado);
+      setConfigurado(true);
+      if (resultado.sincronizado) {
+        await Swal.fire({
+          icon: "success",
+          title: "Dados salvos e sincronizados",
+          text: "Os dados da empresa estão disponíveis nos dispositivos que acessarem este estabelecimento.",
+          timer: 2500,
+          showConfirmButton: false,
+        });
+      } else {
+        await Swal.fire({
+          icon: "warning",
+          title: "Salvo somente neste dispositivo",
+          text: "O Firebase não está disponível ou não há estabelecimento autenticado. Estes dados ainda não estão sincronizados com os outros dispositivos.",
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao sincronizar configuração fiscal:", error);
+      await Swal.fire({
+        icon: "error",
+        title: "Não foi possível sincronizar",
+        text: `Os dados ficaram salvos neste dispositivo, mas não foram enviados ao servidor. ${error.message}`,
+      });
+    }
   }
 
   async function handleConsultarCPF() {
@@ -105,10 +148,8 @@ export default function NotaFiscalPaulista() {
     return `R$ ${valor.toFixed(2)}`;
   }
 
-  const configurado = isConfigurado();
-
   return (
-    <PlanBlock feature="nfp" mensagem="Nota Fiscal Paulista - Emissão de NF-e">
+    <PlanBlock feature="nfp" mensagem="Nota Fiscal Paulista - NFC-e modelo 65">
       <div className="p-6 max-w-6xl mx-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
@@ -116,14 +157,28 @@ export default function NotaFiscalPaulista() {
             Nota Fiscal Paulista
           </h1>
           <p className="text-gray-500 text-sm mt-1">
-            Integração com a SEFAZ-SP para emissão de Nota Fiscal Eletrônica
+            Cadastro de dados fiscais. A emissão de NFC-e modelo 65 ainda não
+            está conectada à SEFAZ-SP.
           </p>
           {configurado && (
             <span className="inline-flex items-center gap-1 mt-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
               <i className="fas fa-check-circle"></i>
-              Configurado
+              Dados da empresa preenchidos
             </span>
           )}
+          {configSincronizada && (
+            <span className="inline-flex items-center gap-1 mt-2 ml-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+              <i className="fas fa-cloud"></i>
+              Sincronizado
+            </span>
+          )}
+          <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+            <strong>Importante:</strong> o sistema ainda não está integrado à
+            SEFAZ para autorizar NFC-e modelo 65. Chaves geradas antes desta
+            correção eram simuladas e não são documentos fiscais. Para emissão
+            real, é necessário implementar e validar a integração com
+            certificado A1, CSC/ID do CSC e dados fiscais dos produtos.
+          </div>
         </div>
 
         {/* Abas de navegação */}
@@ -273,21 +328,6 @@ export default function NotaFiscalPaulista() {
                     <option value="3">Regime Normal</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ambiente
-                  </label>
-                  <select
-                    value={config.ambiente}
-                    onChange={(e) =>
-                      handleConfigChange("ambiente", e.target.value)
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  >
-                    <option value="homologacao">Homologação (Testes)</option>
-                    <option value="producao">Produção</option>
-                  </select>
-                </div>
               </div>
 
               <div className="border-t border-gray-200 pt-4 mt-4">
@@ -390,62 +430,14 @@ export default function NotaFiscalPaulista() {
               <div className="border-t border-gray-200 pt-4 mt-4">
                 <h3 className="text-md font-semibold text-gray-700 mb-3">
                   <i className="fas fa-shield-alt text-blue-600 mr-2"></i>
-                  Certificado Digital
+                  Credenciais fiscais
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tipo
-                    </label>
-                    <select
-                      value={config.certificadoDigital.tipo}
-                      onChange={(e) =>
-                        handleConfigChange(
-                          "certificadoDigital.tipo",
-                          e.target.value,
-                        )
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    >
-                      <option value="">Selecione...</option>
-                      <option value="A1">A1 (Arquivo)</option>
-                      <option value="A3">A3 (Token/ Cartão)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Caminho do Arquivo
-                    </label>
-                    <input
-                      type="text"
-                      value={config.certificadoDigital.caminho}
-                      onChange={(e) =>
-                        handleConfigChange(
-                          "certificadoDigital.caminho",
-                          e.target.value,
-                        )
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                      placeholder="C:/certificados/cert.pfx"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Senha
-                    </label>
-                    <input
-                      type="password"
-                      value={config.certificadoDigital.senha}
-                      onChange={(e) =>
-                        handleConfigChange(
-                          "certificadoDigital.senha",
-                          e.target.value,
-                        )
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                      placeholder="********"
-                    />
-                  </div>
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                  Este sistema ainda não recebe nem utiliza certificado A1,
+                  token A3, CSC ou ID do CSC. Não informe senhas, tokens ou
+                  envie arquivos de certificado nesta tela. Essas credenciais
+                  só devem ser configuradas depois que existir um serviço de
+                  emissão seguro no servidor.
                 </div>
               </div>
 
@@ -457,16 +449,13 @@ export default function NotaFiscalPaulista() {
                   </p>
                   <ul className="list-disc list-inside space-y-1 text-blue-700">
                     <li>
-                      Para emitir notas fiscais em produção, é necessário
-                      certificado digital A1 ou A3 válido.
+                      Confirme com o contador do estabelecimento os requisitos
+                      de credenciamento de NFC-e modelo 65 em São Paulo,
+                      incluindo CSC/ID do CSC e cadastro do contribuinte.
                     </li>
                     <li>
-                      Utilize o ambiente de homologação para testes antes de
-                      migrar para produção.
-                    </li>
-                    <li>
-                      A Nota Fiscal Paulista permite que seus clientes acumulem
-                      créditos de ICMS.
+                      Salvar os dados da empresa não emite nem autoriza uma
+                      NFC-e.
                     </li>
                     <li>
                       Consulte a documentação oficial em{" "}
@@ -505,9 +494,17 @@ export default function NotaFiscalPaulista() {
                 Notas Fiscais Emitidas
               </h2>
               <p className="text-sm text-gray-500 mt-1">
-                Histórico de notas fiscais emitidas neste sistema
+                Registros locais. As chaves criadas pela versão de simulação
+                não são notas fiscais autorizadas.
               </p>
             </div>
+
+            {notas.some((nota) => nota.status === "simulada") && (
+              <div className="m-4 rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-800">
+                Há registros criados pela simulação antiga. Eles não foram
+                autorizados pela SEFAZ e não têm validade fiscal.
+              </div>
+            )}
 
             {notas.length === 0 ? (
               <div className="p-12 text-center text-gray-400">
@@ -582,9 +579,24 @@ export default function NotaFiscalPaulista() {
                         <td className="p-3 text-center">
                           <div className="flex justify-center gap-2">
                             <button
-                              onClick={() => handleVisualizarDANFE(nota)}
+                              onClick={() => {
+                                try {
+                                  handleVisualizarDANFE(nota);
+                                } catch (error) {
+                                  Swal.fire({
+                                    icon: "warning",
+                                    title: "Documento não autorizado",
+                                    text: error.message,
+                                  });
+                                }
+                              }}
+                              disabled={nota.status === "simulada"}
                               className="px-2 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors"
-                              title="Visualizar DANFE"
+                              title={
+                                nota.status === "simulada"
+                                  ? "Registro simulado, sem validade fiscal"
+                                  : "Visualizar DANFE"
+                              }
                             >
                               <i className="fas fa-file-alt mr-1"></i>
                               DANFE
@@ -600,8 +612,13 @@ export default function NotaFiscalPaulista() {
                                   showConfirmButton: false,
                                 });
                               }}
+                              disabled={nota.status === "simulada"}
                               className="px-2 py-1 text-xs bg-gray-50 text-gray-600 rounded hover:bg-gray-100 transition-colors"
-                              title="Copiar chave de acesso"
+                              title={
+                                nota.status === "simulada"
+                                  ? "Chave simulada, sem validade fiscal"
+                                  : "Copiar chave de acesso"
+                              }
                             >
                               <i className="fas fa-copy mr-1"></i>
                               Chave
@@ -626,8 +643,8 @@ export default function NotaFiscalPaulista() {
                 Consultar Notas por CPF
               </h2>
               <p className="text-sm text-gray-500 mb-4">
-                Consulte as notas fiscais emitidas para um CPF e veja os
-                créditos acumulados na Nota Fiscal Paulista.
+                A consulta oficial à Nota Fiscal Paulista ainda não está
+                integrada a este sistema.
               </p>
 
               <div className="flex gap-3">
@@ -638,10 +655,11 @@ export default function NotaFiscalPaulista() {
                   placeholder="Digite o CPF do cliente (000.000.000-00)"
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono"
                   maxLength={14}
+                  disabled
                 />
                 <button
                   onClick={handleConsultarCPF}
-                  disabled={carregando}
+                  disabled
                   className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium flex items-center gap-2 disabled:opacity-50"
                 >
                   {carregando ? (
