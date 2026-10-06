@@ -390,7 +390,7 @@ export default function GerenciarFuncionarios() {
                     Ações
                   </th>
                 </tr>
-              </thead>
+              </thead>\
               <tbody>
                 {funcionarios.map((func) => (
                   <tr

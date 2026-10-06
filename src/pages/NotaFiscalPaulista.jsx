@@ -10,6 +10,12 @@ import {
   gerarDANFE,
   validarCPF,
 } from "../services/notaFiscalPaulista";
+import { getTenantId } from "../hooks/useTenant";
+import {
+  carregarStatusCertificado,
+  removerCredenciaisFiscais,
+  salvarCredenciaisFiscais,
+} from "../services/fiscalApi";
 
 export default function NotaFiscalPaulista() {
   const [abaAtiva, setAbaAtiva] = useState("configuracao");
@@ -20,6 +26,18 @@ export default function NotaFiscalPaulista() {
   const [cpfConsulta, setCpfConsulta] = useState("");
   const [resultadoConsulta, setResultadoConsulta] = useState(null);
   const [carregando, setCarregando] = useState(false);
+  const [tenantId] = useState(() => getTenantId());
+  const [certificado, setCertificado] = useState(null);
+  const [erroCertificado, setErroCertificado] = useState("");
+  const [credencial, setCredencial] = useState({
+    file: null,
+    password: "",
+    cscHomologacao: "",
+    cscIdHomologacao: "",
+    cscProducao: "",
+    cscIdProducao: "",
+  });
+  const [salvandoCredenciais, setSalvandoCredenciais] = useState(false);
 
   const carregarDados = React.useCallback(async () => {
     const resultado = await sincronizarConfiguracoes();
@@ -55,6 +73,30 @@ export default function NotaFiscalPaulista() {
       });
     });
   }, [carregarDados]);
+
+  useEffect(() => {
+    let ativo = true;
+    if (!tenantId) {
+      setErroCertificado("Não foi possível identificar o estabelecimento ativo.");
+      return () => {
+        ativo = false;
+      };
+    }
+
+    carregarStatusCertificado(tenantId)
+      .then((resultado) => {
+        if (ativo) {
+          setCertificado(resultado);
+          setErroCertificado("");
+        }
+      })
+      .catch((error) => {
+        if (ativo) setErroCertificado(error.message);
+      });
+    return () => {
+      ativo = false;
+    };
+  }, [tenantId]);
 
   function handleConfigChange(campo, valor) {
     if (campo.includes(".")) {
@@ -105,6 +147,78 @@ export default function NotaFiscalPaulista() {
         title: "Não foi possível sincronizar",
         text: `Os dados ficaram salvos neste dispositivo, mas não foram enviados ao servidor. ${error.message}`,
       });
+    }
+  }
+
+  function handleCredencialChange(event) {
+    const { name, value, files } = event.target;
+    setCredencial((atual) => ({
+      ...atual,
+      [name]: files ? files[0] || null : value,
+    }));
+  }
+
+  async function handleSalvarCredenciais(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (!tenantId) {
+      setErroCertificado("Não foi possível identificar o estabelecimento ativo.");
+      return;
+    }
+
+    setSalvandoCredenciais(true);
+    setErroCertificado("");
+    try {
+      const resultado = await salvarCredenciaisFiscais({
+        tenantId,
+        ...credencial,
+      });
+      setCertificado(resultado);
+      setCredencial({
+        file: null,
+        password: "",
+        cscHomologacao: "",
+        cscIdHomologacao: "",
+        cscProducao: "",
+        cscIdProducao: "",
+      });
+      form.reset();
+      await Swal.fire({
+        icon: "success",
+        title: "Credenciais protegidas",
+        text: "Certificado e CSCs foram criptografados no servidor. A senha e os tokens não ficam salvos no navegador.",
+      });
+    } catch (error) {
+      setErroCertificado(error.message);
+      await Swal.fire({
+        icon: "error",
+        title: "Não foi possível salvar as credenciais",
+        text: error.message,
+      });
+    } finally {
+      setSalvandoCredenciais(false);
+    }
+  }
+
+  async function handleRemoverCredenciais() {
+    const confirmado = await Swal.fire({
+      icon: "warning",
+      title: "Remover credenciais fiscais?",
+      text: "A emissão ficará indisponível até configurar novamente o certificado e os CSCs.",
+      showCancelButton: true,
+      confirmButtonText: "Remover",
+      cancelButtonText: "Cancelar",
+    });
+    if (!confirmado.isConfirmed || !tenantId) return;
+
+    try {
+      await removerCredenciaisFiscais(tenantId);
+      setCertificado({ configured: false });
+      setErroCertificado("");
+      await Swal.fire("Removidas", "As credenciais foram removidas.", "success");
+    } catch (error) {
+      setErroCertificado(error.message);
+      await Swal.fire("Erro", error.message, "error");
     }
   }
 
@@ -173,11 +287,10 @@ export default function NotaFiscalPaulista() {
             </span>
           )}
           <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-            <strong>Importante:</strong> o sistema ainda não está integrado à
-            SEFAZ para autorizar NFC-e modelo 65. Chaves geradas antes desta
-            correção eram simuladas e não são documentos fiscais. Para emissão
-            real, é necessário implementar e validar a integração com
-            certificado A1, CSC/ID do CSC e dados fiscais dos produtos.
+            <strong>Etapa de preparação:</strong> este cadastro não emite
+            NFC-e. A autorização real só será habilitada depois da validação
+            ponta a ponta no ambiente de homologação da SEFAZ-SP. Chaves antigas
+            criadas por simulação não são documentos fiscais.
           </div>
         </div>
 
@@ -328,6 +441,63 @@ export default function NotaFiscalPaulista() {
                     <option value="3">Regime Normal</option>
                   </select>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Código IBGE do município
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={7}
+                    value={config.cMun || ""}
+                    onChange={(e) => handleConfigChange("cMun", e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="Ex.: 3550308"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Série da NFC-e
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={config.serie || "1"}
+                    onChange={(e) => handleConfigChange("serie", e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Próximo número (controle)
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={config.proximaNota || "1"}
+                    onChange={(e) =>
+                      handleConfigChange("proximaNota", e.target.value)
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Ambiente
+                  </label>
+                  <select
+                    value={config.ambiente}
+                    onChange={(e) =>
+                      handleConfigChange("ambiente", e.target.value)
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                  >
+                    <option value="homologacao">Homologação (testes)</option>
+                    <option value="producao">Produção</option>
+                  </select>
+                </div>
               </div>
 
               <div className="border-t border-gray-200 pt-4 mt-4">
@@ -432,13 +602,146 @@ export default function NotaFiscalPaulista() {
                   <i className="fas fa-shield-alt text-blue-600 mr-2"></i>
                   Credenciais fiscais
                 </h3>
-                <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-                  Este sistema ainda não recebe nem utiliza certificado A1,
-                  token A3, CSC ou ID do CSC. Não informe senhas, tokens ou
-                  envie arquivos de certificado nesta tela. Essas credenciais
-                  só devem ser configuradas depois que existir um serviço de
-                  emissão seguro no servidor.
+                <div className="rounded-md border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 mb-4">
+                  Certificado A1 e CSCs são enviados somente ao backend
+                  autenticado e armazenados criptografados. Use os CSCs
+                  fornecidos pela SEFAZ para cada ambiente. O backend precisa
+                  estar configurado antes do envio.
                 </div>
+                {certificado?.configured && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-green-200 bg-green-50 p-3 mb-4 text-sm text-green-800">
+                    <span>
+                      Credenciais criptografadas no servidor
+                      {certificado.updatedAt
+                        ? ` — atualizadas em ${new Date(
+                            certificado.updatedAt,
+                          ).toLocaleString("pt-BR")}`
+                        : ""}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleRemoverCredenciais}
+                      className="text-red-700 underline"
+                    >
+                      Remover credenciais
+                    </button>
+                  </div>
+                )}
+                {erroCertificado && (
+                  <p
+                    role="alert"
+                    className="rounded-md border border-amber-300 bg-amber-50 p-3 mb-4 text-sm text-amber-900"
+                  >
+                    {erroCertificado}
+                  </p>
+                )}
+                <form
+                  id="nfp-credenciais-form"
+                  onSubmit={handleSalvarCredenciais}
+                  className="space-y-4"
+                >
+                  <div>
+                    <label
+                      htmlFor="nfp-certificado"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
+                      Certificado A1 (.pfx ou .p12)
+                    </label>
+                    <input
+                      id="nfp-certificado"
+                      name="file"
+                      type="file"
+                      accept=".pfx,.p12,application/x-pkcs12"
+                      onChange={handleCredencialChange}
+                      required
+                      className="w-full text-sm"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Máximo 450 KiB. O arquivo não é salvo no navegador.
+                    </p>
+                  </div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Senha do certificado
+                    <input
+                      name="password"
+                      type="password"
+                      autoComplete="new-password"
+                      value={credencial.password}
+                      onChange={handleCredencialChange}
+                      required
+                      className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md"
+                    />
+                  </label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="rounded-md border border-gray-200 p-3 space-y-3">
+                      <h4 className="font-medium text-gray-800">
+                        CSC — Homologação
+                      </h4>
+                      <label className="block text-sm text-gray-700">
+                        ID do CSC
+                        <input
+                          name="cscIdHomologacao"
+                          inputMode="numeric"
+                          value={credencial.cscIdHomologacao}
+                          onChange={handleCredencialChange}
+                          required
+                          className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md"
+                        />
+                      </label>
+                      <label className="block text-sm text-gray-700">
+                        Token CSC
+                        <input
+                          name="cscHomologacao"
+                          type="password"
+                          autoComplete="new-password"
+                          value={credencial.cscHomologacao}
+                          onChange={handleCredencialChange}
+                          required
+                          className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md"
+                        />
+                      </label>
+                    </div>
+                    <div className="rounded-md border border-gray-200 p-3 space-y-3">
+                      <h4 className="font-medium text-gray-800">
+                        CSC — Produção
+                      </h4>
+                      <label className="block text-sm text-gray-700">
+                        ID do CSC
+                        <input
+                          name="cscIdProducao"
+                          inputMode="numeric"
+                          value={credencial.cscIdProducao}
+                          onChange={handleCredencialChange}
+                          required
+                          className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md"
+                        />
+                      </label>
+                      <label className="block text-sm text-gray-700">
+                        Token CSC
+                        <input
+                          name="cscProducao"
+                          type="password"
+                          autoComplete="new-password"
+                          value={credencial.cscProducao}
+                          onChange={handleCredencialChange}
+                          required
+                          className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={salvandoCredenciais}
+                      className="px-5 py-2 bg-slate-700 text-white rounded-md hover:bg-slate-800 disabled:opacity-60"
+                    >
+                      {salvandoCredenciais
+                        ? "Criptografando e salvando..."
+                        : "Salvar certificado e CSCs"}
+                    </button>
+                  </div>
+                </form>
               </div>
 
               <div className="border-t border-gray-200 pt-4 mt-4">

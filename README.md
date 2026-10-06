@@ -20,14 +20,14 @@ Esta versão já está preparada para:
 - controle de estoque com prevenção de vendas sem disponibilidade;
 - login e cadastro com autenticação e proteção de rotas;
 - dashboard administrativo e páginas de inventário, relatórios e configurações;
-- integração com Nota Fiscal Paulista e fluxo de emissão de notas;
+- cadastro fiscal e preparação da integração de NFC-e; a autorização real ainda não está habilitada;
 - suporte a deploy em Vercel com fallback de rotas SPA.
 
 ---
 
 ## 🔧 Requisitos
 
-- Node.js 18+;
+- Node.js 20+ for the authenticated fiscal API (the frontend itself supports Node.js 18+);
 - npm 9+;
 - navegador moderno.
 
@@ -96,6 +96,40 @@ src/
   utils/           # utilitários e regras de negócio
   PDV.jsx          # ponto de venda principal
 ```
+
+## Configuração fiscal segura (preparação)
+
+O projeto inclui endpoints serverless autenticados para salvar o perfil fiscal
+do estabelecimento e credenciais do certificado A1/CSC. Certificado, senha e
+tokens CSC são criptografados com AES-256-GCM no servidor e nunca são gravados
+no `localStorage` ou no documento público de configuração do tenant.
+
+Configure na Vercel, somente como variáveis de ambiente do servidor:
+
+- `FIREBASE_SERVICE_ACCOUNT_JSON`: credencial privada de uma conta de serviço
+  com acesso ao Firestore usado pelo aplicativo.
+- `FISCAL_ENCRYPTION_KEY`: chave Base64 de 32 bytes. Gere uma chave exclusiva
+  por ambiente com `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`.
+
+Nunca use prefixo `VITE_` nessas chaves nem as inclua no repositório. O backend
+recusa o envio de credenciais se não houver Firebase Auth/Firestore e chave de
+criptografia configurados. Limite atual do A1 enviado: 450 KiB.
+
+Adicione às regras existentes do Firestore uma regra que negue acesso do
+navegador ao documento secreto `tenants/{tenantId}/fiscal/credentials`; não
+substitua as demais regras do aplicativo:
+
+```text
+match /tenants/{tenantId}/fiscal/{document=**} {
+  allow read, write: if false;
+}
+```
+
+O cadastro e o JSON fiscal dos itens são preparação, não emissão. A integração
+com a SEFAZ-SP, geração/armazenamento de XML/DANFE e validação em homologação
+ainda precisam ser concluídas antes de qualquer autorização; notas antigas
+simuladas não têm validade fiscal. CSC, NCM, CFOP e demais tributos devem ser
+confirmados pelo contador do estabelecimento.
 
 ---
 

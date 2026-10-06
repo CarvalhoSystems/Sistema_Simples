@@ -16,6 +16,12 @@ const CAMPOS_SENSIVEIS = [
   "senha",
   "password",
   "certificadoDigital",
+  "csc",
+  "CSC",
+  "cscToken",
+  "tokenCSC",
+  "cscHomologacao",
+  "cscProducao",
 ];
 
 function removerCamposSensiveis(dados) {

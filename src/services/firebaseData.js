@@ -39,6 +39,12 @@ function removerCamposSensiveis(dados) {
   delete seguro.password;
   delete seguro.mercadoPagoAccessToken;
   delete seguro.certificadoDigital;
+  delete seguro.csc;
+  delete seguro.CSC;
+  delete seguro.cscToken;
+  delete seguro.tokenCSC;
+  delete seguro.cscHomologacao;
+  delete seguro.cscProducao;
   return seguro;
 }
 
@@ -100,38 +106,18 @@ export async function salvarConfiguracaoNFPFirebase(
  */
 export async function salvarProdutosFirebase(produtos) {
   const tenantId = getTenantId();
-  console.log(
-    "💾 Salvando produtos - tenantId:",
-    tenantId,
-    "quantidade:",
-    produtos.length,
-  );
-
   if (!tenantId) {
-    console.error("❌ tenantId não encontrado ao salvar produtos");
-    return;
+    throw new Error("Não foi possível identificar o estabelecimento ativo.");
   }
 
-  // Sempre salva no localStorage (fallback)
+  if (isFirebaseReady()) {
+    await setDoc(getTenantDocRef(tenantId), { produtos }, { merge: true });
+  }
+
   try {
     localStorage.setItem(`pdv_produtos_${tenantId}`, JSON.stringify(produtos));
-    console.log("✅ Produtos salvos no localStorage");
   } catch (error) {
-    console.error("❌ Erro ao salvar no localStorage:", error);
-  }
-
-  // Tenta salvar no Firebase
-  if (isFirebaseReady()) {
-    try {
-      const docRef = getTenantDocRef(tenantId);
-      console.log("🔥 Salvando no Firebase - docRef:", docRef.path);
-      await setDoc(docRef, { produtos }, { merge: true });
-      console.log("✅ Produtos salvos no Firebase com sucesso");
-    } catch (error) {
-      console.error("❌ Erro ao salvar produtos no Firebase:", error);
-    }
-  } else {
-    console.warn("⚠️ Firebase não disponível, usando apenas localStorage");
+    console.error("Erro ao atualizar o cache local dos produtos:", error);
   }
 }
 

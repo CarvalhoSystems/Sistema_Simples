@@ -121,6 +121,18 @@ function reducer(estado, acao) {
           descricao: produto.descricao,
           qtd: quantidade,
           vUnit: produto.preco,
+          gtin: produto.gtin || "",
+          ncm: produto.ncm || "",
+          cfop: produto.cfop || "",
+          unidadeComercial: produto.unidadeComercial || "UN",
+          origem: produto.origem || "",
+          csosn: produto.csosn || "",
+          cstIcms: produto.cstIcms || "",
+          aliquotaIcms: produto.aliquotaIcms ?? "",
+          cstPis: produto.cstPis || "",
+          aliquotaPis: produto.aliquotaPis ?? "",
+          cstCofins: produto.cstCofins || "",
+          aliquotaCofins: produto.aliquotaCofins ?? "",
         });
       }
       const totaisAposAdicao = calcularTotais(

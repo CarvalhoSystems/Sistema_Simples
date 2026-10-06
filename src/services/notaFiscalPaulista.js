@@ -15,6 +15,7 @@ import {
   carregarConfiguracaoNFPFirebase,
   salvarConfiguracaoNFPFirebase,
 } from "./firebaseData.js";
+import { salvarConfiguracaoFiscalSegura } from "./fiscalApi.js";
 
 // Configurações da empresa (devem ser preenchidas pelo usuário)
 let configEmpresa = {
@@ -25,6 +26,9 @@ let configEmpresa = {
   im: "", // Inscrição Municipal
   cnae: "",
   crt: "1", // 1=Simples Nacional, 2=Simples Nacional excesso, 3=Regime Normal
+  cMun: "",
+  serie: "1",
+  proximaNota: "1",
   endereco: {
     logradouro: "",
     numero: "",
@@ -61,8 +65,19 @@ function normalizarConfiguracao(config) {
 }
 
 function configuracaoSemCredenciais(config) {
+  const camposSensiveis = new Set([
+    "certificadoDigital",
+    "senha",
+    "password",
+    "csc",
+    "CSC",
+    "cscToken",
+    "tokenCSC",
+    "cscHomologacao",
+    "cscProducao",
+  ]);
   return Object.fromEntries(
-    Object.entries(config).filter(([chave]) => chave !== "certificadoDigital"),
+    Object.entries(config).filter(([chave]) => !camposSensiveis.has(chave)),
   );
 }
 
@@ -140,8 +155,12 @@ export async function salvarConfiguracoes(novaConfig) {
     chaveTenant || "nfp_config",
     JSON.stringify(configParaPersistir),
   );
-  const sincronizado =
-    await salvarConfiguracaoNFPFirebase(configParaPersistir);
+  const resultadoServidor = await salvarConfiguracaoFiscalSegura(
+    getTenantId(),
+    configParaPersistir,
+  );
+  const sincronizado = resultadoServidor.sincronizado
+    || await salvarConfiguracaoNFPFirebase(configParaPersistir);
   return { config: configEmpresa, sincronizado };
 }
 
@@ -150,6 +169,126 @@ export async function salvarConfiguracoes(novaConfig) {
  */
 function formatarDocumento(documento) {
   return documento.replace(/\D/g, "");
+}
+
+export function montarPayloadNFCe(dadosVenda, cpfCliente = null) {
+  const config = getConfiguracoes();
+  const tenantId = getTenantId();
+  if (!tenantId) throw new Error("Estabelecimento não identificado.");
+  if (!Array.isArray(dadosVenda?.carrinho) || dadosVenda.carrinho.length === 0) {
+    throw new Error("A venda precisa conter pelo menos um item.");
+  }
+  if (!config.cnpj || !config.ie || !config.cMun || !config.endereco.uf) {
+    throw new Error(
+      "Complete os dados fiscais do estabelecimento antes de montar a NFC-e.",
+    );
+  }
+  if (
+    formatarDocumento(config.cnpj).length !== 14 ||
+    !/^\d{7}$/.test(String(config.cMun).replace(/\D/g, "")) ||
+    !/^[A-Z]{2}$/.test(config.endereco.uf.toUpperCase())
+  ) {
+    throw new Error("CNPJ, código IBGE do município ou UF inválidos.");
+  }
+  if (cpfCliente && !validarCPF(cpfCliente)) {
+    throw new Error("CPF do consumidor inválido.");
+  }
+
+  const itens = dadosVenda.carrinho.map((item, indice) => {
+    const camposObrigatorios = [
+      ["NCM", item.ncm],
+      ["CFOP", item.cfop],
+      ["origem", item.origem],
+      ["CST PIS", item.cstPis],
+      ["CST COFINS", item.cstCofins],
+    ];
+    const campoTributarioFaltante = camposObrigatorios.find(
+      ([, valor]) => valor === "" || valor === null || valor === undefined,
+    );
+    if (campoTributarioFaltante) {
+      throw new Error(
+        `Informe ${campoTributarioFaltante[0]} no item ${indice + 1}.`,
+      );
+    }
+    if (
+      !/^\d{8}$/.test(String(item.ncm).replace(/\D/g, "")) ||
+      !/^\d{4}$/.test(String(item.cfop).replace(/\D/g, "")) ||
+      !/^[0-8]$/.test(String(item.origem)) ||
+      !/^\d{2}$/.test(String(item.cstPis)) ||
+      !/^\d{2}$/.test(String(item.cstCofins))
+    ) {
+      throw new Error(`Revise os códigos fiscais do item ${indice + 1}.`);
+    }
+    if (
+      config.crt === "1" || config.crt === "2"
+        ? !item.csosn
+        : !item.cstIcms
+    ) {
+      throw new Error(
+        `Informe CSOSN ou CST ICMS do item ${indice + 1}, conforme o CRT.`,
+      );
+    }
+    const quantidade = Number(item.qtd);
+    const valorUnitario = Number(item.vUnit);
+    if (
+      !Number.isFinite(quantidade) ||
+      quantidade <= 0 ||
+      !Number.isFinite(valorUnitario) ||
+      valorUnitario < 0
+    ) {
+      throw new Error(`Quantidade ou preço inválido no item ${indice + 1}.`);
+    }
+
+    return {
+      codigo: String(item.codigo),
+      descricao: String(item.descricao),
+      quantidade,
+      valorUnitario,
+      gtin: item.gtin || null,
+      unidade: item.unidadeComercial || "UN",
+      ncm: String(item.ncm),
+      cfop: String(item.cfop),
+      origem: String(item.origem),
+      icms: {
+        csosn: item.csosn || null,
+        cst: item.cstIcms || null,
+        aliquota: item.aliquotaIcms === "" ? null : Number(item.aliquotaIcms),
+      },
+      pis: {
+        cst: String(item.cstPis),
+        aliquota: item.aliquotaPis === "" ? null : Number(item.aliquotaPis),
+      },
+      cofins: {
+        cst: String(item.cstCofins),
+        aliquota:
+          item.aliquotaCofins === "" ? null : Number(item.aliquotaCofins),
+      },
+    };
+  });
+
+  return {
+    tenantId,
+    modelo: 65,
+    ambiente: config.ambiente,
+    emitente: {
+      cnpj: formatarDocumento(config.cnpj),
+      razaoSocial: config.razaoSocial,
+      inscricaoEstadual: config.ie,
+      crt: config.crt,
+      municipioIbge: config.cMun,
+      uf: config.endereco.uf,
+    },
+    destinatario: cpfCliente
+      ? { cpf: formatarDocumento(cpfCliente) }
+      : null,
+    itens,
+    totais: {
+      subtotal: Number(dadosVenda.subtotal),
+      desconto: Number(dadosVenda.desconto),
+      valorTotal: Number(dadosVenda.total),
+    },
+    pagamento: { metodo: String(dadosVenda.metodo || "") },
+  };
 }
 
 /**
