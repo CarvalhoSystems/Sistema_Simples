@@ -696,15 +696,32 @@ export default function PDV() {
 
     F5: () => {
       Swal.fire({
-        title: "Definir Quantidade",
-        input: "number",
-        inputValue: 1,
+        title: "Definir Quantidade (Kg / Un)",
+        input: "text", // Usar text ou number com step flexível
+        inputValue: "1",
+        inputAttributes: {
+          step: "any", // Permite decimais como 0.5, 1.25, etc.
+          autocapitalize: "off",
+        },
         showCancelButton: true,
+        inputValidator: (value) => {
+          if (!value) {
+            return "Precisa de inserir um valor!";
+          }
+          // Trata vírgula para ponto antes de validar
+          const parsed = parseFloat(value.replace(",", "."));
+          if (isNaN(parsed) || parsed <= 0) {
+            return "Insira uma quantidade válida maior que 0!";
+          }
+        },
       }).then((res) => {
-        if (res.isConfirmed && res.value > 0) {
+        if (res.isConfirmed) {
+          // Substitui vírgula por ponto para converter corretamente para número
+          const quantidade = parseFloat(res.value.replace(",", "."));
+
           dispatch({
             type: "DEFINIR_QUANTIDADE",
-            payload: parseFloat(res.value),
+            payload: quantidade,
           });
         }
       });

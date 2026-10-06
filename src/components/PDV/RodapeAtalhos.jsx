@@ -5,7 +5,7 @@ export default function RodapeAtalhos({ onSolicitarSenhaAdmin }) {
     { tecla: "F2", acao: "Cancelar Item" },
     { tecla: "F3", acao: "Cancelar Cupom" },
     { tecla: "F4", acao: "Dashboard" },
-    { tecla: "F5", acao: "Quantidade" },
+    { tecla: "F5", acao: "Quantidade (Kg / Un)" },
     { tecla: "F6", acao: "Desconto" },
     { tecla: "F7", acao: "Pix" },
     { tecla: "F8", acao: "Dinheiro" },
