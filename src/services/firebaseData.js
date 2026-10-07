@@ -1,18 +1,8 @@
 /**
  * Serviço de dados Firebase Firestore
  *
- *
  * Camada de abstração que usa Firebase quando disponível,
  * e faz fallback automático para localStorage.
- *
- * Estrutura no Firestore:
- *   tenants/{tenantId}/
- *     ├── info: { nome, email, ramo, ... }
- *     ├── produtos: [{ codigo, descricao, preco, ... }]
- *     ├── categorias: ["Padaria", "Bebidas", ...]
- *     └── vendas: [{ id, data, total, ... }]
- *     └── configNFP: dados cadastrais fiscais (sem certificados ou senhas)
- *
  */
 
 import { firebaseDisponivel, db } from "./firebaseClient.js";
@@ -27,7 +17,7 @@ import {
   limit,
   getDocs,
   writeBatch,
-} from "firebase/firestore"; // Importa os dados mockados
+} from "firebase/firestore";
 import { PRODUTOS_PADRAO, CATEGORIAS_PADRAO } from "./supabaseClient.js";
 import { getTenantId, getTenantRamo, getTenant } from "../hooks/useTenant.js";
 
@@ -50,27 +40,23 @@ function removerCamposSensiveis(dados) {
 
 // ===== UTILITÁRIOS =====
 
-/**
- * Verifica se o Firebase está pronto para uso
- */
 function isFirebaseReady() {
   return firebaseDisponivel && db;
 }
 
-/**
- * Retorna a referência do documento do tenant no Firestore
- */
 function getTenantDocRef(tenantId) {
   if (!db) return null;
   return doc(db, "tenants", tenantId);
 }
 
-/**
- * Retorna a referência da subcoleção de vendas
- */
 function getVendasCollectionRef(tenantId) {
   if (!db) return null;
   return collection(db, "tenants", tenantId, "vendas");
+}
+
+function getUserId() {
+  const tenant = getTenant() || {};
+  return tenant.uid || tenant.id || null;
 }
 
 export async function carregarConfiguracaoNFPFirebase(
@@ -95,23 +81,30 @@ export async function salvarConfiguracaoNFPFirebase(
     throw new Error("Não foi possível identificar o estabelecimento ativo.");
   }
 
-  await setDoc(getTenantDocRef(tenantId), { configNFP }, { merge: true });
+  const userId = getUserId();
+  await setDoc(
+    getTenantDocRef(tenantId),
+    { configNFP, uid: userId },
+    { merge: true },
+  );
   return true;
 }
 
 // ===== PRODUTOS =====
 
-/**
- * Salva produtos no Firestore (e localStorage como backup)
- */
 export async function salvarProdutosFirebase(produtos) {
   const tenantId = getTenantId();
+  const userId = getUserId();
   if (!tenantId) {
     throw new Error("Não foi possível identificar o estabelecimento ativo.");
   }
 
   if (isFirebaseReady()) {
-    await setDoc(getTenantDocRef(tenantId), { produtos }, { merge: true });
+    await setDoc(
+      getTenantDocRef(tenantId),
+      { produtos, uid: userId },
+      { merge: true },
+    );
   }
 
   try {
@@ -121,94 +114,57 @@ export async function salvarProdutosFirebase(produtos) {
   }
 }
 
-/**
- * Carrega produtos do Firebase (com fallback localStorage)
- */
 export async function carregarProdutosFirebase() {
   const tenantId = getTenantId();
-  console.log("📂 Carregando produtos - tenantId:", tenantId);
+  if (!tenantId) return [];
 
-  if (!tenantId) {
-    console.error("❌ tenantId não encontrado ao carregar produtos");
-    return [];
-  }
-
-  // Tenta carregar do Firebase primeiro
   if (isFirebaseReady()) {
     try {
       const docRef = getTenantDocRef(tenantId);
-      console.log("🔥 Carregando do Firebase - docRef:", docRef.path);
       const docSnap = await getDoc(docRef);
 
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        console.log("📄 Documento Firebase existe:", data);
-
-        if (data && data.produtos) {
-          const produtos = data.produtos;
-          console.log("✅ Produtos encontrados no Firebase:", produtos.length);
-          // Atualiza localStorage com dados do Firebase
-          localStorage.setItem(
-            `pdv_produtos_${tenantId}`,
-            JSON.stringify(produtos),
-          );
-          return produtos;
-        } else {
-          console.warn("⚠️ Documento existe mas não tem campo 'produtos'");
-        }
-      } else {
-        console.warn("⚠️ Documento não existe no Firebase");
+      if (docSnap.exists() && docSnap.data()?.produtos) {
+        const produtos = docSnap.data().produtos;
+        localStorage.setItem(
+          `pdv_produtos_${tenantId}`,
+          JSON.stringify(produtos),
+        );
+        return produtos;
       }
     } catch (error) {
       console.error("❌ Erro ao carregar produtos do Firebase:", error);
     }
-  } else {
-    console.warn("⚠️ Firebase não disponível");
   }
 
-  // Fallback: carrega do localStorage
   try {
     const data = localStorage.getItem(`pdv_produtos_${tenantId}`);
     if (data) {
       const parsed = JSON.parse(data);
-      console.log("💾 Carregado do localStorage:", parsed.length, "produtos");
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
-    } else {
-      console.warn(
-        "⚠️ Nenhum dado no localStorage para:",
-        `pdv_produtos_${tenantId}`,
-      );
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {
     console.error("❌ Erro ao carregar produtos do localStorage:", e);
   }
 
-  console.log("ℹ️ Retornando array vazio - nenhum produto encontrado");
   return [];
 }
 
 // ===== CATEGORIAS =====
 
-/**
- * Salva categorias no Firestore (e localStorage como backup)
- */
 export async function salvarCategoriasFirebase(categorias) {
   const tenantId = getTenantId();
+  const userId = getUserId();
   if (!tenantId) return;
 
-  // Sempre salva no localStorage (fallback)
   localStorage.setItem(
     `pdv_categorias_${tenantId}`,
     JSON.stringify(categorias),
   );
 
-  // Tenta salvar no Firebase
   if (isFirebaseReady()) {
     try {
       const docRef = getTenantDocRef(tenantId);
-      await setDoc(docRef, { categorias }, { merge: true });
+      await setDoc(docRef, { categorias, uid: userId }, { merge: true });
       console.log("✅ Categorias salvas no Firebase");
     } catch (error) {
       console.warn("⚠️ Erro ao salvar categorias no Firebase:", error.message);
@@ -216,92 +172,10 @@ export async function salvarCategoriasFirebase(categorias) {
   }
 }
 
-/**
- * Salva a lista de funcionários no Firebase (dentro do documento do tenant)
- */
-export async function salvarFuncionariosFirebase(funcionarios) {
-  const tenantId = getTenantId();
-  if (!tenantId) return;
-
-  // Sempre salva no localStorage (fallback)
-  try {
-    localStorage.setItem(
-      `pdv_funcionarios_${tenantId}`,
-      JSON.stringify(funcionarios.map(removerCamposSensiveis)),
-    );
-  } catch (error) {
-    console.error("❌ Erro ao salvar funcionários no localStorage:", error);
-  }
-
-  // Tenta salvar no Firebase
-  if (isFirebaseReady()) {
-    try {
-      const docRef = getTenantDocRef(tenantId);
-      await setDoc(docRef, { funcionarios }, { merge: true });
-      console.log("✅ Funcionários salvos no Firebase com sucesso");
-    } catch (error) {
-      console.error("❌ Erro ao salvar funcionários no Firebase:", error);
-    }
-  }
-}
-
-/**
- * Carrega a lista de funcionários do Firebase (com fallback para localStorage)
- */
-export async function carregarFuncionariosFirebase() {
-  const tenantId = getTenantId();
-  if (!tenantId) return [];
-
-  // Tenta carregar do Firebase primeiro
-  if (isFirebaseReady()) {
-    try {
-      const docRef = getTenantDocRef(tenantId);
-      const docSnap = await getDoc(docRef);
-
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data && Array.isArray(data.funcionarios)) {
-          const funcionarios = data.funcionarios;
-          // Atualiza o localStorage com os dados do Firebase
-          localStorage.setItem(
-            `pdv_funcionarios_${tenantId}`,
-            JSON.stringify(funcionarios.map(removerCamposSensiveis)),
-          );
-          return funcionarios;
-        }
-      }
-    } catch (error) {
-      console.warn(
-        "⚠️ Erro ao carregar funcionários do Firebase:",
-        error.message,
-      );
-    }
-  }
-
-  // Fallback: carrega do localStorage
-  try {
-    const data = localStorage.getItem(`pdv_funcionarios_${tenantId}`);
-    if (data) {
-      const parsed = JSON.parse(data);
-      if (Array.isArray(parsed)) {
-        return parsed.map(removerCamposSensiveis);
-      }
-    }
-  } catch (e) {
-    console.warn("Erro ao carregar funcionários do localStorage:", e);
-  }
-
-  return [];
-}
-
-/**
- * Carrega categorias do Firebase (com fallback localStorage)
- */
 export async function carregarCategoriasFirebase() {
   const tenantId = getTenantId();
   if (!tenantId) return [];
 
-  // Tenta carregar do Firebase primeiro
   if (isFirebaseReady()) {
     try {
       const docRef = getTenantDocRef(tenantId);
@@ -309,7 +183,6 @@ export async function carregarCategoriasFirebase() {
 
       if (docSnap.exists() && docSnap.data().categorias) {
         const categorias = docSnap.data().categorias;
-        // Atualiza localStorage com dados do Firebase
         localStorage.setItem(
           `pdv_categorias_${tenantId}`,
           JSON.stringify(categorias),
@@ -324,14 +197,11 @@ export async function carregarCategoriasFirebase() {
     }
   }
 
-  // Fallback: carrega do localStorage
   try {
     const data = localStorage.getItem(`pdv_categorias_${tenantId}`);
     if (data) {
       const parsed = JSON.parse(data);
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {
     console.warn("Erro ao carregar categorias do localStorage:", e);
@@ -340,51 +210,103 @@ export async function carregarCategoriasFirebase() {
   return [];
 }
 
+// ===== FUNCIONÁRIOS =====
+
+export async function salvarFuncionariosFirebase(funcionarios) {
+  const tenantId = getTenantId();
+  const userId = getUserId();
+  if (!tenantId) return;
+
+  try {
+    localStorage.setItem(
+      `pdv_funcionarios_${tenantId}`,
+      JSON.stringify(funcionarios.map(removerCamposSensiveis)),
+    );
+  } catch (error) {
+    console.error("❌ Erro ao salvar funcionários no localStorage:", error);
+  }
+
+  if (isFirebaseReady()) {
+    try {
+      const docRef = getTenantDocRef(tenantId);
+      await setDoc(docRef, { funcionarios, uid: userId }, { merge: true });
+      console.log("✅ Funcionários salvos no Firebase com sucesso");
+    } catch (error) {
+      console.error("❌ Erro ao salvar funcionários no Firebase:", error);
+    }
+  }
+}
+
+export async function carregarFuncionariosFirebase() {
+  const tenantId = getTenantId();
+  if (!tenantId) return [];
+
+  if (isFirebaseReady()) {
+    try {
+      const docRef = getTenantDocRef(tenantId);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists() && Array.isArray(docSnap.data().funcionarios)) {
+        const funcionarios = docSnap.data().funcionarios;
+        localStorage.setItem(
+          `pdv_funcionarios_${tenantId}`,
+          JSON.stringify(funcionarios.map(removerCamposSensiveis)),
+        );
+        return funcionarios;
+      }
+    } catch (error) {
+      console.warn(
+        "⚠️ Erro ao carregar funcionários do Firebase:",
+        error.message,
+      );
+    }
+  }
+
+  try {
+    const data = localStorage.getItem(`pdv_funcionarios_${tenantId}`);
+    if (data) {
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed)) return parsed.map(removerCamposSensiveis);
+    }
+  } catch (e) {
+    console.warn("Erro ao carregar funcionários do localStorage:", e);
+  }
+
+  return [];
+}
+
 // ===== VENDAS =====
 
-/**
- /**
-  * Salva uma venda no Firebase (e localStorage como backup) com número sequencial
-  */
 export async function salvarVendaFirebase(dadosVenda) {
   const tenantId = getTenantId();
+  const userId = getUserId();
   if (!tenantId) return null;
 
-  // 1. Descobre qual é o próximo número sequencial da venda
   let proximoNumeroVenda = 1;
   try {
-    // Carrega as vendas existentes (já usa sua lógica que busca do Firebase ou localStorage)
     const vendasAtuais = await carregarVendasFirebase();
-
     if (vendasAtuais && vendasAtuais.length > 0) {
-      // Procura o maior número de venda já existente na lista
       const numerosExistentes = vendasAtuais
         .map((v) => Number(v.numeroVenda) || 0)
         .filter((n) => n > 0);
 
       if (numerosExistentes.length > 0) {
-        const maiorNumero = Math.max(...numerosExistentes);
-        proximoNumeroVenda = maiorNumero + 1;
+        proximoNumeroVenda = Math.max(...numerosExistentes) + 1;
       }
     }
   } catch (e) {
-    console.warn(
-      "⚠️ Erro ao calcular próximo número da venda, usando fallback:",
-      e,
-    );
-    proximoNumeroVenda = Date.now().toString().slice(-5); // Fallback seguro se falhar
+    proximoNumeroVenda = Date.now().toString().slice(-5);
   }
 
-  // 2. Monta o objeto completo da venda incluindo o número sequencial
   const vendaCompleta = {
     ...dadosVenda,
-    numeroVenda: proximoNumeroVenda, // <--- Aqui está o número subindo sequencialmente (1, 2, 3...)
+    numeroVenda: proximoNumeroVenda,
     id: Date.now(),
     data: new Date().toISOString(),
     timestamp: Date.now(),
+    uid: userId,
   };
 
-  // Salva no localStorage
   try {
     const vendasExistentes = JSON.parse(
       localStorage.getItem(`pdv_vendas_${tenantId}`) || "[]",
@@ -398,7 +320,6 @@ export async function salvarVendaFirebase(dadosVenda) {
     console.warn("Erro ao salvar venda no localStorage:", e);
   }
 
-  // Tenta salvar no Firebase
   if (isFirebaseReady()) {
     try {
       const vendasRef = getVendasCollectionRef(tenantId);
@@ -412,14 +333,10 @@ export async function salvarVendaFirebase(dadosVenda) {
   return vendaCompleta;
 }
 
-/**
- * Carrega vendas do Firebase (com fallback localStorage)
- */
 export async function carregarVendasFirebase() {
   const tenantId = getTenantId();
   if (!tenantId) return [];
 
-  // Tenta carregar do Firebase
   if (isFirebaseReady()) {
     try {
       const vendasRef = getVendasCollectionRef(tenantId);
@@ -431,8 +348,6 @@ export async function carregarVendasFirebase() {
         querySnapshot.forEach((doc) => {
           vendas.push({ firebaseId: doc.id, ...doc.data() });
         });
-
-        // Atualiza localStorage com dados do Firebase
         localStorage.setItem(`pdv_vendas_${tenantId}`, JSON.stringify(vendas));
         return vendas;
       }
@@ -441,7 +356,6 @@ export async function carregarVendasFirebase() {
     }
   }
 
-  // Fallback: carrega do localStorage
   try {
     const data = localStorage.getItem(`pdv_vendas_${tenantId}`);
     if (data) return JSON.parse(data);
@@ -454,25 +368,10 @@ export async function carregarVendasFirebase() {
 
 // ===== ESTABELECIMENTOS =====
 
-/**
- * Obtém o UID do usuário principal (dono da conta).
- * IMPORTANTE: getTenantId() pode retornar o ID do estabelecimento ativo (ex: estab_xxx),
- * mas para a lista de estabelecimentos devemos sempre usar o UID do usuário dono.
- */
-function getUserId() {
-  const tenant = getTenant() || {};
-  return tenant.uid || tenant.id || null;
-}
-
-/**
- * Salva a lista de estabelecimentos do usuário no Firestore
- * no documento do usuário principal (tenants/{userId}/estabelecimentos)
- */
 export async function salvarEstabelecimentosFirebase(estabelecimentos) {
   const userId = getUserId();
   if (!userId) return;
 
-  // Salva no localStorage como fallback
   localStorage.setItem(
     `pdv_estabelecimentos_${userId}`,
     JSON.stringify(estabelecimentos),
@@ -481,29 +380,21 @@ export async function salvarEstabelecimentosFirebase(estabelecimentos) {
   if (!isFirebaseReady()) return;
 
   try {
-    // Usa o user UID (dono da conta) para guardar a lista
     const userDocRef = doc(db, "tenants", userId);
     await setDoc(
       userDocRef,
       {
         estabelecimentos,
+        uid: userId,
         ultimaSincronizacao: new Date().toISOString(),
       },
       { merge: true },
-    );
-    console.log(
-      "✅ Estabelecimentos salvos no Firebase:",
-      estabelecimentos.length,
     );
   } catch (error) {
     console.error("❌ Erro ao salvar estabelecimentos no Firebase:", error);
   }
 }
 
-/**
- * Carrega a lista de estabelecimentos do usuário do Firebase
- * (com fallback para localStorage)
- */
 export async function carregarEstabelecimentosFirebase() {
   const userId = getUserId();
   if (!userId) return [];
@@ -515,7 +406,6 @@ export async function carregarEstabelecimentosFirebase() {
 
       if (docSnap.exists() && Array.isArray(docSnap.data().estabelecimentos)) {
         const estabelecimentos = docSnap.data().estabelecimentos;
-        // Atualiza localStorage com dados do Firebase
         localStorage.setItem(
           `pdv_estabelecimentos_${userId}`,
           JSON.stringify(estabelecimentos),
@@ -527,7 +417,6 @@ export async function carregarEstabelecimentosFirebase() {
     }
   }
 
-  // Fallback: localStorage
   try {
     const data = localStorage.getItem(`pdv_estabelecimentos_${userId}`);
     if (data) return JSON.parse(data);
@@ -538,9 +427,6 @@ export async function carregarEstabelecimentosFirebase() {
   return [];
 }
 
-/**
- * Salva o ID do estabelecimento ativo no Firestore
- */
 export async function salvarEstabelecimentoAtivoFirebase(estabId) {
   const userId = getUserId();
   if (!userId) return;
@@ -555,6 +441,7 @@ export async function salvarEstabelecimentoAtivoFirebase(estabId) {
       userDocRef,
       {
         estabelecimentoAtivoId: estabId,
+        uid: userId,
         ultimaSincronizacao: new Date().toISOString(),
       },
       { merge: true },
@@ -567,10 +454,6 @@ export async function salvarEstabelecimentoAtivoFirebase(estabId) {
   }
 }
 
-/**
- * Carrega o ID do estabelecimento ativo do Firebase
- * (com fallback para localStorage)
- */
 export async function carregarEstabelecimentoAtivoFirebase() {
   const userId = getUserId();
   if (!userId) return null;
@@ -596,81 +479,23 @@ export async function carregarEstabelecimentoAtivoFirebase() {
   return localStorage.getItem("pdv_estabelecimento_ativo");
 }
 
-// ===== BACKUP E EXPORTAÇÃO =====
+// ===== INFORMAÇÕES DO TENANT E INICIALIZAÇÃO =====
 
-/**
- * Exporta todos os dados do tenant para download
- */
-export function exportarDadosTenant() {
-  const tenantId = getTenantId();
-  if (!tenantId) {
-    alert("Nenhum tenant encontrado. Faça login primeiro.");
-    return;
-  }
-
-  try {
-    const dados = {
-      exportadoEm: new Date().toISOString(),
-      tenant: getTenant() || {},
-      produtos: JSON.parse(
-        localStorage.getItem(`pdv_produtos_${tenantId}`) || "[]",
-      ),
-      categorias: JSON.parse(
-        localStorage.getItem(`pdv_categorias_${tenantId}`) || "[]",
-      ),
-      vendas: JSON.parse(
-        localStorage.getItem(`pdv_vendas_${tenantId}`) || "[]",
-      ),
-      configNFP: JSON.parse(localStorage.getItem("nfp_config") || "{}"),
-      notasFiscais: JSON.parse(localStorage.getItem("nfp_notas") || "[]"),
-    };
-
-    const blob = new Blob([JSON.stringify(dados, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `backup_${tenantId}_${new Date().toISOString().split("T")[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-
-    return dados;
-  } catch (error) {
-    console.error("Erro ao exportar dados:", error);
-    alert("Erro ao exportar dados. Tente novamente.");
-  }
-}
-
-// ===== INFORMAÇÕES DO TENANT =====
-
-/**
- * Salva as informações de configuração do tenant no Firestore
- * (nomeFantasia, cnpj, endereco, telefone, pixKey, etc.)
- * Isso garante que as configurações da loja sejam as mesmas
- * em qualquer dispositivo.
- */
 export async function salvarInfoTenantFirebase(info, tenantId = getTenantId()) {
   if (!tenantId) return;
 
-  // Salva no localStorage como fallback
+  const userId = getUserId();
   const infoLocal = removerCamposSensiveis(info);
   localStorage.setItem(
     `pdv_tenant_info_${tenantId}`,
     JSON.stringify(infoLocal),
   );
-  if (tenantId === getTenantId()) {
-    const tenant = getTenant() || {};
-    const updatedTenant = { ...tenant, ...infoLocal };
-    localStorage.setItem("pdv_tenant", JSON.stringify(updatedTenant));
-  }
 
   if (!isFirebaseReady()) return;
 
   try {
     const docRef = getTenantDocRef(tenantId);
-    await setDoc(docRef, { info }, { merge: true });
-    console.log("✅ Info do tenant salva no Firebase");
+    await setDoc(docRef, { info, uid: userId }, { merge: true });
   } catch (error) {
     console.error("❌ Erro ao salvar info do tenant no Firebase:", error);
   }
@@ -684,12 +509,8 @@ export async function carregarInfoTenantFirebase(tenantId) {
     info = removerCamposSensiveis(
       JSON.parse(localStorage.getItem(`pdv_tenant_info_${tenantId}`) || "{}"),
     );
-    localStorage.setItem(`pdv_tenant_info_${tenantId}`, JSON.stringify(info));
   } catch (error) {
-    console.warn(
-      "Erro ao carregar informações locais do estabelecimento:",
-      error,
-    );
+    console.warn("Erro ao carregar informações locais:", error);
   }
 
   if (isFirebaseReady()) {
@@ -711,29 +532,16 @@ export async function carregarInfoTenantFirebase(tenantId) {
   return info;
 }
 
-// ===== INICIALIZAÇÃO DE DADOS (NOVO) =====
-
-/**
- * Inicializa os dados para um novo tenant no Firebase.
- * Usa os dados do mockData.js como base.
- */
 export async function inicializarDadosTenant(tenantId, ramo, info) {
-  if (!tenantId || !isFirebaseReady()) {
-    console.log(
-      "Firebase não disponível ou tenantId não fornecido para inicialização.",
-    );
-    return;
-  }
+  if (!tenantId || !isFirebaseReady()) return;
 
   try {
+    const userId = getUserId();
     const ramoNegocio = ramo || getTenantRamo() || "mercado";
-    console.log(`🚀 Inicializando dados para o novo tenant: ${tenantId}`);
     const docRef = getTenantDocRef(tenantId);
-    const docSnap = await getDoc(docRef); // Busca o documento do tenant
+    const docSnap = await getDoc(docRef);
 
-    // Prepara os dados a serem definidos.
-    // Só inicializa produtos e categorias se eles ainda não existirem no Firestore.
-    const dataToSet = { info: info }; // Sempre salva as informações do tenant
+    const dataToSet = { info: info, uid: userId };
 
     if (!docSnap.exists() || !docSnap.data().produtos) {
       dataToSet.produtos = PRODUTOS_PADRAO[ramoNegocio] || [];
@@ -743,8 +551,6 @@ export async function inicializarDadosTenant(tenantId, ramo, info) {
     }
 
     await setDoc(docRef, dataToSet, { merge: true });
-
-    console.log("✅ Dados iniciais do tenant salvos no Firebase.");
     return true;
   } catch (error) {
     console.error("❌ Erro ao inicializar dados do tenant:", error);
@@ -752,69 +558,15 @@ export async function inicializarDadosTenant(tenantId, ramo, info) {
   }
 }
 
-/**
- * Sincroniza dados locais com o Firebase
- */
-export async function sincronizarComFirebase() {
-  const tenantId = getTenantId();
-  if (!tenantId || !isFirebaseReady()) {
-    console.log("Firebase não disponível para sincronização");
-    return;
-  }
-
-  try {
-    console.log("🔄 Sincronizando dados com Firebase...");
-
-    // Sobe produtos
-    const produtos = JSON.parse(
-      localStorage.getItem(`pdv_produtos_${tenantId}`) || "[]",
-    );
-    if (produtos.length > 0) {
-      const docRef = getTenantDocRef(tenantId);
-      await setDoc(docRef, { produtos, ultimaSincronizacao: new Date().toISOString() }, { merge: true });
-    }
-
-    // Sobe vendas (últimas 50)
-    const vendas = JSON.parse(
-      localStorage.getItem(`pdv_vendas_${tenantId}`) || "[]",
-    );
-    if (vendas.length > 0) {
-      const batch = writeBatch(db);
-      const vendasRef = getVendasCollectionRef(tenantId);
-      const recentes = vendas.slice(0, 50);
-
-      for (const venda of recentes) {
-        const novaRef = doc(vendasRef);
-        batch.set(novaRef, { ...venda, sincronizado: true });
-      }
-
-      await batch.commit();
-    }
-
-    console.log("✅ Sincronização concluída!");
-    return true;
-  } catch (error) {
-    console.error("❌ Erro na sincronização:", error);
-    return false;
-  }
-}
-
-/**
- * Carrega os dados de um tenant (info, assinatura) diretamente do Firebase.
- * @param {string} tenantId - O UID do usuário/tenant.
- * @returns {Promise<object|null>} Os dados do tenant ou null se não encontrado.
- */
 export async function carregarTenantFirebase(tenantId) {
-  if (!tenantId || !isFirebaseReady()) {
-    return null;
-  }
+  if (!tenantId || !isFirebaseReady()) return null;
 
   try {
     const docRef = getTenantDocRef(tenantId);
     const docSnap = await getDoc(docRef);
 
     if (docSnap.exists()) {
-      return docSnap.data(); // Retorna o documento completo { info, produtos, assinatura, etc. }
+      return docSnap.data();
     }
   } catch (error) {
     console.error("Erro ao carregar dados do tenant do Firebase:", error);
