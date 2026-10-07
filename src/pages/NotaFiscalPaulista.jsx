@@ -287,10 +287,10 @@ export default function NotaFiscalPaulista() {
             </span>
           )}
           <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-            <strong>Etapa de preparação:</strong> este cadastro não emite
-            NFC-e. A autorização real só será habilitada depois da validação
-            ponta a ponta no ambiente de homologação da SEFAZ-SP. Chaves antigas
-            criadas por simulação não são documentos fiscais.
+            <strong>Etapa de preparação:</strong> este cadastro não emite NFC-e.
+            A autorização real só será habilitada depois da validação ponta a
+            ponta no ambiente de homologação da SEFAZ-SP. Chaves antigas criadas
+            por simulação não são documentos fiscais.
           </div>
         </div>
 
@@ -463,7 +463,9 @@ export default function NotaFiscalPaulista() {
                     type="text"
                     inputMode="numeric"
                     value={config.serie || "1"}
-                    onChange={(e) => handleConfigChange("serie", e.target.value)}
+                    onChange={(e) =>
+                      handleConfigChange("serie", e.target.value)
+                    }
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     placeholder="1"
                   />
@@ -789,6 +791,37 @@ export default function NotaFiscalPaulista() {
         )}
 
         {/* Aba: Notas Emitidas */}
+        {/*
+        <div className="flex gap-3">
+          <input
+            type="text"
+            value={nota}
+            onChange={(e) => notas(e.target.value)}
+            placeholder="Digite o Numero da Nota Fiscal"
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono"
+            maxLength={65}
+            disabled
+          />
+          <button
+            onClick={handleConsultarNota}
+            disabled
+            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium flex items-center gap-2 disabled:opacity-50"
+          >
+            {carregando ? (
+              <>
+                <i className="fas fa-spinner fa-spin"></i>
+                Consultando...
+              </>
+            ) : (
+              <>
+                <i className="fas fa-search"></i>
+                Consultar
+              </>
+            )}
+          </button>
+        </div>
+        */}
+
         {abaAtiva === "notas" && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="p-6 border-b border-gray-200 bg-gray-50">
@@ -797,8 +830,8 @@ export default function NotaFiscalPaulista() {
                 Notas Fiscais Emitidas
               </h2>
               <p className="text-sm text-gray-500 mt-1">
-                Registros locais. As chaves criadas pela versão de simulação
-                não são notas fiscais autorizadas.
+                Registros locais. As chaves criadas pela versão de simulação não
+                são notas fiscais autorizadas.
               </p>
             </div>
 
