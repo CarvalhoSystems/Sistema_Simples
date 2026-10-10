@@ -110,7 +110,7 @@ export function imprimirCupom(dadosVenda) {
             (item) => `
           <tr>
             <td>${item.descricao?.substring(0, 20) || "Item"}</td>
-            <td class="qtd">${item.qtd || 1}</td>
+            <td class="qtd">${item.qtd || 1}${item.tipoVenda === "kg" ? " kg" : item.tipoVenda === "pacote" ? " pct" : ""}</td>
             <td class="valor">R$ ${(item.vUnit || 0).toFixed(2)}</td>
             <td class="valor">R$ ${((item.qtd || 1) * (item.vUnit || 0)).toFixed(2)}</td>
           </tr>`,
@@ -230,7 +230,7 @@ export function imprimirDANFE(nota) {
         <tr>
           <td>${item.codigo || "000"}</td>
           <td>${item.descricao || "Item"}</td>
-          <td>${item.qtd || 1}</td>
+          <td>${item.qtd || 1}${item.tipoVenda === "kg" ? " kg" : item.tipoVenda === "pacote" ? " pct" : ""}</td>
           <td>R$ ${(item.vUnit || 0).toFixed(2)}</td>
           <td>R$ ${((item.qtd || 1) * (item.vUnit || 0)).toFixed(2)}</td>
         </tr>`,

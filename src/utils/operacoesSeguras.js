@@ -31,8 +31,16 @@ export function calculateUpdatedStock(product, quantitySold) {
 
   return {
     ...product,
-    estoque: Math.max(0, stock - sold),
+    estoque: Number(Math.max(0, stock - sold).toFixed(3)),
   };
+}
+
+export function calculateStockQuantity(product, quantity, saleType = "unidade") {
+  if (product?.vendaPorPeso && saleType === "pacote") {
+    return Number(quantity) * Number(product.pesoPorPacote);
+  }
+
+  return Number(quantity);
 }
 
 export function validateLoginInput(email, password) {

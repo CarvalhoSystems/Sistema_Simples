@@ -37,7 +37,14 @@ export default function TabelaCupom({ carrinho }) {
                 {prod.descricao}
               </span>
               <span className="col-span-1 text-right">
-                {prod.qtd.toFixed(3)}
+                {prod.tipoVenda === "pacote" && Number.isInteger(prod.qtd)
+                  ? prod.qtd
+                  : prod.qtd.toFixed(3)}
+                {prod.tipoVenda === "kg"
+                  ? " kg"
+                  : prod.tipoVenda === "pacote"
+                    ? " pct"
+                    : ""}
               </span>
               <span className="col-span-1.5 text-right">
                 R$ {prod.vUnit.toFixed(2)}

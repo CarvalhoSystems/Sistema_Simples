@@ -8,6 +8,10 @@ export default function ProductModal({ product, categories, onClose, onSave }) {
     estoque: 0,
     estoqueMinimo: 0,
     preco: 0,
+    vendaPorPeso: false,
+    pesoPorPacote: "",
+    precoPacote: 0,
+    precoKg: 0,
     codigo: "",
   });
 
@@ -19,6 +23,10 @@ export default function ProductModal({ product, categories, onClose, onSave }) {
         estoque: product.estoque || 0,
         estoqueMinimo: product.estoqueMinimo || 0,
         preco: product.preco || 0,
+        vendaPorPeso: product.vendaPorPeso || false,
+        pesoPorPacote: product.pesoPorPacote || "",
+        precoPacote: product.precoPacote ?? product.preco ?? 0,
+        precoKg: product.precoKg ?? product.preco ?? 0,
         codigo: product.codigo || "",
       });
     } else {
@@ -36,8 +44,9 @@ export default function ProductModal({ product, categories, onClose, onSave }) {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]:
-        e.target.type === "number"
+      [name]: e.target.type === "checkbox"
+        ? e.target.checked
+        : e.target.type === "number"
           ? value === ""
             ? ""
             : parseFloat(value)
@@ -49,6 +58,7 @@ export default function ProductModal({ product, categories, onClose, onSave }) {
     e.preventDefault();
     onSave({
       ...formData,
+      preco: formData.vendaPorPeso ? formData.precoPacote : formData.preco,
       descricao: sanitizeInput(formData.descricao),
     });
   };
@@ -68,7 +78,11 @@ export default function ProductModal({ product, categories, onClose, onSave }) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
+        <form
+          id="product-form"
+          onSubmit={handleSubmit}
+          className="flex-1 overflow-y-auto"
+        >
           <div className="p-6 space-y-4">
             <div>
               <label
@@ -136,7 +150,85 @@ export default function ProductModal({ product, categories, onClose, onSave }) {
               </select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-start gap-3 rounded-md border border-gray-200 p-3">
+              <input
+                type="checkbox"
+                name="vendaPorPeso"
+                id="vendaPorPeso"
+                checked={formData.vendaPorPeso}
+                onChange={handleChange}
+                className="mt-1"
+              />
+              <label htmlFor="vendaPorPeso" className="text-sm text-gray-700">
+                Vender este produto por pacote fechado e também por quilo
+                <span className="block text-xs text-gray-500 mt-1">
+                  O estoque será controlado em quilos e baixado nas duas formas
+                  de venda.
+                </span>
+              </label>
+            </div>
+
+            {formData.vendaPorPeso ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label
+                    htmlFor="pesoPorPacote"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    Peso de cada pacote (kg)
+                  </label>
+                  <input
+                    type="number"
+                    name="pesoPorPacote"
+                    id="pesoPorPacote"
+                    value={formData.pesoPorPacote}
+                    onChange={handleChange}
+                    required
+                    min="0.001"
+                    step="0.001"
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="precoPacote"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    Preço do pacote fechado
+                  </label>
+                  <input
+                    type="number"
+                    name="precoPacote"
+                    id="precoPacote"
+                    value={formData.precoPacote}
+                    onChange={handleChange}
+                    required
+                    min="0"
+                    step="0.01"
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="precoKg"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    Preço por quilo
+                  </label>
+                  <input
+                    type="number"
+                    name="precoKg"
+                    id="precoKg"
+                    value={formData.precoKg}
+                    onChange={handleChange}
+                    required
+                    min="0"
+                    step="0.01"
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                  />
+                </div>
+              </div>
+            ) : (
               <div>
                 <label
                   htmlFor="preco"
@@ -156,12 +248,17 @@ export default function ProductModal({ product, categories, onClose, onSave }) {
                   className="w-full p-2 border border-gray-300 rounded-md"
                 />
               </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label
                   htmlFor="estoque"
                   className="block text-sm font-medium text-gray-700 mb-1"
                 >
-                  Estoque Inicial
+                  {formData.vendaPorPeso
+                    ? "Estoque Inicial (kg)"
+                    : "Estoque Inicial"}
                 </label>
                 <input
                   type="number"
@@ -171,6 +268,7 @@ export default function ProductModal({ product, categories, onClose, onSave }) {
                   onChange={handleChange}
                   required
                   min="0"
+                  step={formData.vendaPorPeso ? "0.001" : "1"}
                   className="w-full p-2 border border-gray-300 rounded-md"
                 />
               </div>
@@ -191,10 +289,13 @@ export default function ProductModal({ product, categories, onClose, onSave }) {
                 onChange={handleChange}
                 required
                 min="0"
+                step={formData.vendaPorPeso ? "0.001" : "1"}
                 className="w-full p-2 border border-gray-300 rounded-md"
               />
               <p className="text-xs text-gray-500 mt-1">
-                O sistema irá alertar quando o estoque atingir este valor.
+                {formData.vendaPorPeso
+                  ? "Informe o limite mínimo em quilos."
+                  : "O sistema irá alertar quando o estoque atingir este valor."}
               </p>
             </div>
           </div>
@@ -210,7 +311,7 @@ export default function ProductModal({ product, categories, onClose, onSave }) {
           </button>
           <button
             type="submit"
-            onClick={handleSubmit}
+            form="product-form"
             className="px-4 py-2 text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
           >
             Salvar Produto

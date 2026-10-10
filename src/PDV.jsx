@@ -18,6 +18,7 @@ import { formatCurrency } from "./utils/formatters";
 import {
   canAddProductToCart,
   calculateUpdatedStock,
+  calculateStockQuantity,
 } from "./utils/operacoesSeguras";
 import {
   emitirNotaFiscal,
@@ -87,16 +88,17 @@ function reducer(estado, acao) {
 
     case "DEFINIR_QUANTIDADE":
       return { ...estado, quantidade: acao.payload };
-    case "ATUALIZAR_TOTAIS":
+    case "ATUALIZAR_TOTAIS": {
       const { subtotal, desconto, total } = acao.payload;
       return { ...estado, subtotal, desconto, total };
+    }
     case "LIMPAR_INPUT":
       return { ...estado, codigoInput: "", quantidade: 1 };
 
     case "LIMPAR_CARRINHO":
       return { ...estadoInicial };
 
-    case "REMOVER_ITEM":
+    case "REMOVER_ITEM": {
       const itemNumero = acao.payload;
       const carrinhoAtualizado = estado.carrinho.filter(
         (_, index) => index !== itemNumero - 1,
@@ -106,25 +108,47 @@ function reducer(estado, acao) {
         estado.percentualDesconto,
       );
       return { ...estado, carrinho: carrinhoAtualizado, ...totaisAposRemocao };
+    }
 
-    case "ADICIONAR_PRODUTO":
-      const { produto, quantidade } = acao.payload;
+    case "ADICIONAR_PRODUTO": {
+      const {
+        produto,
+        quantidade,
+        quantidadeEstoque,
+        tipoVenda = "unidade",
+        precoUnitario,
+      } = acao.payload;
       const itemExistenteIndex = estado.carrinho.findIndex(
-        (item) => item.codigo === produto.codigo,
+        (item) =>
+          item.codigo === produto.codigo && item.tipoVenda === tipoVenda,
       );
       let novoCarrinho = [...estado.carrinho];
       if (itemExistenteIndex > -1) {
-        novoCarrinho[itemExistenteIndex].qtd += quantidade;
+        const itemExistente = novoCarrinho[itemExistenteIndex];
+        novoCarrinho[itemExistenteIndex] = {
+          ...itemExistente,
+          qtd: itemExistente.qtd + quantidade,
+          quantidadeEstoque:
+            (itemExistente.quantidadeEstoque ?? itemExistente.qtd) +
+            (quantidadeEstoque ?? quantidade),
+        };
       } else {
         novoCarrinho.push({
           codigo: produto.codigo,
           descricao: produto.descricao,
           qtd: quantidade,
-          vUnit: produto.preco,
+          vUnit: precoUnitario ?? produto.preco,
+          tipoVenda,
+          quantidadeEstoque: quantidadeEstoque ?? quantidade,
           gtin: produto.gtin || "",
           ncm: produto.ncm || "",
           cfop: produto.cfop || "",
-          unidadeComercial: produto.unidadeComercial || "UN",
+          unidadeComercial:
+            tipoVenda === "kg"
+              ? "KG"
+              : tipoVenda === "pacote"
+                ? "UN"
+                : produto.unidadeComercial || "UN",
           origem: produto.origem || "",
           csosn: produto.csosn || "",
           cstIcms: produto.cstIcms || "",
@@ -146,14 +170,16 @@ function reducer(estado, acao) {
         quantidade: 1,
         ...totaisAposAdicao,
       };
+    }
 
-    case "APLICAR_DESCONTO":
+    case "APLICAR_DESCONTO": {
       const percentualDesconto = acao.payload;
       const totaisComDesconto = calcularTotais(
         estado.carrinho,
         percentualDesconto,
       );
       return { ...estado, percentualDesconto, ...totaisComDesconto };
+    }
 
     case "DEFINIR_PAGAMENTO":
       return { ...estado, pagamentoRecebido: acao.payload };
@@ -259,8 +285,38 @@ export default function PDV() {
       return;
     }
 
-    const adicionarProduto = (qtdEscolhida) => {
-      const validacao = canAddProductToCart(produtoEncontrado, qtdEscolhida);
+    const adicionarProduto = (qtdEscolhida, tipoVenda = "unidade") => {
+      const quantidadeEstoque = calculateStockQuantity(
+        produtoEncontrado,
+        qtdEscolhida,
+        tipoVenda,
+      );
+      const precoUnitario =
+        tipoVenda === "pacote"
+          ? Number(produtoEncontrado.precoPacote)
+          : tipoVenda === "kg"
+            ? Number(produtoEncontrado.precoKg)
+            : Number(produtoEncontrado.preco);
+
+      if (
+        !Number.isFinite(quantidadeEstoque) ||
+        quantidadeEstoque <= 0 ||
+        !Number.isFinite(precoUnitario) ||
+        precoUnitario < 0
+      ) {
+        Swal.fire({
+          icon: "error",
+          title: "Produto configurado incorretamente",
+          text: "Confira o peso de cada pacote e os preços por pacote e por quilo no cadastro do produto.",
+        });
+        dispatch({ type: "LIMPAR_INPUT" });
+        return;
+      }
+
+      const validacao = canAddProductToCart(
+        produtoEncontrado,
+        quantidadeEstoque,
+      );
       if (!validacao.allowed) {
         Swal.fire({
           icon: "warning",
@@ -268,7 +324,9 @@ export default function PDV() {
           text:
             validacao.reason === "out_of_stock"
               ? "Este produto está sem estoque."
-              : `Quantidade solicitada excede o estoque disponível (${validacao.availableStock}).`,
+              : validacao.reason === "invalid_quantity"
+                ? "Informe uma quantidade válida."
+              : `Quantidade solicitada excede o estoque disponível (${validacao.availableStock}${produtoEncontrado.vendaPorPeso ? " kg" : ""}).`,
         });
         dispatch({ type: "LIMPAR_INPUT" });
         return;
@@ -276,11 +334,78 @@ export default function PDV() {
 
       dispatch({
         type: "ADICIONAR_PRODUTO",
-        payload: { produto: produtoEncontrado, quantidade: qtdEscolhida },
+        payload: {
+          produto: produtoEncontrado,
+          quantidade: qtdEscolhida,
+          quantidadeEstoque,
+          tipoVenda,
+          precoUnitario,
+        },
       });
     };
 
     const qtdInicial = quantidade > 0 ? quantidade : 1;
+    const solicitarQuantidadeVenda = (tipoVenda) => {
+      const vendePacote = tipoVenda === "pacote";
+      Swal.fire({
+        title: vendePacote
+          ? `Quantos pacotes de ${produtoEncontrado.descricao}?`
+          : `Quantos quilos de ${produtoEncontrado.descricao}?`,
+        input: "text",
+        inputValue: qtdInicial,
+        inputAttributes: {
+          inputmode: "decimal",
+          autocapitalize: "off",
+        },
+        showCancelButton: true,
+        confirmButtonText: "Adicionar",
+        cancelButtonText: "Cancelar",
+        inputValidator: (value) => {
+          const quantidadeNormalizada = String(value).trim().replace(",", ".");
+          const quantidadeInformada = Number(quantidadeNormalizada);
+          if (!Number.isFinite(quantidadeInformada) || quantidadeInformada <= 0) {
+            return "Insira uma quantidade válida maior que 0.";
+          }
+          if (vendePacote && !Number.isInteger(quantidadeInformada)) {
+            return "A quantidade de pacotes deve ser um número inteiro.";
+          }
+          if (!vendePacote && quantidadeNormalizada.split(".")[1]?.length > 3) {
+            return "Informe no máximo três casas decimais para quilos.";
+          }
+        },
+      }).then((result) => {
+        if (result.isConfirmed) {
+          const quantidadeInformada = Number(
+            String(result.value).trim().replace(",", "."),
+          );
+          adicionarProduto(quantidadeInformada, tipoVenda);
+        } else {
+          dispatch({ type: "LIMPAR_INPUT" });
+        }
+      });
+    };
+
+    if (produtoEncontrado.vendaPorPeso) {
+      Swal.fire({
+        title: produtoEncontrado.descricao,
+        text: `Estoque disponível: ${produtoEncontrado.estoque} kg`,
+        showDenyButton: true,
+        showCancelButton: true,
+        confirmButtonText: "Pacote fechado",
+        denyButtonText: "Vender por quilo",
+        cancelButtonText: "Cancelar",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          solicitarQuantidadeVenda("pacote");
+        } else if (result.isDenied) {
+          solicitarQuantidadeVenda("kg");
+        } else {
+          dispatch({ type: "LIMPAR_INPUT" });
+        }
+      });
+      return;
+    }
+
     if (produtoEncontrado.solicitarQuantidade) {
       Swal.fire({
         title: `Quantidade para ${produtoEncontrado.descricao}`,
@@ -489,19 +614,22 @@ export default function PDV() {
       });
     }
 
-    const produtosAtualizados = carrinho.reduce((acc, item) => {
-      const produtoOriginal = produtosDoTenant.find(
-        (p) => p.codigo === item.codigo,
+    const quantidadeVendidaPorProduto = carrinho.reduce((quantidades, item) => {
+      const quantidadeEstoque = Number(item.quantidadeEstoque ?? item.qtd);
+      quantidades.set(
+        item.codigo,
+        (quantidades.get(item.codigo) || 0) + quantidadeEstoque,
       );
-      if (!produtoOriginal) return acc;
-
-      const produtoAtualizado = calculateUpdatedStock(
-        produtoOriginal,
-        item.qtd,
+      return quantidades;
+    }, new Map());
+    const produtosAtualizados = produtosDoTenant
+      .filter((produto) => quantidadeVendidaPorProduto.has(produto.codigo))
+      .map((produto) =>
+        calculateUpdatedStock(
+          produto,
+          quantidadeVendidaPorProduto.get(produto.codigo),
+        ),
       );
-      acc.push(produtoAtualizado);
-      return acc;
-    }, []);
 
     const vendaAtual = {
       carrinho: [...carrinho],

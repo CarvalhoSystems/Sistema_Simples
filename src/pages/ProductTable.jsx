@@ -76,7 +76,10 @@ export default function ProductTable({ products, onEdit, onDelete }) {
                 {product.descricao}
               </td>
               <td className="px-6 py-4">{product.codigo}</td>
-              <td className="px-6 py-4 font-medium">{product.estoque}</td>
+              <td className="px-6 py-4 font-medium">
+                {product.estoque}
+                {product.vendaPorPeso ? " kg" : ""}
+              </td>
               <td className="px-6 py-4">
                 <StockStatus
                   stock={product.estoque}
@@ -84,7 +87,18 @@ export default function ProductTable({ products, onEdit, onDelete }) {
                 />
               </td>
               <td className="px-6 py-4 font-semibold text-right">
-                {formatCurrency(product.preco)}
+                {product.vendaPorPeso ? (
+                  <span className="flex flex-col items-end">
+                    <span>
+                      Pacote: {formatCurrency(product.precoPacote ?? product.preco)}
+                    </span>
+                    <span className="text-xs font-normal text-gray-500">
+                      Kg: {formatCurrency(product.precoKg ?? product.preco)}
+                    </span>
+                  </span>
+                ) : (
+                  formatCurrency(product.preco)
+                )}
               </td>
               <td className="px-6 py-4 text-center">
                 <button

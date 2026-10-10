@@ -4,6 +4,7 @@ import {
   canAddProductToCart,
   validateLoginInput,
   calculateUpdatedStock,
+  calculateStockQuantity,
 } from "./operacoesSeguras.js";
 
 test("bloqueia item quando estoque é insuficiente", () => {
@@ -34,4 +35,33 @@ test("reduz o estoque corretamente após a venda", () => {
   const updated = calculateUpdatedStock(product, 3);
 
   assert.equal(updated.estoque, 7);
+});
+
+test("baixa no estoque o peso equivalente aos pacotes vendidos", () => {
+  const product = { codigo: "racao", descricao: "Ração", estoque: 200 };
+  const quantidadeEmKg = calculateStockQuantity(
+    { ...product, vendaPorPeso: true, pesoPorPacote: 20 },
+    2,
+    "pacote",
+  );
+  const updated = calculateUpdatedStock(product, quantidadeEmKg);
+
+  assert.equal(updated.estoque, 160);
+});
+
+test("usa a quantidade em quilos diretamente quando a venda é fracionada", () => {
+  const quantidadeEmKg = calculateStockQuantity(
+    { vendaPorPeso: true, pesoPorPacote: 20 },
+    2.5,
+    "kg",
+  );
+
+  assert.equal(quantidadeEmKg, 2.5);
+});
+
+test("baixa quilos fracionados sem deixar imprecisão decimal no estoque", () => {
+  const product = { codigo: "racao", descricao: "Ração", estoque: 10 };
+  const updated = calculateUpdatedStock(product, 0.3);
+
+  assert.equal(updated.estoque, 9.7);
 });
