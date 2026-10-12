@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { sanitizeInput } from "../utils/sanitize";
 
-export default function ProductModal({ product, categories, onClose, onSave }) {
+export default function ProductModal({ product, onClose, onSave }) {
   const [formData, setFormData] = useState({
     descricao: "",
-    categoriaId: "",
     estoque: 0,
     estoqueMinimo: 0,
     preco: 0,
@@ -19,7 +18,6 @@ export default function ProductModal({ product, categories, onClose, onSave }) {
     if (product) {
       setFormData({
         descricao: product.descricao || "",
-        categoriaId: product.categoriaId || "",
         estoque: product.estoque || 0,
         estoqueMinimo: product.estoqueMinimo || 0,
         preco: product.preco || 0,
@@ -30,15 +28,13 @@ export default function ProductModal({ product, categories, onClose, onSave }) {
         codigo: product.codigo || "",
       });
     } else {
-      // Se for um novo produto, seleciona a primeira categoria por padrão
-      // e deixa o código vazio para o usuário preencher ou gerar automático
+      // Deixa o código vazio para o usuário preencher ou gerar automaticamente.
       setFormData((prev) => ({
         ...prev,
-        categoriaId: categories[0]?.id || "",
         codigo: "",
       }));
     }
-  }, [product, categories]);
+  }, [product]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -122,32 +118,6 @@ export default function ProductModal({ product, categories, onClose, onSave }) {
                 Digite um código manual ou deixe vazio para gerar
                 automaticamente
               </p>
-            </div>
-
-            <div>
-              <label
-                htmlFor="categoriaId"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Categoria
-              </label>
-              <select
-                name="categoriaId"
-                id="categoriaId"
-                value={formData.categoriaId}
-                onChange={handleChange}
-                required
-                className="w-full p-2 border border-gray-300 rounded-md bg-white"
-              >
-                <option key="none" value="">
-                  Selecione uma categoria
-                </option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
             </div>
 
             <div className="flex items-start gap-3 rounded-md border border-gray-200 p-3">

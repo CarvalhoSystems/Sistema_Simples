@@ -3,11 +3,8 @@ import React from "react";
 export default function Toolbar({
   searchTerm,
   setSearchTerm,
-  categoryFilter,
-  setCategoryFilter,
   statusFilter,
   setStatusFilter,
-  categories,
   onAddNew,
 }) {
   return (

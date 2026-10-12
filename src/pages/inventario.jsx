@@ -10,7 +10,6 @@ import ProductModal from "./ProductModal.jsx";
 // Importa o serviço para carregar dados do tenant (usuário logado)
 import {
   getProdutos,
-  getCategorias,
   addProduto,
   updateProduto,
   removeProduto,
@@ -18,23 +17,19 @@ import {
 
 export default function Inventario() {
   const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
 
   // Estado para filtros
   const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
   // Carrega os dados iniciais
   useEffect(() => {
     const carregarDados = async () => {
-      // Carrega os produtos e categorias do tenant logado
+      // Carrega os produtos do tenant logado
       const produtosData = await getProdutos();
-      const categoriasData = await getCategorias();
       setProducts(produtosData);
-      setCategories(categoriasData);
     };
     carregarDados();
   }, []);
@@ -51,11 +46,6 @@ export default function Inventario() {
         );
       })
       .filter((product) => {
-        // Filtro de categoria
-        if (!categoryFilter) return true;
-        return product.categoriaId === categoryFilter;
-      })
-      .filter((product) => {
         // Filtro de status de estoque
         if (!statusFilter) return true;
         const status =
@@ -66,7 +56,7 @@ export default function Inventario() {
               : "in_stock";
         return status === statusFilter;
       });
-  }, [products, searchTerm, categoryFilter, statusFilter]);
+  }, [products, searchTerm, statusFilter]);
 
   const handleOpenModal = (product = null) => {
     setEditingProduct(product);
@@ -154,7 +144,6 @@ export default function Inventario() {
             setSearchTerm={setSearchTerm}
             statusFilter={statusFilter}
             setStatusFilter={setStatusFilter}
-            categories={categories}
             onAddNew={() => handleOpenModal()}
           />
 
@@ -171,7 +160,6 @@ export default function Inventario() {
       {isModalOpen && (
         <ProductModal
           product={editingProduct}
-          categories={categories}
           onClose={handleCloseModal}
           onSave={handleSaveProduct}
         />
