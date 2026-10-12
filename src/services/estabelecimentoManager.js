@@ -21,6 +21,7 @@
 
 import {
   getTenantId,
+  getTenantOwnerId,
   getTenant,
   setTenant,
   setTenantByEmail,
@@ -162,8 +163,7 @@ async function recuperarEstabelecimentoPrincipal(estabelecimentos, userId) {
  * mas para a lista de estabelecimentos devemos sempre usar o UID do usuário dono.
  */
 function getUserId() {
-  const tenant = getTenant() || {};
-  return tenant.uid || tenant.id || null;
+  return getTenantOwnerId();
 }
 
 /**

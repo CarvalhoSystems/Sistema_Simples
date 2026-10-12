@@ -204,7 +204,7 @@ export function AuthProvider({ children }) {
     }
 
     const userData = {
-      uid: tenantData.id || tenantData.uid,
+      uid: tenantData.uid || tenantData.id,
       email: tenantData.email,
       name: tenantData.nome || tenantData.email,
     };
@@ -381,4 +381,3 @@ export function AuthProvider({ children }) {
 
 // ** Garanta que esta linha exata esteja presente no final do arquivo: **
 export const useAuth = () => useContext(AuthContext);
-

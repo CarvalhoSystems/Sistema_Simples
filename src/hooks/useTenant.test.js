@@ -1,6 +1,39 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeEmail, resolveTenantForLogin } from "./useTenant.js";
+import {
+  getTenantOwnerId,
+  normalizeEmail,
+  resolveTenantForLogin,
+} from "./useTenant.js";
+
+test("getTenantOwnerId usa o UID do usuário, não o ID do estabelecimento ativo", () => {
+  const previousLocalStorage = globalThis.localStorage;
+  const previousSessionStorage = globalThis.sessionStorage;
+  const tenant = {
+    id: "estab_123",
+    uid: "user_456",
+  };
+
+  globalThis.localStorage = {
+    getItem: (key) => (key === "pdv_tenant" ? JSON.stringify(tenant) : null),
+    setItem: () => {},
+  };
+
+  try {
+    assert.equal(getTenantOwnerId(), "user_456");
+  } finally {
+    if (previousLocalStorage === undefined) {
+      delete globalThis.localStorage;
+    } else {
+      globalThis.localStorage = previousLocalStorage;
+    }
+    if (previousSessionStorage === undefined) {
+      delete globalThis.sessionStorage;
+    } else {
+      globalThis.sessionStorage = previousSessionStorage;
+    }
+  }
+});
 
 test("normalizeEmail remove espaços e deixa o e-mail em caixa baixa", () => {
   assert.equal(normalizeEmail(" Cliente@Loja.com "), "cliente@loja.com");

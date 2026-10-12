@@ -19,7 +19,12 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { PRODUTOS_PADRAO, CATEGORIAS_PADRAO } from "./supabaseClient.js";
-import { getTenantId, getTenantRamo, getTenant } from "../hooks/useTenant.js";
+import {
+  getTenantId,
+  getTenantOwnerId,
+  getTenantRamo,
+  getTenant,
+} from "../hooks/useTenant.js";
 
 function removerCamposSensiveis(dados) {
   if (!dados || typeof dados !== "object") return dados;
@@ -55,8 +60,7 @@ function getVendasCollectionRef(tenantId) {
 }
 
 function getUserId() {
-  const tenant = getTenant() || {};
-  return tenant.uid || tenant.id || null;
+  return getTenantOwnerId();
 }
 
 export async function carregarConfiguracaoNFPFirebase(

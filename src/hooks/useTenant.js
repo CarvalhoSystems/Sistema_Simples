@@ -8,6 +8,7 @@ import {
   PRODUTOS_PADRAO,
   CATEGORIAS_PADRAO,
 } from "../services/supabaseClient.js";
+import { auth } from "../services/firebaseClient.js";
 
 export const TENANT_KEY = "pdv_tenant";
 
@@ -96,6 +97,27 @@ export function getTenantId() {
   const tenantId = tenant?.id || tenant?.uid || null;
   console.log("🔑 getTenantId - tenant:", tenant, "ID:", tenantId);
   return tenantId;
+}
+
+export function getTenantOwnerId() {
+  const authenticatedUserId = auth?.currentUser?.uid;
+  if (authenticatedUserId) return authenticatedUserId;
+
+  const tenant = getTenant() || {};
+  if (tenant.uid && tenant.uid !== tenant.id) return tenant.uid;
+
+  try {
+    const sessionUser = JSON.parse(
+      sessionStorage.getItem("pdv_session_user") || "null",
+    );
+    if (sessionUser?.uid && sessionUser.uid !== tenant.id) {
+      return sessionUser.uid;
+    }
+  } catch (error) {
+    console.warn("Erro ao recuperar o usuário da sessão:", error);
+  }
+
+  return tenant.uid || tenant.id || null;
 }
 
 /**
