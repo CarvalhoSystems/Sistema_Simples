@@ -17,6 +17,7 @@ import {
   limit,
   getDocs,
   writeBatch,
+  runTransaction,
 } from "firebase/firestore";
 import { PRODUTOS_PADRAO, CATEGORIAS_PADRAO } from "./supabaseClient.js";
 import {
@@ -118,6 +119,57 @@ export async function salvarProdutosFirebase(produtos) {
   }
 }
 
+export async function modificarProdutosFirebase(modificar) {
+  const tenantId = getTenantId();
+  const userId = getUserId();
+  if (!tenantId) {
+    throw new Error("Não foi possível identificar o estabelecimento ativo.");
+  }
+
+  let produtos;
+  if (isFirebaseReady()) {
+    const docRef = getTenantDocRef(tenantId);
+    produtos = await runTransaction(db, async (transaction) => {
+      const docSnap = await transaction.get(docRef);
+      const produtosAtuais = docSnap.exists()
+        ? docSnap.data()?.produtos
+        : [];
+      const listaAtual = Array.isArray(produtosAtuais) ? produtosAtuais : [];
+      const listaAtualizada = modificar(listaAtual);
+      transaction.set(
+        docRef,
+        { produtos: listaAtualizada, uid: userId },
+        { merge: true },
+      );
+      return listaAtualizada;
+    });
+  } else {
+    let listaAtual = [];
+    try {
+      const data = localStorage.getItem(`pdv_produtos_${tenantId}`);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (!Array.isArray(parsed)) {
+          throw new Error("Os dados locais de produtos não são uma lista.");
+        }
+        listaAtual = parsed;
+      }
+    } catch (error) {
+      console.error("Erro ao ler a lista local de produtos:", error);
+      throw error;
+    }
+    produtos = modificar(listaAtual);
+  }
+
+  try {
+    localStorage.setItem(`pdv_produtos_${tenantId}`, JSON.stringify(produtos));
+  } catch (error) {
+    console.error("Erro ao atualizar o cache local dos produtos:", error);
+  }
+
+  return produtos;
+}
+
 export async function carregarProdutosFirebase() {
   const tenantId = getTenantId();
   if (!tenantId) return [];
@@ -127,7 +179,10 @@ export async function carregarProdutosFirebase() {
       const docRef = getTenantDocRef(tenantId);
       const docSnap = await getDoc(docRef);
 
-      if (docSnap.exists() && docSnap.data()?.produtos) {
+      if (
+        docSnap.exists() &&
+        Array.isArray(docSnap.data()?.produtos)
+      ) {
         const produtos = docSnap.data().produtos;
         localStorage.setItem(
           `pdv_produtos_${tenantId}`,

@@ -10,7 +10,7 @@ import {
   getProdutos,
   buscarProdutos,
   addVenda,
-  setProdutos,
+  modificarProdutos,
   getVendas,
   verificarPinAdmin,
 } from "./services/tenantData";
@@ -622,15 +622,6 @@ export default function PDV() {
       );
       return quantidades;
     }, new Map());
-    const produtosAtualizados = produtosDoTenant
-      .filter((produto) => quantidadeVendidaPorProduto.has(produto.codigo))
-      .map((produto) =>
-        calculateUpdatedStock(
-          produto,
-          quantidadeVendidaPorProduto.get(produto.codigo),
-        ),
-      );
-
     const vendaAtual = {
       carrinho: [...carrinho],
       total,
@@ -675,14 +666,17 @@ export default function PDV() {
     vendasRealizadasRef.current = [...vendasRealizadasRef.current, vendaAtual];
     addVenda(vendaAtual);
 
-    if (produtosAtualizados.length > 0) {
-      const produtosPersistidos = produtosDoTenant.map((produto) => {
-        const atualizado = produtosAtualizados.find(
-          (p) => p.codigo === produto.codigo,
-        );
-        return atualizado || produto;
-      });
-      await setProdutos(produtosPersistidos);
+    if (quantidadeVendidaPorProduto.size > 0) {
+      const produtosPersistidos = await modificarProdutos((produtos) =>
+        produtos.map((produto) => {
+          const quantidadeVendida = quantidadeVendidaPorProduto.get(
+            produto.codigo,
+          );
+          return quantidadeVendida
+            ? calculateUpdatedStock(produto, quantidadeVendida)
+            : produto;
+        }),
+      );
       setProdutosDoTenant(produtosPersistidos);
     }
 

@@ -16,6 +16,7 @@ import {
 } from "./supabaseClient.js";
 import {
   carregarProdutosFirebase,
+  modificarProdutosFirebase,
   salvarProdutosFirebase,
   salvarVendaFirebase,
   carregarCategoriasFirebase, // Adicionado para carregar categorias do Firebase
@@ -73,6 +74,10 @@ export async function setProdutos(produtos) {
   await salvarProdutosFirebase(produtos);
 }
 
+export async function modificarProdutos(modificar) {
+  return modificarProdutosFirebase(modificar);
+}
+
 /**
  * Gera o próximo código sequencial baseado nos produtos existentes
  */
@@ -97,18 +102,13 @@ function gerarProximoCodigo(produtos) {
  * Adiciona um produto ao tenant atual
  */
 export async function addProduto(produto) {
-  const produtos = await getProdutos();
-
-  // Se não fornecer código, gera um sequencial
-  const codigo = produto.codigo || gerarProximoCodigo(produtos);
-
-  const novoProduto = {
-    ...produto,
-    codigo: codigo,
-  };
-
-  produtos.push(novoProduto);
-  await setProdutos(produtos);
+  let novoProduto;
+  await modificarProdutosFirebase((produtos) => {
+    // Se não fornecer código, gera um sequencial considerando a lista atual.
+    const codigo = produto.codigo || gerarProximoCodigo(produtos);
+    novoProduto = { ...produto, codigo };
+    return [...produtos, novoProduto];
+  });
   return novoProduto;
 }
 
@@ -116,23 +116,24 @@ export async function addProduto(produto) {
  * Atualiza um produto do tenant atual
  */
 export async function updateProduto(codigo, dadosAtualizados) {
-  const produtos = await getProdutos();
-  const index = produtos.findIndex((p) => p.codigo === codigo);
-  if (index === -1) return null;
-
-  produtos[index] = { ...produtos[index], ...dadosAtualizados };
-  await setProdutos(produtos);
-  return produtos[index];
+  let produtoAtualizado = null;
+  await modificarProdutosFirebase((produtos) =>
+    produtos.map((produto) => {
+      if (produto.codigo !== codigo) return produto;
+      produtoAtualizado = { ...produto, ...dadosAtualizados };
+      return produtoAtualizado;
+    }),
+  );
+  return produtoAtualizado;
 }
 
 /**
  * Remove um produto do tenant atual
  */
 export async function removeProduto(codigo) {
-  const produtos = await getProdutos();
-  const novosProdutos = produtos.filter((p) => p.codigo !== codigo);
-  await setProdutos(novosProdutos);
-  return novosProdutos;
+  return modificarProdutosFirebase((produtos) =>
+    produtos.filter((produto) => produto.codigo !== codigo),
+  );
 }
 
 /**
