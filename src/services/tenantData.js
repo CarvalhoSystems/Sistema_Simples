@@ -16,6 +16,7 @@ import {
 } from "./supabaseClient.js";
 import {
   carregarProdutosFirebase,
+  escutarProdutosFirebase,
   modificarProdutosFirebase,
   salvarProdutosFirebase,
   salvarVendaFirebase,
@@ -66,6 +67,10 @@ export async function getProdutos() {
   return produtosDoTenant;
 }
 
+export function assinarProdutos(onChange, onError) {
+  return escutarProdutosFirebase(onChange, onError);
+}
+
 /**
  * Salva os produtos do tenant atual
  */
@@ -103,37 +108,88 @@ function gerarProximoCodigo(produtos) {
  */
 export async function addProduto(produto) {
   let novoProduto;
+  const id =
+    globalThis.crypto?.randomUUID?.() ||
+    `produto_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
   await modificarProdutosFirebase((produtos) => {
     // Se não fornecer código, gera um sequencial considerando a lista atual.
     const codigo = produto.codigo || gerarProximoCodigo(produtos);
-    novoProduto = { ...produto, codigo };
+    if (produtos.some((item) => item.codigo === codigo)) {
+      throw new Error(`Já existe um produto cadastrado com o código ${codigo}.`);
+    }
+    novoProduto = { ...produto, id, codigo };
     return [...produtos, novoProduto];
   });
   return novoProduto;
 }
 
+function correspondeAoProduto(produto, identificador) {
+  if (typeof identificador === "string") {
+    return produto.codigo === identificador;
+  }
+  if (!identificador || produto.codigo !== identificador.codigo) return false;
+  if (identificador.id) return produto.id === identificador.id;
+
+  return (
+    produto.descricao === identificador.descricao &&
+    produto.preco === identificador.preco &&
+    produto.estoque === identificador.estoque
+  );
+}
+
 /**
  * Atualiza um produto do tenant atual
  */
-export async function updateProduto(codigo, dadosAtualizados) {
+export async function updateProduto(identificador, dadosAtualizados) {
   let produtoAtualizado = null;
-  await modificarProdutosFirebase((produtos) =>
-    produtos.map((produto) => {
-      if (produto.codigo !== codigo) return produto;
+  let atualizado = false;
+  await modificarProdutosFirebase((produtos) => {
+    atualizado = false;
+    produtoAtualizado = null;
+    const produtoOriginal = produtos.find((produto) =>
+      correspondeAoProduto(produto, identificador),
+    );
+    if (
+      produtoOriginal &&
+      dadosAtualizados.codigo !== produtoOriginal.codigo &&
+      dadosAtualizados.codigo &&
+      produtos.some(
+        (produto) =>
+          produto !== produtoOriginal &&
+          produto.codigo === dadosAtualizados.codigo,
+      )
+    ) {
+      throw new Error(
+        `Já existe um produto cadastrado com o código ${dadosAtualizados.codigo}.`,
+      );
+    }
+    return produtos.map((produto) => {
+      if (atualizado || !correspondeAoProduto(produto, identificador)) {
+        return produto;
+      }
       produtoAtualizado = { ...produto, ...dadosAtualizados };
+      atualizado = true;
       return produtoAtualizado;
-    }),
-  );
+    });
+  });
   return produtoAtualizado;
 }
 
 /**
  * Remove um produto do tenant atual
  */
-export async function removeProduto(codigo) {
-  return modificarProdutosFirebase((produtos) =>
-    produtos.filter((produto) => produto.codigo !== codigo),
-  );
+export async function removeProduto(identificador) {
+  let removido = false;
+  return modificarProdutosFirebase((produtos) => {
+    removido = false;
+    return produtos.filter((produto) => {
+      if (removido || !correspondeAoProduto(produto, identificador)) {
+        return true;
+      }
+      removido = true;
+      return false;
+    });
+  });
 }
 
 /**
@@ -216,19 +272,38 @@ export async function addVenda(dadosVenda) {
  */
 export async function buscarProdutoPorCodigo(codigo) {
   const produtos = await getProdutos();
-  return produtos.find((p) => p.codigo === codigo) || null;
+  return buscarProdutoNaLista(codigo, produtos);
+}
+
+function normalizarTermoProduto(valor) {
+  return String(valor ?? "")
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR");
+}
+
+export function buscarProdutoNaLista(termo, produtos) {
+  const termoNormalizado = normalizarTermoProduto(termo);
+  if (!termoNormalizado) return null;
+  return (
+    produtos.find(
+      (produto) =>
+        normalizarTermoProduto(produto.codigo) === termoNormalizado,
+    ) || null
+  );
 }
 
 /**
  * Busca produtos por termo (código ou descrição)
  */
 export function buscarProdutos(termo, produtos) {
-  if (!termo) return produtos;
-  const termoLower = String(termo).toLowerCase();
+  const termoNormalizado = normalizarTermoProduto(termo);
+  if (!termoNormalizado) return produtos;
   return produtos.filter(
     (p) =>
-      p.descricao.toLowerCase().includes(termoLower) ||
-      p.codigo.toLowerCase().includes(termoLower),
+      normalizarTermoProduto(p.descricao).includes(termoNormalizado) ||
+      normalizarTermoProduto(p.codigo).includes(termoNormalizado),
   );
 }
 

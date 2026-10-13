@@ -1,7 +1,9 @@
-import { useState, useEffect } from "react";
+import { useRef, useState, useEffect } from "react";
 import { sanitizeInput } from "../utils/sanitize";
 
 export default function ProductModal({ product, onClose, onSave }) {
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [formData, setFormData] = useState({
     descricao: "",
     estoque: 0,
@@ -50,13 +52,22 @@ export default function ProductModal({ product, onClose, onSave }) {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onSave({
-      ...formData,
-      preco: formData.vendaPorPeso ? formData.precoPacote : formData.preco,
-      descricao: sanitizeInput(formData.descricao),
-    });
+    if (savingRef.current) return;
+
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      await onSave({
+        ...formData,
+        preco: formData.vendaPorPeso ? formData.precoPacote : formData.preco,
+        descricao: sanitizeInput(formData.descricao),
+      });
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   return (
@@ -68,6 +79,7 @@ export default function ProductModal({ product, onClose, onSave }) {
           </h3>
           <button
             onClick={onClose}
+            disabled={saving}
             className="text-gray-400 hover:text-gray-600"
           >
             <i className="fas fa-times text-xl"></i>
@@ -275,6 +287,7 @@ export default function ProductModal({ product, onClose, onSave }) {
           <button
             type="button"
             onClick={onClose}
+            disabled={saving}
             className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
           >
             Cancelar
@@ -282,9 +295,10 @@ export default function ProductModal({ product, onClose, onSave }) {
           <button
             type="submit"
             form="product-form"
+            disabled={saving}
             className="px-4 py-2 text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
           >
-            Salvar Produto
+            {saving ? "Salvando..." : "Salvar Produto"}
           </button>
         </div>
       </div>

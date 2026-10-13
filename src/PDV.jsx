@@ -1,4 +1,10 @@
-import React, { useReducer, useState, useEffect, useRef } from "react";
+import React, {
+  useMemo,
+  useReducer,
+  useState,
+  useEffect,
+  useRef,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import BarraSuperior from "./components/PDV/BarraSuperior";
@@ -8,7 +14,9 @@ import RodapeAtalhos from "./components/PDV/RodapeAtalhos";
 import useKeyboardShortcuts from "./hooks/useKeyboardShortcuts";
 import {
   getProdutos,
+  assinarProdutos,
   buscarProdutos,
+  buscarProdutoNaLista,
   addVenda,
   modificarProdutos,
   getVendas,
@@ -225,16 +233,79 @@ export default function PDV() {
   }, [mostrarF10]);
 
   useEffect(() => {
-    async function carregarProdutos() {
+    let ativo = true;
+    let sequencia = 0;
+    const carregarProdutos = async () => {
+      const sequenciaAtual = ++sequencia;
       const produtos = await getProdutos();
-      setProdutosDoTenant(produtos);
-    }
-    carregarProdutos();
-  }, []);
+      if (ativo && sequenciaAtual === sequencia) {
+        setProdutosDoTenant(produtos);
+      }
+    };
+    let cancelarAssinatura = () => {};
+    const assinarProdutosAtuais = () => {
+      cancelarAssinatura();
+      cancelarAssinatura = assinarProdutos(
+        (produtos) => {
+          sequencia += 1;
+          if (ativo) setProdutosDoTenant(produtos);
+        },
+        (error) => {
+          console.error("Erro ao sincronizar produtos do Firestore:", error);
+        },
+      );
+    };
 
-  const produtosFiltradosF10 = termoBuscaF10
-    ? buscarProdutos(termoBuscaF10, produtosDoTenant)
-    : produtosDoTenant;
+    const atualizarDoEvento = (event) => {
+      const tenantIdAtual = getTenantId();
+      if (
+        event.detail?.tenantId === tenantIdAtual &&
+        Array.isArray(event.detail.produtos)
+      ) {
+        sequencia += 1;
+        setProdutosDoTenant(event.detail.produtos);
+      }
+    };
+
+    const atualizarDeOutraAba = (event) => {
+      if (event.key === `pdv_produtos_${getTenantId()}`) {
+        carregarProdutos();
+      }
+    };
+
+    const atualizarAoTrocarEstabelecimento = () => {
+      carregarProdutos();
+      assinarProdutosAtuais();
+    };
+
+    assinarProdutosAtuais();
+    window.addEventListener("produtos-alterados", atualizarDoEvento);
+    window.addEventListener("storage", atualizarDeOutraAba);
+    window.addEventListener(
+      "estabelecimento-alterado",
+      atualizarAoTrocarEstabelecimento,
+    );
+    carregarProdutos();
+
+    return () => {
+      ativo = false;
+      window.removeEventListener("produtos-alterados", atualizarDoEvento);
+      window.removeEventListener("storage", atualizarDeOutraAba);
+      window.removeEventListener(
+        "estabelecimento-alterado",
+        atualizarAoTrocarEstabelecimento,
+      );
+      cancelarAssinatura();
+    };
+  }, [tenantId]);
+
+  const produtosFiltradosF10 = useMemo(
+    () =>
+      termoBuscaF10
+        ? buscarProdutos(termoBuscaF10, produtosDoTenant)
+        : produtosDoTenant,
+    [termoBuscaF10, produtosDoTenant],
+  );
 
   useEffect(() => {
     const inputCodigoBarras = document.getElementById("codigo-barras-input");
@@ -271,8 +342,9 @@ export default function PDV() {
   };
 
   const lidarComBipe = (codigoBipado) => {
-    const produtoEncontrado = produtosDoTenant.find(
-      (p) => p.codigo === codigoBipado,
+    const produtoEncontrado = buscarProdutoNaLista(
+      codigoBipado,
+      produtosDoTenant,
     );
 
     if (!produtoEncontrado) {

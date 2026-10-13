@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useRef, useState, useEffect, useMemo } from "react";
 import Swal from "sweetalert2";
 
 // Caminhos corrigidos para buscar os componentes da pasta 'src'
@@ -10,6 +10,8 @@ import ProductModal from "./ProductModal.jsx";
 // Importa o serviço para carregar dados do tenant (usuário logado)
 import {
   getProdutos,
+  assinarProdutos,
+  buscarProdutos,
   addProduto,
   updateProduto,
   removeProduto,
@@ -19,6 +21,7 @@ export default function Inventario() {
   const [products, setProducts] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  const savingProductRef = useRef(false);
 
   // Estado para filtros
   const [searchTerm, setSearchTerm] = useState("");
@@ -26,26 +29,30 @@ export default function Inventario() {
 
   // Carrega os dados iniciais
   useEffect(() => {
+    let versao = 0;
+    let ativo = true;
     const carregarDados = async () => {
+      const versaoAtual = ++versao;
       // Carrega os produtos do tenant logado
       const produtosData = await getProdutos();
-      setProducts(produtosData);
+      if (ativo && versaoAtual === versao) setProducts(produtosData);
     };
+    const cancelarAssinatura = assinarProdutos((produtosData) => {
+      versao += 1;
+      if (ativo) setProducts(produtosData);
+    }, (error) => {
+      console.error("Erro ao sincronizar produtos do Firestore:", error);
+    });
     carregarDados();
+    return () => {
+      ativo = false;
+      cancelarAssinatura();
+    };
   }, []);
 
   // Lógica de filtragem dos produtos
   const filteredProducts = useMemo(() => {
-    return products
-      .filter((product) => {
-        // Filtro de busca por texto
-        const searchLower = searchTerm.toLowerCase();
-        return (
-          product.descricao.toLowerCase().includes(searchLower) ||
-          product.codigo.toLowerCase().includes(searchLower)
-        );
-      })
-      .filter((product) => {
+    return buscarProdutos(searchTerm, products).filter((product) => {
         // Filtro de status de estoque
         if (!statusFilter) return true;
         const status =
@@ -69,25 +76,46 @@ export default function Inventario() {
   };
 
   const handleSaveProduct = async (productData) => {
+    if (savingProductRef.current) return;
+    savingProductRef.current = true;
     console.log("💾 Salvando produto:", productData);
 
     try {
       // Lógica para salvar (adicionar novo ou editar existente)
       if (editingProduct) {
         console.log("Atualizando produto existente:", editingProduct.codigo);
-        await updateProduto(editingProduct.codigo, productData);
+        const produtoAtualizado = await updateProduto(
+          editingProduct,
+          productData,
+        );
+        if (!produtoAtualizado) {
+          throw new Error("O produto não foi encontrado para atualização.");
+        }
+        let substituido = false;
+        setProducts((currentProducts) =>
+          currentProducts.map((product) => {
+            if (
+              substituido ||
+              (editingProduct.id
+                ? product.id !== editingProduct.id
+                : product.codigo !== editingProduct.codigo ||
+                  product.descricao !== editingProduct.descricao ||
+                  product.preco !== editingProduct.preco ||
+                  product.estoque !== editingProduct.estoque)
+            ) {
+              return product;
+            }
+            substituido = true;
+            return produtoAtualizado;
+          }),
+        );
         Swal.fire("Sucesso!", "Produto atualizado com sucesso.", "success");
       } else {
         console.log("Adicionando novo produto");
-        await addProduto(productData);
+        const novoProduto = await addProduto(productData);
+        setProducts((currentProducts) => [...currentProducts, novoProduto]);
         Swal.fire("Sucesso!", "Produto adicionado com sucesso.", "success");
       }
-
-      // Recarrega os produtos para refletir a mudança
-      console.log("Recarregando produtos...");
-      const produtosData = await getProdutos();
-      console.log("Produtos carregados:", produtosData);
-      setProducts(produtosData);
 
       handleCloseModal();
     } catch (error) {
@@ -97,10 +125,12 @@ export default function Inventario() {
         `Não foi possível salvar o produto: ${error.message}`,
         "error",
       );
+    } finally {
+      savingProductRef.current = false;
     }
   };
 
-  const handleDeleteProduct = async (productCode) => {
+  const handleDeleteProduct = async (product) => {
     try {
       const result = await Swal.fire({
         title: "Tem certeza?",
@@ -114,12 +144,9 @@ export default function Inventario() {
       });
 
       if (result.isConfirmed) {
-        console.log("🗑️ Deletando produto:", productCode);
-        await removeProduto(productCode);
-
-        // Recarrega os produtos para refletir a mudança
-        const produtosData = await getProdutos();
-        setProducts(produtosData);
+        console.log("🗑️ Deletando produto:", product.codigo);
+        const produtosRestantes = await removeProduto(product);
+        setProducts(produtosRestantes);
 
         Swal.fire("Deletado!", "O produto foi removido.", "success");
       }

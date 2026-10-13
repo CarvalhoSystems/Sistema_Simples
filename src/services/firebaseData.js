@@ -18,6 +18,7 @@ import {
   getDocs,
   writeBatch,
   runTransaction,
+  onSnapshot,
 } from "firebase/firestore";
 import { PRODUTOS_PADRAO, CATEGORIAS_PADRAO } from "./supabaseClient.js";
 import {
@@ -62,6 +63,15 @@ function getVendasCollectionRef(tenantId) {
 
 function getUserId() {
   return getTenantOwnerId();
+}
+
+function notificarProdutosAlterados(tenantId, produtos) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent("produtos-alterados", {
+      detail: { tenantId, produtos },
+    }),
+  );
 }
 
 export async function carregarConfiguracaoNFPFirebase(
@@ -117,6 +127,7 @@ export async function salvarProdutosFirebase(produtos) {
   } catch (error) {
     console.error("Erro ao atualizar o cache local dos produtos:", error);
   }
+  notificarProdutosAlterados(tenantId, produtos);
 }
 
 export async function modificarProdutosFirebase(modificar) {
@@ -167,6 +178,7 @@ export async function modificarProdutosFirebase(modificar) {
     console.error("Erro ao atualizar o cache local dos produtos:", error);
   }
 
+  notificarProdutosAlterados(tenantId, produtos);
   return produtos;
 }
 
@@ -206,6 +218,30 @@ export async function carregarProdutosFirebase() {
   }
 
   return [];
+}
+
+export function escutarProdutosFirebase(onChange, onError) {
+  const tenantId = getTenantId();
+  if (!tenantId || !isFirebaseReady()) return () => {};
+
+  return onSnapshot(
+    getTenantDocRef(tenantId),
+    (docSnap) => {
+      const produtos = docSnap.exists() ? docSnap.data()?.produtos : [];
+      if (!Array.isArray(produtos)) return;
+
+      try {
+        localStorage.setItem(
+          `pdv_produtos_${tenantId}`,
+          JSON.stringify(produtos),
+        );
+      } catch (error) {
+        console.error("Erro ao atualizar o cache local dos produtos:", error);
+      }
+      onChange(produtos);
+    },
+    onError,
+  );
 }
 
 // ===== CATEGORIAS =====

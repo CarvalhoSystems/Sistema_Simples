@@ -67,9 +67,9 @@ export default function ProductTable({ products, onEdit, onDelete }) {
           </tr>
         </thead>
         <tbody>
-          {products.map((product) => (
+          {products.map((product, index) => (
             <tr
-              key={product.codigo}
+              key={product.id || `${product.codigo}-${index}`}
               className="bg-white border-b hover:bg-gray-50"
             >
               <td className="px-6 py-4 font-semibold text-gray-900">
@@ -108,7 +108,7 @@ export default function ProductTable({ products, onEdit, onDelete }) {
                   <i className="fas fa-pencil-alt"></i>
                 </button>
                 <button
-                  onClick={() => onDelete(product.codigo)}
+                  onClick={() => onDelete(product)}
                   className="font-medium text-red-600 hover:text-red-800"
                 >
                   <i className="fas fa-trash"></i>
