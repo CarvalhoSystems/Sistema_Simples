@@ -33,6 +33,27 @@ function formatarData(data) {
 }
 
 /**
+ * Abre uma janela para impressão de forma segura (Escopo Global)
+ */
+function abrirJanelaImpressao(conteudoHtml) {
+  const janela = window.open("", "_blank", "width=400,height=600");
+  if (!janela) {
+    alert("Pop-up bloqueado! Permita pop-ups para imprimir.");
+    return;
+  }
+  janela.document.write(conteudoHtml);
+  janela.document.close();
+
+  // Aguarda carregar para disparar a impressão sem falhas
+  janela.onload = function () {
+    setTimeout(() => {
+      janela.focus();
+      janela.print();
+    }, 250);
+  };
+}
+
+/**
  * 1. IMPRESSÃO DO CUPOM FISCAL (venda normal)
  */
 export function imprimirCupom(dadosVenda) {
@@ -47,6 +68,18 @@ export function imprimirCupom(dadosVenda) {
     dadosVenda.Funcionario ||
     getOperadorAtual()?.nome ||
     "Sistema";
+
+  const carrinhoItens = (dadosVenda.carrinho || [])
+    .map(
+      (item) => `
+      <tr>
+        <td>${item.descricao?.substring(0, 20) || "Item"}</td>
+        <td class="qtd">${item.qtd || 1}${item.tipoVenda === "kg" ? " kg" : item.tipoVenda === "pacote" ? " pct" : ""}</td>
+        <td class="valor">R$ ${(item.vUnit || 0).toFixed(2)}</td>
+        <td class="valor">R$ ${((item.qtd || 1) * (item.vUnit || 0)).toFixed(2)}</td>
+      </tr>`,
+    )
+    .join("");
 
   const conteudo = `
   <!DOCTYPE html>
@@ -105,17 +138,7 @@ export function imprimirCupom(dadosVenda) {
         </tr>
       </thead>
       <tbody>
-        ${(dadosVenda.carrinho || [])
-          .map(
-            (item) => `
-          <tr>
-            <td>${item.descricao?.substring(0, 20) || "Item"}</td>
-            <td class="qtd">${item.qtd || 1}${item.tipoVenda === "kg" ? " kg" : item.tipoVenda === "pacote" ? " pct" : ""}</td>
-            <td class="valor">R$ ${(item.vUnit || 0).toFixed(2)}</td>
-            <td class="valor">R$ ${((item.qtd || 1) * (item.vUnit || 0)).toFixed(2)}</td>
-          </tr>`,
-          )
-          .join("")}
+        ${carrinhoItens}
       </tbody>
     </table>
     <div class="divisoria"></div>
@@ -149,7 +172,6 @@ export function imprimirCupom(dadosVenda) {
       <p>Obrigado pela preferência!</p>
       <p>Sistema Simples - Gestão Comercial</p>
     </div>
-    <script>window.print();</script>
   </body>
   </html>`;
 
@@ -166,6 +188,19 @@ export function imprimirDANFE(nota) {
   }
 
   const estabelecimento = getDadosEstabelecimento();
+
+  const itensDanfe = (nota.dadosVenda?.carrinho || [])
+    .map(
+      (item) => `
+      <tr>
+        <td>${item.codigo || "000"}</td>
+        <td>${item.descricao || "Item"}</td>
+        <td>${item.qtd || 1}${item.tipoVenda === "kg" ? " kg" : item.tipoVenda === "pacote" ? " pct" : ""}</td>
+        <td>R$ ${(item.vUnit || 0).toFixed(2)}</td>
+        <td>R$ ${((item.qtd || 1) * (item.vUnit || 0)).toFixed(2)}</td>
+      </tr>`,
+    )
+    .join("");
 
   const conteudo = `
 <!DOCTYPE html>
@@ -224,18 +259,7 @@ export function imprimirDANFE(nota) {
       </tr>
     </thead>
     <tbody>
-      ${(nota.dadosVenda?.carrinho || [])
-        .map(
-          (item) => `
-        <tr>
-          <td>${item.codigo || "000"}</td>
-          <td>${item.descricao || "Item"}</td>
-          <td>${item.qtd || 1}${item.tipoVenda === "kg" ? " kg" : item.tipoVenda === "pacote" ? " pct" : ""}</td>
-          <td>R$ ${(item.vUnit || 0).toFixed(2)}</td>
-          <td>R$ ${((item.qtd || 1) * (item.vUnit || 0)).toFixed(2)}</td>
-        </tr>`,
-        )
-        .join("")}
+      ${itensDanfe}
     </tbody>
   </table>
 
@@ -252,7 +276,6 @@ export function imprimirDANFE(nota) {
     <p>NOTA FISCAL ELETRÔNICA - EMITIDA NOS TERMOS DA LEGISLAÇÃO</p>
     <p>Consulte pela chave de acesso em www.nfpaulista.fazenda.sp.gov.br</p>
   </div>
-  <script>window.print();</script>
 </body>
 </html>`;
 
@@ -265,6 +288,19 @@ export function imprimirDANFE(nota) {
 export function imprimirRelatorioVendas(dados) {
   const estabelecimento = getDadosEstabelecimento();
   const dataGeracao = formatarData();
+
+  const linhasVendas = (dados.vendas || [])
+    .map(
+      (venda, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${formatarData(venda.data)}</td>
+        <td>${venda.carrinho?.length || 0} itens</td>
+        <td>${venda.metodo || "N/A"}</td>
+        <td class="valor">R$ ${(venda.total || 0).toFixed(2)}</td>
+      </tr>`,
+    )
+    .join("");
 
   const conteudo = `
 <!DOCTYPE html>
@@ -324,18 +360,7 @@ export function imprimirRelatorioVendas(dados) {
       </tr>
     </thead>
     <tbody>
-      ${(dados.vendas || [])
-        .map(
-          (venda, i) => `
-        <tr>
-          <td>${i + 1}</td>
-          <td>${formatarData(venda.data)}</td>
-          <td>${venda.carrinho?.length || 0} itens</td>
-          <td>${venda.metodo || "N/A"}</td>
-          <td class="valor">R$ ${(venda.total || 0).toFixed(2)}</td>
-        </tr>`,
-        )
-        .join("")}
+      ${linhasVendas}
     </tbody>
   </table>
 
@@ -346,24 +371,8 @@ export function imprimirRelatorioVendas(dados) {
   <div class="footer">
     <p>System PDV - Gestão Comercial</p>
   </div>
-  <script>window.print();</script>
 </body>
 </html>`;
 
   abrirJanelaImpressao(conteudo);
-}
-
-/**
- * Abre uma janela para impressão
- */
-function abrirJanelaImpressao(conteudoHtml) {
-  const janela = window.open("", "_blank", "width=400,height=600");
-  if (!janela) {
-    alert(
-      "Pop-up bloqueado! Permita pop-ups para imprimir ou use Ctrl+P manualmente.",
-    );
-    return;
-  }
-  janela.document.write(conteudoHtml);
-  janela.document.close();
 }
