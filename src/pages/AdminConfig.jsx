@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { useAuth } from "../components/AuthContext";
 
+
 export default function AdminConfig() {
   const { changePassword, user } = useAuth();
-
+  const [mostrarSenha, setMostrarSenha] = useState(false);
   const [senhaAtual, setSenhaAtual] = useState("");
   const [novaSenha, setNovaSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
