@@ -44,12 +44,16 @@ function abrirJanelaImpressao(conteudoHtml) {
   janela.document.write(conteudoHtml);
   janela.document.close();
 
-  // Aguarda carregar para disparar a impressão sem falhas
+  // Aumentado para 500ms para aguardar a renderização completa do layout
   janela.onload = function () {
     setTimeout(() => {
       janela.focus();
       janela.print();
-    }, 250);
+
+      setTimeout(() => {
+        janela.close();
+      }, 500);
+    }, 500);
   };
 }
 
@@ -73,7 +77,7 @@ export function imprimirCupom(dadosVenda) {
     .map(
       (item) => `
       <tr>
-        <td>${item.descricao?.substring(0, 20) || "Item"}</td>
+        <td>${item.descricao?.substring(0, 18) || "Item"}</td>
         <td class="qtd">${item.qtd || 1}${item.tipoVenda === "kg" ? " kg" : item.tipoVenda === "pacote" ? " pct" : ""}</td>
         <td class="valor">R$ ${(item.vUnit || 0).toFixed(2)}</td>
         <td class="valor">R$ ${((item.qtd || 1) * (item.vUnit || 0)).toFixed(2)}</td>
@@ -88,29 +92,39 @@ export function imprimirCupom(dadosVenda) {
     <meta charset="UTF-8">
     <title>Cupom Fiscal</title>
     <style>
-      @page { margin: 0; size: 80mm auto; }
-      body {
-        font-family: 'Courier New', monospace;
-        font-size: 12px;
-        width: 80mm;
-        margin: 0 auto;
-        padding: 5px;
+      @page { 
+        margin: 0; 
+        size: 80mm auto; 
       }
-      .header { text-align: center; margin-bottom: 10px; }
-      .header h2 { font-size: 14px; margin: 2px 0; }
-      .header p { font-size: 10px; margin: 1px 0; color: #333; }
-      .divisoria { border-top: 1px dashed #000; margin: 5px 0; }
+      body {
+        /* Usamos Consolas/Monospace com peso mais espesso para evitar falhas de anti-aliasing */
+        font-family: 'Consolas', 'Courier New', monospace;
+        font-size: 11px;
+        font-weight: 600;
+        width: 78mm;
+        margin: 0 auto;
+        padding: 4px;
+        color: #000000 !important;
+        -webkit-font-smoothing: none;
+      }
+      * {
+        color: #000000 !important;
+      }
+      .header { text-align: center; margin-bottom: 8px; }
+      .header h2 { font-size: 13px; margin: 2px 0; font-weight: bold; }
+      .header p { font-size: 10px; margin: 1px 0; }
+      .divisoria { border-top: 1px solid #000; margin: 4px 0; }
       .info { font-size: 10px; margin: 3px 0; }
-      table { width: 100%; font-size: 11px; border-collapse: collapse; }
-      th { text-align: left; border-bottom: 1px dashed #000; padding: 2px 0; }
+      table { width: 100%; font-size: 10px; border-collapse: collapse; }
+      th { text-align: left; border-bottom: 1px solid #000; padding: 2px 0; font-weight: bold; }
       td { padding: 2px 0; }
       .qtd { text-align: center; }
       .valor { text-align: right; }
-      .total { font-weight: bold; font-size: 13px; text-align: right; margin: 5px 0; }
-      .footer { text-align: center; font-size: 10px; margin-top: 10px; }
+      .total { font-weight: bold; font-size: 12px; text-align: right; margin: 5px 0; }
+      .footer { text-align: center; font-size: 9px; margin-top: 8px; }
       .cpf { font-size: 10px; margin: 3px 0; }
       @media print {
-        body { margin: 0; padding: 5px; }
+        body { margin: 0; padding: 4px; }
       }
     </style>
   </head>
@@ -210,18 +224,18 @@ export function imprimirDANFE(nota) {
   <title>DANFE - NF-e ${nota.numeroNota}</title>
   <style>
     @page { margin: 10mm; }
-    body { font-family: 'Courier New', monospace; font-size: 12px; }
+    body { font-family: 'Consolas', monospace; font-size: 11px; color: #000; }
     .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; }
     .header h1 { font-size: 18px; margin: 5px 0; }
-    .chave { text-align: center; font-weight: bold; margin: 10px 0; padding: 8px; border: 1px dashed #000; font-size: 14px; letter-spacing: 1px; }
+    .chave { text-align: center; font-weight: bold; margin: 10px 0; padding: 8px; border: 1px dashed #000; font-size: 13px; letter-spacing: 1px; }
     .info { margin: 10px 0; }
-    .info-row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px dotted #ccc; }
+    .info-row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px dotted #000; }
     table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-    th, td { border: 1px solid #000; padding: 5px; text-align: left; font-size: 11px; }
+    th, td { border: 1px solid #000; padding: 5px; text-align: left; font-size: 10px; }
     th { background: #eee; }
-    .total { text-align: right; font-weight: bold; font-size: 16px; margin-top: 10px; }
+    .total { text-align: right; font-weight: bold; font-size: 15px; margin-top: 10px; }
     .footer { text-align: center; margin-top: 20px; font-size: 10px; border-top: 1px solid #000; padding-top: 10px; }
-    .status { color: #006600; font-weight: bold; }
+    .status { font-weight: bold; }
     .qrcode { text-align: center; margin: 15px 0; padding: 10px; border: 1px solid #000; }
   </style>
 </head>
@@ -310,18 +324,18 @@ export function imprimirRelatorioVendas(dados) {
   <title>Relatório de Vendas</title>
   <style>
     @page { margin: 10mm; }
-    body { font-family: 'Courier New', monospace; font-size: 12px; }
+    body { font-family: 'Consolas', monospace; font-size: 11px; color: #000; }
     .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px; }
     .header h1 { font-size: 16px; margin: 5px 0; }
     .resumo { display: flex; justify-content: space-around; margin: 15px 0; }
     .resumo-item { text-align: center; }
-    .resumo-item .valor { font-size: 18px; font-weight: bold; }
-    .resumo-item .label { font-size: 10px; color: #666; }
+    .resumo-item .valor { font-size: 16px; font-weight: bold; }
+    .resumo-item .label { font-size: 10px; color: #000; }
     table { width: 100%; border-collapse: collapse; margin: 10px 0; }
     th, td { border: 1px solid #000; padding: 4px; text-align: left; font-size: 10px; }
     th { background: #eee; }
     .valor { text-align: right; }
-    .total-geral { text-align: right; font-weight: bold; font-size: 14px; margin-top: 10px; }
+    .total-geral { text-align: right; font-weight: bold; font-size: 13px; margin-top: 10px; }
     .footer { text-align: center; margin-top: 20px; font-size: 10px; border-top: 1px solid #000; padding-top: 10px; }
   </style>
 </head>
