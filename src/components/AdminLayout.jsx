@@ -22,7 +22,8 @@ export default function AdminLayout() {
     { to: "/admin/clientes", icon: "fa-users", text: "Clientes" },
     { to: "/admin/financeiro", icon: "fa-dollar-sign", text: "Financeiro" },
     { to: "/admin/planos", icon: "fa-crown", text: "Planos" },
-    { to: "/admin/configuracoes", icon: "fa-cog", text: "Configurações" }, // <--- ADICIONADO AQUI
+    { to: "/admin/backups", icon: "fa-database", text: "Backups" }, // <--- NOVO
+    { to: "/admin/configuracoes", icon: "fa-cog", text: "Configurações" },
   ];
 
   return (

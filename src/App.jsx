@@ -32,7 +32,7 @@ import AdminClientes from "./pages/AdminClientes.jsx";
 import AdminFinanceiro from "./pages/AdminFinanceiro.jsx";
 import AdminPlanos from "./pages/AdminPlanos.jsx";
 import AdminConfig from "./pages/AdminConfig.jsx";
-
+import AdminBackups from "./pages/AdminBackups.jsx";
 
 export default function App() {
   return (
@@ -79,6 +79,7 @@ export default function App() {
           <Route path="/admin/financeiro" element={<AdminFinanceiro />} />
           <Route path="/admin/planos" element={<AdminPlanos />} />
           <Route path="/admin/configuracoes" element={<AdminConfig />} />
+          <Route path="/admin/backups" element={<AdminBackups />} />
         </Route>
       </Route>
 

@@ -142,9 +142,7 @@ export async function modificarProdutosFirebase(modificar) {
     const docRef = getTenantDocRef(tenantId);
     produtos = await runTransaction(db, async (transaction) => {
       const docSnap = await transaction.get(docRef);
-      const produtosAtuais = docSnap.exists()
-        ? docSnap.data()?.produtos
-        : [];
+      const produtosAtuais = docSnap.exists() ? docSnap.data()?.produtos : [];
       const listaAtual = Array.isArray(produtosAtuais) ? produtosAtuais : [];
       const listaAtualizada = modificar(listaAtual);
       transaction.set(
@@ -191,10 +189,7 @@ export async function carregarProdutosFirebase() {
       const docRef = getTenantDocRef(tenantId);
       const docSnap = await getDoc(docRef);
 
-      if (
-        docSnap.exists() &&
-        Array.isArray(docSnap.data()?.produtos)
-      ) {
+      if (docSnap.exists() && Array.isArray(docSnap.data()?.produtos)) {
         const produtos = docSnap.data().produtos;
         localStorage.setItem(
           `pdv_produtos_${tenantId}`,
@@ -667,4 +662,80 @@ export async function carregarTenantFirebase(tenantId) {
     console.error("Erro ao carregar dados do tenant do Firebase:", error);
   }
   return null;
+}
+
+// ===== BACKUPS (EXPORTAR E RESTAURAR) =====
+
+// 1. Função de Exportar Backup (Baixa o array de produtos do documento do tenant)
+export async function exportarBackupTenant(tenantId) {
+  try {
+    const docRef = getTenantDocRef(tenantId);
+    const docSnap = await getDoc(docRef);
+
+    if (!docSnap.exists()) {
+      throw new Error("Tenant não encontrado.");
+    }
+
+    const dadosTenant = docSnap.data();
+    const produtos = Array.isArray(dadosTenant.produtos)
+      ? dadosTenant.produtos
+      : [];
+
+    const dataStr =
+      "data:text/json;charset=utf-8," +
+      encodeURIComponent(JSON.stringify(produtos, null, 2));
+
+    const downloadAnchor = document.createElement("a");
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute(
+      "download",
+      `backup_${tenantId}_${new Date().toISOString().slice(0, 10)}.json`,
+    );
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+
+    return { sucesso: true, total: produtos.length };
+  } catch (error) {
+    console.error("Erro ao gerar backup:", error);
+    throw error;
+  }
+}
+
+// 2. Função de Restaurar Backup (Envia os produtos de volta para o documento do tenant)
+export async function restaurarBackupTenant(tenantId, arquivoJson) {
+  return new Promise((resolve, reject) => {
+    const leitor = new FileReader();
+
+    leitor.onload = async (evento) => {
+      try {
+        const produtosBackup = JSON.parse(evento.target.result);
+
+        if (!Array.isArray(produtosBackup)) {
+          throw500: new Error(
+            "O arquivo de backup não contém uma lista válida de produtos.",
+          );
+        }
+
+        console.log(
+          `Iniciando restauração de ${produtosBackup.length} itens...`,
+        );
+
+        const docRef = getTenantDocRef(tenantId);
+
+        // Como os produtos ficam salvos em um array dentro do documento do tenant,
+        // salvamos a lista completa de uma vez com o setDoc e merge: true
+        await setDoc(docRef, { produtos: produtosBackup }, { merge: true });
+
+        console.log("Restauração concluída com sucesso!");
+        resolve({ sucesso: true, totalRestaurado: produtosBackup.length });
+      } catch (erro) {
+        console.error("Erro ao restaurar backup:", erro);
+        reject(erro);
+      }
+    };
+
+    leitor.onerror = (erro) => reject(erro);
+    leitor.readAsText(arquivoJson);
+  });
 }
