@@ -666,7 +666,7 @@ export async function carregarTenantFirebase(tenantId) {
 
 // ===== BACKUPS (EXPORTAR E RESTAURAR) =====
 
-// 1. Função de Exportar Backup (Baixa o array de produtos do documento do tenant)
+/// 1. Função de Exportar Backup Completo (Produtos, Vendas e Categorias)
 export async function exportarBackupTenant(tenantId) {
   try {
     const docRef = getTenantDocRef(tenantId);
@@ -677,58 +677,113 @@ export async function exportarBackupTenant(tenantId) {
     }
 
     const dadosTenant = docSnap.data();
-    const produtos = Array.isArray(dadosTenant.produtos)
-      ? dadosTenant.produtos
-      : [];
+
+    // Vamos buscar também as vendas que ficam na subcoleção 'vendas'
+    const vendasRef = collection(db, "tenants", tenantId, "vendas");
+    const vendasSnapshot = await getDocs(vendasRef);
+    const vendas = [];
+    vendasSnapshot.forEach((vendaDoc) => {
+      vendas.push({
+        id: vendaDoc.id,
+        ...vendaDoc.data(),
+      });
+    });
+
+    // Montamos um objeto único contendo tudo do cliente
+    const backupCompleto = {
+      tenantId: tenantId,
+      dataBackup: new Date().toISOString(),
+      info: dadosTenant.info || {},
+      configNFP: dadosTenant.configNFP || null,
+      produtos: Array.isArray(dadosTenant.produtos) ? dadosTenant.produtos : [],
+      categorias: Array.isArray(dadosTenant.categorias) ? dadosTenant.categorias : [],
+      vendas: vendas, // Incluindo o histórico de vendas
+    };
 
     const dataStr =
       "data:text/json;charset=utf-8," +
-      encodeURIComponent(JSON.stringify(produtos, null, 2));
+      encodeURIComponent(JSON.stringify(backupCompleto, null, 2));
 
     const downloadAnchor = document.createElement("a");
     downloadAnchor.setAttribute("href", dataStr);
     downloadAnchor.setAttribute(
       "download",
-      `backup_${tenantId}_${new Date().toISOString().slice(0, 10)}.json`,
+      `backup_completo_${tenantId}_${new Date().toISOString().slice(0, 10)}.json`,
     );
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
 
-    return { sucesso: true, total: produtos.length };
+    return { 
+      sucesso: true, 
+      totalProdutos: backupCompleto.produtos.length,
+      totalVendas: vendas.length,
+      totalCategorias: backupCompleto.categorias.length
+    };
   } catch (error) {
-    console.error("Erro ao gerar backup:", error);
+    console.error("Erro ao gerar backup completo:", error);
     throw error;
   }
 }
 
-// 2. Função de Restaurar Backup (Envia os produtos de volta para o documento do tenant)
+// 2. Função de Restaurar Backup Completo
 export async function restaurarBackupTenant(tenantId, arquivoJson) {
   return new Promise((resolve, reject) => {
     const leitor = new FileReader();
 
     leitor.onload = async (evento) => {
       try {
-        const produtosBackup = JSON.parse(evento.target.result);
-
-        if (!Array.isArray(produtosBackup)) {
-          throw500: new Error(
-            "O arquivo de backup não contém uma lista válida de produtos.",
-          );
+        const dadosBackup = JSON.parse(evento.target.result);
+        
+        // Validação básica para garantir que é um arquivo compatível
+        if (!dadosBackup || typeof dadosBackup !== "object") {
+          throw new Error("O arquivo de backup é inválido ou corrompido.");
         }
 
-        console.log(
-          `Iniciando restauração de ${produtosBackup.length} itens...`,
-        );
+        console.log("Iniciando restauração completa...");
 
         const docRef = getTenantDocRef(tenantId);
+        
+        // 1. Restaura produtos, categorias, info e configNFP direto no documento do tenant
+        const dadosParaRestaurar = {
+          produtos: Array.isArray(dadosBackup.produtos) ? dadosBackup.produtos : [],
+          categorias: Array.isArray(dadosBackup.categorias) ? dadosBackup.categorias : [],
+        };
 
-        // Como os produtos ficam salvos em um array dentro do documento do tenant,
-        // salvamos a lista completa de uma vez com o setDoc e merge: true
-        await setDoc(docRef, { produtos: produtosBackup }, { merge: true });
+        if (dadosBackup.info) dadosParaRestaurar.info = dadosBackup.info;
+        if (dadosBackup.configNFP) dadosParaRestaurar.configNFP = dadosBackup.configNFP;
 
-        console.log("Restauração concluída com sucesso!");
-        resolve({ sucesso: true, totalRestaurado: produtosBackup.length });
+        await setDoc(docRef, dadosParaRestaurar, { merge: true });
+
+        // 2. Restaura as vendas na subcoleção (usando batch para garantir performance)
+        let totalVendasRestauradas = 0;
+        if (Array.isArray(dadosBackup.vendas) && dadosBackup.vendas.length > 0) {
+          const TAMANHO_LOTE = 500;
+          for (let i = 0; i < dadosBackup.vendas.length; i += TAMANHO_LOTE) {
+            const loteAtual = dadosBackup.vendas.slice(i, i + TAMANHO_LOTE);
+            const batch = writeBatch(db);
+
+            loteAtual.forEach((venda) => {
+              const { id, ...dadosVenda } = venda;
+              // Se tiver ID original, mantém; senão o firestore gera um novo
+              const vendaRef = id 
+                ? doc(db, "tenants", tenantId, "vendas", id) 
+                : doc(collection(db, "tenants", tenantId, "vendas"));
+              
+              batch.set(vendaRef, dadosVenda, { merge: true });
+            });
+
+            await batch.commit();
+            totalVendasRestauradas += loteAtual.length;
+          }
+        }
+
+        console.log("Restauração completa concluída com sucesso!");
+        resolve({ 
+          sucesso: true, 
+          totalRestaurado: dadosParaRestaurar.produtos.length,
+          totalVendasRestauradas: totalVendasRestauradas
+        });
       } catch (erro) {
         console.error("Erro ao restaurar backup:", erro);
         reject(erro);
