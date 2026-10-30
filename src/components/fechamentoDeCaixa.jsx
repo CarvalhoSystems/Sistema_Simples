@@ -151,87 +151,97 @@ function imprimirRelatorioFechamento(dados) {
     .join("");
 
   const conteudo = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Fechamento de Caixa</title>
-  <style>
-    @page { margin: 0; size: 80mm auto; }
-    body {
-      font-family: 'Courier New', monospace;
-      font-size: 11px;
-      width: 80mm;
-      margin: 0 auto;
-      padding: 5px;
-      color: #000;
-    }
-    .center { text-align: center; }
-    .header { text-align: center; margin-bottom: 8px; }
-    .header h2 { font-size: 13px; margin: 3px 0; }
-    .header p { font-size: 10px; margin: 1px 0; }
-    .linha { border-top: 1px dashed #000; margin: 5px 0; }
-    .flex { display: flex; justify-content: space-between; }
-    .info { font-size: 10px; margin: 2px 0; }
-    .destaque { font-size: 12px; font-weight: bold; }
-    .total { font-size: 14px; font-weight: bold; text-align: right; margin: 5px 0; }
-    .footer { text-align: center; font-size: 9px; margin-top: 10px; }
-    .assinatura { text-align: center; margin-top: 15px; font-size: 10px; }
-    @media print { body { margin: 0; padding: 5px; } }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h2>${dados.loja.nome}</h2>
-    <p>CNPJ: ${dados.loja.cnpj}</p>
-    <p>${dados.loja.endereco}</p>
-    <p>Tel: ${dados.loja.telefone}</p>
-    ${dados.loja.email ? `<p>E-mail: ${dados.loja.email}</p>` : ""}
-  </div>
-  <div class="linha"></div>
-  <div class="center"><strong style="font-size: 12px;">FECHAMENTO DE CAIXA</strong></div>
-  <div class="linha"></div>
-  <div class="info">
-    <div class="flex"><span>Data:</span><span>${new Date(dados.data).toLocaleDateString("pt-BR")}</span></div>
-    <div class="flex"><span>Horário:</span><span>${new Date(dados.data).toLocaleTimeString("pt-BR")}</span></div>
-    <div class="flex"><span>Operador:</span><span>${dados.operador}</span></div>
-    <div class="flex"><span>Qtd. Vendas:</span><span>${dados.quantVendas}</span></div>
-  </div>
-  <div class="linha"></div>
-  <div class="destaque" style="text-align: center; margin-bottom: 5px;">RESUMO POR PAGAMENTO</div>
-  ${metodosLinhas}
-  <div class="linha"></div>
-  <div class="total">
-    VALOR TOTAL: R$ ${dados.totalGeral.toFixed(2)}
-  </div>
-  <div class="linha"></div>
-
-  <div class="destaque" style="text-align: center; margin-bottom: 5px;">VENDAS REALIZADAS</div>
-  ${dados.vendas
-    .map(
-      (venda, i) => `
-    <div class="info" style="font-size: 9px;">
-      <div class="flex">
-        <span>#${i + 1}${new Date(venda.data).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
-        <span>${venda.metodo || "N/A"}</span>
-        <span>R$ ${(venda.total || 0).toFixed(2)}</span>
-      </div>
-    </div>`,
-    )
-    .join("")}
-
-  <div class="linha"></div>
-  <div class="footer">
-    <p>Obrigado pela preferência!</p>
-    <p>System PDV - Gestão Comercial</p>
-  </div>
-  <div class="assinatura">
-    _________________________________<br/>
-    Assinatura do Operador
-  </div>
-  <script>window.print();</script>
-</body>
-</html>`;
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Fechamento de Caixa</title>
+    <style>
+      @page { margin: 0; size: 80mm auto; }
+      body {
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 11px;
+        font-weight: bold; /* Deixa todo o corpo do texto em negrito por padrão */
+        width: 80mm;
+        margin: 0 auto;
+        padding: 5px;
+        color: #000;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .center { text-align: center; font-weight: bold; }
+      .header { text-align: center; margin-bottom: 8px; font-weight: bold; }
+      .header h2 { font-size: 13px; margin: 3px 0; font-weight: bold; }
+      .header p { font-size: 10px; margin: 1px 0; font-weight: bold; }
+      .linha { border-top: 1px solid #000; margin: 5px 0; } /* Alterado para solid para evitar falhas nos traços tracejados */
+      .flex { display: flex; justify-content: space-between; font-weight: bold; }
+      .info { font-size: 10px; margin: 2px 0; font-weight: bold; }
+      .destaque { font-size: 12px; font-weight: bold; }
+      .total { font-size: 14px; font-weight: bold; text-align: right; margin: 5px 0; }
+      .footer { text-align: center; font-size: 9px; margin-top: 10px; font-weight: bold; }
+      .assinatura { text-align: center; margin-top: 15px; font-size: 10px; font-weight: bold; }
+      @media print { 
+        body { 
+          margin: 0; 
+          padding: 5px; 
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        } 
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h2>${dados.loja.nome}</h2>
+      <p>CNPJ: ${dados.loja.cnpj}</p>
+      <p>${dados.loja.endereco}</p>
+      <p>Tel: ${dados.loja.telefone}</p>
+      ${dados.loja.email ? `<p>E-mail: ${dados.loja.email}</p>` : ""}
+    </div>
+    <div class="linha"></div>
+    <div class="center" style="font-size: 12px;">FECHAMENTO DE CAIXA</div>
+    <div class="linha"></div>
+    <div class="info">
+      <div class="flex"><span>Data:</span><span>${new Date(dados.data).toLocaleDateString("pt-BR")}</span></div>
+      <div class="flex"><span>Horário:</span><span>${new Date(dados.data).toLocaleTimeString("pt-BR")}</span></div>
+      <div class="flex"><span>Operador:</span><span>${dados.operador}</span></div>
+      <div class="flex"><span>Qtd. Vendas:</span><span>${dados.quantVendas}</span></div>
+    </div>
+    <div class="linha"></div>
+    <div class="destaque" style="text-align: center; margin-bottom: 5px;">RESUMO POR PAGAMENTO</div>
+    ${metodosLinhas}
+    <div class="linha"></div>
+    <div class="total">
+      VALOR TOTAL: R$ ${dados.totalGeral.toFixed(2)}
+    </div>
+    <div class="linha"></div>
+  
+    <div class="destaque" style="text-align: center; margin-bottom: 5px;">VENDAS REALIZADAS</div>
+    ${dados.vendas
+      .map(
+        (venda, i) => `
+      <div class="info" style="font-size: 9px;">
+        <div class="flex">
+          <span>#${i + 1} ${new Date(venda.data).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
+          <span>${venda.metodo || "N/A"}</span>
+          <span>R$ ${(venda.total || 0).toFixed(2)}</span>
+        </div>
+      </div>`,
+      )
+      .join("")}
+  
+    <div class="linha"></div>
+    <div class="footer">
+      <p>Obrigado pela preferência!</p>
+      <p>System PDV - Gestão Comercial</p>
+    </div>
+    <div class="assinatura">
+      _________________________________<br/>
+      Assinatura do Operador
+    </div>
+    <script>window.print();</script>
+  </body>
+  </html>`;
 
   const janela = window.open("", "_blank", "width=400,height=600");
   if (janela) {
