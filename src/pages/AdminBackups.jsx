@@ -68,17 +68,17 @@ export default function AdminBackups() {
   };
 
   return (
-    <div className="p-6 md:p-10 max-w-5xl mx-auto text-gray-100 min-h-screen">
+    <div className="p-6 md:p-10 max-w-5xl mx-auto text-white-600 min-h-screen">
       {/* Cabeçalho */}
       <div className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800/80 pb-6">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-white flex items-center gap-3">
+          <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-green-500 to-red-600 bg-clip-text text-transparent flex items-center gap-3">
             <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 shadow-sm">
               <i className="fas fa-database text-xl"></i>
             </div>
             Gestão de Backups e Segurança
           </h1>
-          <p className="text-sm text-gray-400 mt-2">
+          <p className="text-sm text-black-400 mt-2">
             Exporte ou recupere cópias de segurança do estoque e produtos dos
             seus clientes ativos
           </p>
@@ -113,7 +113,7 @@ export default function AdminBackups() {
               placeholder="Ex: BN6qGYDZMQWTvt0BxCKUyR3LBQ63"
               className="w-full px-4 py-3 bg-gray-950/70 border border-gray-800 rounded-xl text-sm text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 focus:outline-none transition-all"
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-white mt-1">
               Copie e cole o ID do documento da coleção <code>tenants</code> do
               Firebase.
             </p>
