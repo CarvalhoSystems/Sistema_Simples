@@ -36,25 +36,44 @@ function formatarData(data) {
  * Abre uma janela para impressão de forma segura (Escopo Global)
  */
 function abrirJanelaImpressao(conteudoHtml) {
-  const janela = window.open("", "_blank", "width=400,height=600");
-  if (!janela) {
-    alert("Pop-up bloqueado! Permita pop-ups para imprimir.");
-    return;
-  }
-  janela.document.write(conteudoHtml);
-  janela.document.close();
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "80mm";
+  iframe.style.height = "100vh";
+  iframe.style.border = "0";
+  iframe.style.opacity = "0";
 
-  // Aumentado para 500ms para aguardar a renderização completa do layout
-  janela.onload = function () {
+  iframe.onload = function () {
     setTimeout(() => {
-      janela.focus();
-      janela.print();
+      const janelaImpressao = iframe.contentWindow;
+      if (!janelaImpressao) {
+        iframe.remove();
+        alert("Não foi possível iniciar a impressão.");
+        return;
+      }
 
+      janelaImpressao.focus();
+      janelaImpressao.print();
       setTimeout(() => {
-        janela.close();
+        iframe.remove();
       }, 500);
     }, 500);
   };
+
+  document.body.appendChild(iframe);
+  const documento = iframe.contentDocument;
+  if (!documento) {
+    iframe.remove();
+    alert("Não foi possível preparar o documento para impressão.");
+    return;
+  }
+
+  documento.open();
+  documento.write(conteudoHtml);
+  documento.close();
 }
 
 /**
@@ -85,19 +104,80 @@ export function imprimirCupom(dadosVenda) {
     )
     .join("");
 
+  const gerarVia = (identificacao) => `
+    <section class="via">
+      <div class="header">
+        <h2>${estabelecimento.nome}</h2>
+        <p>${identificacao}</p>
+        <p>${getTenant()?.nomeEstabelecimento || estabelecimento.endereco}</p>
+        <p>CNPJ: ${getTenant()?.cnpj || estabelecimento.cnpj}</p>
+        <p>Tel: ${getTenant()?.telefone || estabelecimento.telefone}</p>
+      </div>
+      <div class="divisoria"></div>
+      <div class="info">
+        <p>Data: ${dataHora}</p>
+        <p>Operador: ${operador}</p>
+        ${dadosVenda.cpfCliente ? `<p class="cpf">CPF: ${dadosVenda.cpfCliente}</p>` : ""}
+      </div>
+      <div class="divisoria"></div>
+      <table>
+        <thead>
+          <tr>
+            <th>ITEM</th>
+            <th class="qtd">QTD</th>
+            <th class="valor">VL.UN</th>
+            <th class="valor">TOTAL</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${carrinhoItens}
+        </tbody>
+      </table>
+      <div class="divisoria"></div>
+      <div class="info">
+        <p>Subtotal: R$ ${(dadosVenda.subtotal || 0).toFixed(2)}</p>
+        ${dadosVenda.desconto ? `<p>Desconto: R$ ${(dadosVenda.desconto || 0).toFixed(2)}</p>` : ""}
+      </div>
+      <div class="total">
+        <p>VALOR TOTAL: R$ ${(dadosVenda.total || 0).toFixed(2)}</p>
+      </div>
+      <div class="divisoria"></div>
+      <div class="info">
+        <p>Forma de Pagamento: ${dadosVenda.metodo || "N/A"}</p>
+        ${dadosVenda.valorPago != null ? `<p>Valor Pago: ${formatCurrency(dadosVenda.valorPago)}</p>` : ""}
+        ${dadosVenda.troco != null ? `<p>Troco: ${formatCurrency(dadosVenda.troco)}</p>` : ""}
+      </div>
+      ${
+        dadosVenda.notaFiscal
+          ? `
+      <div class="divisoria"></div>
+      <div class="info" style="font-size: 9px;">
+        <p>NF-e: ${dadosVenda.notaFiscal.numeroNota}</p>
+        <p>Chave: ${dadosVenda.notaFiscal.chaveAcesso}</p>
+        <p>Protocolo: ${dadosVenda.notaFiscal.protocolo}</p>
+      </div>
+      `
+          : ""
+      }
+      <div class="divisoria"></div>
+      <div class="footer">
+        <p>Obrigado pela preferência!</p>
+        <p>Sistema Simples - Gestão Comercial</p>
+      </div>
+    </section>`;
+
   const conteudo = `
   <!DOCTYPE html>
   <html>
   <head>
     <meta charset="UTF-8">
-    <title>Cupom Fiscal</title>
+    <title>Cupons da venda</title>
     <style>
-      @page { 
-        margin: 0; 
-        size: 80mm auto; 
+      @page {
+        margin: 0;
+        size: 80mm auto;
       }
       body {
-        /* Usamos Consolas/Monospace com peso mais espesso para evitar falhas de anti-aliasing */
         font-family: 'Consolas', 'Courier New', monospace;
         font-size: 11px;
         font-weight: 600;
@@ -109,6 +189,14 @@ export function imprimirCupom(dadosVenda) {
       }
       * {
         color: #000000 !important;
+      }
+      .via {
+        page-break-after: always;
+        break-after: page;
+      }
+      .via:last-child {
+        page-break-after: auto;
+        break-after: auto;
       }
       .header { text-align: center; margin-bottom: 8px; }
       .header h2 { font-size: 13px; margin: 2px 0; font-weight: bold; }
@@ -129,63 +217,8 @@ export function imprimirCupom(dadosVenda) {
     </style>
   </head>
   <body>
-    <div class="header">
-      <h2>${estabelecimento.nome}</h2>
-      <p>${getTenant()?.nomeEstabelecimento || estabelecimento.endereco}</p>
-      <p>CNPJ: ${getTenant()?.cnpj || estabelecimento.cnpj}</p>
-      <p>Tel: ${getTenant()?.telefone || estabelecimento.telefone}</p>
-    </div>
-    <div class="divisoria"></div>
-    <div class="info">
-      <p>Data: ${dataHora}</p>
-      <p>Operador: ${operador}</p>
-      ${dadosVenda.cpfCliente ? `<p class="cpf">CPF: ${dadosVenda.cpfCliente}</p>` : ""}
-    </div>
-    <div class="divisoria"></div>
-    <table>
-      <thead>
-        <tr>
-          <th>ITEM</th>
-          <th class="qtd">QTD</th>
-          <th class="valor">VL.UN</th>
-          <th class="valor">TOTAL</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${carrinhoItens}
-      </tbody>
-    </table>
-    <div class="divisoria"></div>
-    <div class="info">
-      <p>Subtotal: R$ ${(dadosVenda.subtotal || 0).toFixed(2)}</p>
-      ${dadosVenda.desconto ? `<p>Desconto: R$ ${(dadosVenda.desconto || 0).toFixed(2)}</p>` : ""}
-    </div>
-    <div class="total">
-      <p>VALOR TOTAL: R$ ${(dadosVenda.total || 0).toFixed(2)}</p>
-    </div>
-    <div class="divisoria"></div>
-    <div class="info">
-      <p>Forma de Pagamento: ${dadosVenda.metodo || "N/A"}</p>
-      ${dadosVenda.valorPago != null ? `<p>Valor Pago: ${formatCurrency(dadosVenda.valorPago)}</p>` : ""}
-      ${dadosVenda.troco != null ? `<p>Troco: ${formatCurrency(dadosVenda.troco)}</p>` : ""}
-    </div>
-    ${
-      dadosVenda.notaFiscal
-        ? `
-    <div class="divisoria"></div>
-    <div class="info" style="font-size: 9px;">
-      <p>NF-e: ${dadosVenda.notaFiscal.numeroNota}</p>
-      <p>Chave: ${dadosVenda.notaFiscal.chaveAcesso}</p>
-      <p>Protocolo: ${dadosVenda.notaFiscal.protocolo}</p>
-    </div>
-    `
-        : ""
-    }
-    <div class="divisoria"></div>
-    <div class="footer">
-      <p>Obrigado pela preferência!</p>
-      <p>Sistema Simples - Gestão Comercial</p>
-    </div>
+    ${gerarVia("VIA DO CLIENTE")}
+    ${gerarVia("VIA DO ESTABELECIMENTO")}
   </body>
   </html>`;
 
