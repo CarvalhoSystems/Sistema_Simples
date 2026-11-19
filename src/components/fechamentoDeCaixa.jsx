@@ -149,6 +149,33 @@ function imprimirRelatorioFechamento(dados) {
       return `<div class="flex"><span>${metodoPadded}</span><span>${valorStr}</span></div>`;
     })
     .join("");
+  const vendasLinhas = dados.vendas
+    .map((venda, i) => {
+      const itens = (venda.carrinho || []).map((item) => {
+        const quantidade =
+          item.tipoVenda === "kg"
+            ? `${item.qtd || 1} kg`
+            : item.tipoVenda === "pacote"
+              ? `${item.qtd || 1} pct`
+              : `${item.qtd || 1} un`;
+        return `
+          <div class="flex item-linha">
+            <span>${item.descricao || "Item"} (${quantidade})</span>
+            <span>R$ ${((item.qtd || 1) * (item.vUnit || 0)).toFixed(2)}</span>
+          </div>`;
+      }).join("");
+
+      return `
+      <div class="info venda-dia">
+        <div class="flex" style="margin-bottom: 3px;">
+          <span>#${i + 1} ${new Date(venda.data).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
+          <span>${venda.metodo || "N/A"}</span>
+          <span>R$ ${(venda.total || 0).toFixed(2)}</span>
+        </div>
+        ${itens || '<div class="item-linha">Nenhum item informado</div>'}
+      </div>`;
+    })
+    .join("");
 
   const conteudo = `
   <!DOCTYPE html>
@@ -180,6 +207,8 @@ function imprimirRelatorioFechamento(dados) {
       .total { font-size: 14px; font-weight: bold; text-align: right; margin: 5px 0; }
       .footer { text-align: center; font-size: 9px; margin-top: 10px; font-weight: bold; }
       .assinatura { text-align: center; margin-top: 15px; font-size: 10px; font-weight: bold; }
+      .venda-dia { margin-bottom: 6px; }
+      .item-linha { font-size: 9px; padding-left: 8px; }
       @media print { 
         body { 
           margin: 0; 
@@ -217,18 +246,7 @@ function imprimirRelatorioFechamento(dados) {
     <div class="linha"></div>
   
     <div class="destaque" style="text-align: center; margin-bottom: 5px;">VENDAS REALIZADAS</div>
-    ${dados.vendas
-      .map(
-        (venda, i) => `
-      <div class="info" style="font-size: 9px;">
-        <div class="flex">
-          <span>#${i + 1} ${new Date(venda.data).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
-          <span>${venda.metodo || "N/A"}</span>
-          <span>R$ ${(venda.total || 0).toFixed(2)}</span>
-        </div>
-      </div>`,
-      )
-      .join("")}
+    ${vendasLinhas}
   
     <div class="linha"></div>
     <div class="footer">

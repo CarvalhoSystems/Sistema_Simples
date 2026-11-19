@@ -104,12 +104,45 @@ export function imprimirCupom(dadosVenda) {
     )
     .join("");
 
-  const gerarVia = (identificacao) => `
-    <section class="via">
+  const conteudo = `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Cupom da venda</title>
+    <style>
+      @page { margin: 0; size: 80mm auto; }
+      body {
+        font-family: 'Consolas', 'Courier New', monospace;
+        font-size: 11px;
+        font-weight: 600;
+        width: 78mm;
+        margin: 0 auto;
+        padding: 4px;
+        color: #000000 !important;
+        -webkit-font-smoothing: none;
+      }
+      * { color: #000000 !important; }
+      .header { text-align: center; margin-bottom: 8px; }
+      .header h2 { font-size: 13px; margin: 2px 0; font-weight: bold; }
+      .header p { font-size: 10px; margin: 1px 0; }
+      .divisoria { border-top: 1px solid #000; margin: 4px 0; }
+      .info { font-size: 10px; margin: 3px 0; }
+      table { width: 100%; font-size: 10px; border-collapse: collapse; }
+      th { text-align: left; border-bottom: 1px solid #000; padding: 2px 0; font-weight: bold; }
+      td { padding: 2px 0; }
+      .qtd { text-align: center; }
+      .valor { text-align: right; }
+      .total { font-weight: bold; font-size: 12px; text-align: right; margin: 5px 0; }
+      .footer { text-align: center; font-size: 9px; margin-top: 8px; }
+      .cpf { font-size: 10px; margin: 3px 0; }
+      @media print { body { margin: 0; padding: 4px; } }
+    </style>
+  </head>
+  <body>
       <div class="header">
         <h2>${estabelecimento.nome}</h2>
-        <p>${identificacao}</p>
-        <p>${getTenant()?.nomeEstabelecimento || estabelecimento.endereco}</p>
+        <p>${getTenant()?.nomeEstabelecimento || estabelecimento.nome}</p>
         <p>CNPJ: ${getTenant()?.cnpj || estabelecimento.cnpj}</p>
         <p>Tel: ${getTenant()?.telefone || estabelecimento.telefone}</p>
       </div>
@@ -129,9 +162,7 @@ export function imprimirCupom(dadosVenda) {
             <th class="valor">TOTAL</th>
           </tr>
         </thead>
-        <tbody>
-          ${carrinhoItens}
-        </tbody>
+        <tbody>${carrinhoItens}</tbody>
       </table>
       <div class="divisoria"></div>
       <div class="info">
@@ -155,8 +186,7 @@ export function imprimirCupom(dadosVenda) {
         <p>NF-e: ${dadosVenda.notaFiscal.numeroNota}</p>
         <p>Chave: ${dadosVenda.notaFiscal.chaveAcesso}</p>
         <p>Protocolo: ${dadosVenda.notaFiscal.protocolo}</p>
-      </div>
-      `
+      </div>`
           : ""
       }
       <div class="divisoria"></div>
@@ -164,66 +194,12 @@ export function imprimirCupom(dadosVenda) {
         <p>Obrigado pela preferência!</p>
         <p>Sistema Simples - Gestão Comercial</p>
       </div>
-    </section>`;
-
-  const conteudo = `
-  <!DOCTYPE html>
-  <html>
-  <head>
-    <meta charset="UTF-8">
-    <title>Cupons da venda</title>
-    <style>
-      @page {
-        margin: 0;
-        size: 80mm auto;
-      }
-      body {
-        font-family: 'Consolas', 'Courier New', monospace;
-        font-size: 11px;
-        font-weight: 600;
-        width: 78mm;
-        margin: 0 auto;
-        padding: 4px;
-        color: #000000 !important;
-        -webkit-font-smoothing: none;
-      }
-      * {
-        color: #000000 !important;
-      }
-      .via {
-        page-break-after: always;
-        break-after: page;
-      }
-      .via:last-child {
-        page-break-after: auto;
-        break-after: auto;
-      }
-      .header { text-align: center; margin-bottom: 8px; }
-      .header h2 { font-size: 13px; margin: 2px 0; font-weight: bold; }
-      .header p { font-size: 10px; margin: 1px 0; }
-      .divisoria { border-top: 1px solid #000; margin: 4px 0; }
-      .info { font-size: 10px; margin: 3px 0; }
-      table { width: 100%; font-size: 10px; border-collapse: collapse; }
-      th { text-align: left; border-bottom: 1px solid #000; padding: 2px 0; font-weight: bold; }
-      td { padding: 2px 0; }
-      .qtd { text-align: center; }
-      .valor { text-align: right; }
-      .total { font-weight: bold; font-size: 12px; text-align: right; margin: 5px 0; }
-      .footer { text-align: center; font-size: 9px; margin-top: 8px; }
-      .cpf { font-size: 10px; margin: 3px 0; }
-      @media print {
-        body { margin: 0; padding: 4px; }
-      }
-    </style>
-  </head>
-  <body>
-    ${gerarVia("VIA DO CLIENTE")}
-    ${gerarVia("VIA DO ESTABELECIMENTO")}
   </body>
   </html>`;
 
   abrirJanelaImpressao(conteudo);
 }
+
 
 /**
  * 2. IMPRESSÃO DO DANFE (Nota Fiscal Paulista)
